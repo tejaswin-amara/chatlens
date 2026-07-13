@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatLens — AI Chat Analysis</title>
+<meta name="description" content="AI-powered chat analysis tool for Telegram and WhatsApp conversations">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--bg-card:rgba(255,255,255,.04);--bg-card-hover:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);--border-active:rgba(0,212,170,.4);
+  --text:#e4e4e7;--text-dim:#71717a;--text-bright:#fafafa;
+  --accent:#00d4aa;--accent-glow:rgba(0,212,170,.15);
+  --telegram:#2aabee;--whatsapp:#25d366;
+  --radius:12px;--radius-sm:8px;
+}
+html{font-size:15px}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex}
+
+/* ── Sidebar ────────────────────────────────────────── */
+.sidebar{width:300px;min-width:260px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:rgba(10,10,18,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.sidebar-header{padding:24px 20px 16px;border-bottom:1px solid var(--border)}
+.logo{font-size:1.4rem;font-weight:700;color:var(--text-bright);display:flex;align-items:center;gap:8px}
+.logo span{background:linear-gradient(135deg,var(--accent),#00b4d8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sidebar-stats{font-size:.75rem;color:var(--text-dim);margin-top:8px}
+.chat-list{flex:1;overflow-y:auto;padding:8px}
+.chat-list::-webkit-scrollbar{width:4px}
+.chat-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.chat-item{padding:12px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:10px;margin-bottom:2px}
+.chat-item:hover{background:var(--bg-card-hover)}
+.chat-item.active{background:var(--accent-glow);border:1px solid var(--border-active)}
+.chat-item:not(.active){border:1px solid transparent}
+.badge{font-size:.6rem;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.badge-telegram{background:rgba(42,171,238,.15);color:var(--telegram)}
+.badge-whatsapp{background:rgba(37,211,102,.15);color:var(--whatsapp)}
+.chat-meta{flex:1;min-width:0}
+.chat-name{font-size:.85rem;font-weight:500;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-count{font-size:.7rem;color:var(--text-dim);margin-top:2px}
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:.85rem;line-height:1.6}
+
+/* ── Main ───────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,rgba(0,212,170,.03) 0%,transparent 100%)}
+.topbar-title{font-size:1.05rem;font-weight:600;color:var(--text-bright);flex:1}
+.btn{padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.78rem;font-weight:500;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn:hover{background:var(--bg-card-hover);border-color:rgba(255,255,255,.15)}
+.btn-primary{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.3);color:var(--accent)}
+.btn-primary:hover{background:rgba(0,212,170,.2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Messages area ──────────────────────────────────── */
+.messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:4px}
+.messages::-webkit-scrollbar{width:5px}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.msg{max-width:75%;padding:10px 14px;border-radius:var(--radius);font-size:.83rem;line-height:1.5;animation:fadeIn .25s ease}
+.msg-left{align-self:flex-start;background:var(--bg-card);border:1px solid var(--border)}
+.msg-right{align-self:flex-end;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.15)}
+.msg-sender{font-size:.7rem;font-weight:600;color:var(--accent);margin-bottom:3px}
+.msg-time{font-size:.65rem;color:var(--text-dim);margin-top:4px;text-align:right}
+.msg-text{word-break:break-word;white-space:pre-wrap}
+
+/* ── AI Card ────────────────────────────────────────── */
+.ai-card{align-self:stretch;background:linear-gradient(135deg,rgba(0,212,170,.06),rgba(0,180,216,.06));border:1px solid rgba(0,212,170,.2);border-radius:var(--radius);padding:18px 20px;margin:8px 0;animation:fadeIn .3s ease;backdrop-filter:blur(8px)}
+.ai-card-label{font-size:.7rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ai-card-label::before{content:'✦';font-size:.8rem}
+.ai-card-body{font-size:.84rem;line-height:1.7;color:var(--text)}
+.ai-card-body h1,.ai-card-body h2,.ai-card-body h3{font-size:.9rem;font-weight:600;color:var(--text-bright);margin:12px 0 4px}
+.ai-card-body ul,.ai-card-body ol{padding-left:18px;margin:4px 0}
+.ai-card-body p{margin:6px 0}
+.ai-card-section{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)}
+.ai-card-section-title{font-size:.75rem;font-weight:600;color:var(--accent);margin-bottom:8px}
+
+/* ── Input bar ──────────────────────────────────────── */
+.input-bar{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;background:rgba(10,10,18,.5);backdrop-filter:blur(12px)}
+.input-bar input{flex:1;padding:10px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.85rem;font-family:inherit;outline:none;transition:border .2s}
+.input-bar input:focus{border-color:var(--border-active)}
+.input-bar input::placeholder{color:var(--text-dim)}
+.send-btn{width:40px;height:40px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:var(--bg);font-size:1.1rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.send-btn:hover{filter:brightness(1.15);transform:scale(1.05)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ── Welcome ────────────────────────────────────────── */
+.welcome{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:40px}
+.welcome-icon{font-size:3.5rem;margin-bottom:16px}
+.welcome h2{font-size:1.3rem;font-weight:600;color:var(--text-bright);margin-bottom:8px}
+.welcome p{color:var(--text-dim);font-size:.85rem;max-width:360px;line-height:1.6}
+
+/* ── Loading ────────────────────────────────────────── */
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.loading-card{align-self:stretch;text-align:center;padding:30px;color:var(--text-dim);font-size:.84rem}
+
+/* ── Responsive ─────────────────────────────────────── */
+.sidebar-toggle{display:none;position:fixed;top:12px;left:12px;z-index:100;width:36px;height:36px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:1.2rem;cursor:pointer;backdrop-filter:blur(8px)}
+@media(max-width:700px){
+  .sidebar{position:fixed;left:-300px;top:0;bottom:0;z-index:90;transition:left .3s ease}
+  .sidebar.open{left:0}
+  .sidebar-toggle{display:flex;align-items:center;justify-content:center}
+  .msg{max-width:90%}
+}
+</style>
+</head>
+<body>
+
+<button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle sidebar">☰</button>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">🔍 <span>ChatLens</span></div>
+    <div class="sidebar-stats" id="statsLine"></div>
+  </div>
+  <div class="chat-list" id="chatList">
+    <div class="empty-state">Loading chats…</div>
+  </div>
+</aside>
+
+<main class="main" id="mainPanel">
+  <div class="topbar" id="topbar" style="display:none">
+    <div class="topbar-title" id="topbarTitle"></div>
+    <button class="btn btn-primary" id="btnSummarize" onclick="doSummarize()">Summarize</button>
+    <button class="btn btn-primary" id="btnAnalyze" onclick="doAnalyze()">Full Analysis</button>
+  </div>
+
+  <div class="welcome" id="welcome">
+    <div>
+      <div class="welcome-icon">🔍</div>
+      <h2>Welcome to ChatLens</h2>
+      <p>Select a chat from the sidebar to view messages, or use the input bar to ask questions across all your conversations.</p>
+    </div>
+  </div>
+
+  <div class="messages" id="messages" style="display:none"></div>
+
+  <div class="input-bar">
+    <input type="text" id="askInput" placeholder="Ask a question about your chats…" onkeydown="if(event.key==='Enter')doAsk()">
+    <button class="send-btn" id="sendBtn" onclick="doAsk()" title="Send">➤</button>
+  </div>
+</main>
+
+<script>
+let currentChat = null;
+
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+// ── Load chats ──────────────────────────────────────
+async function loadChats() {
+  const chats = await fetchJSON('/api/chats');
+  const el = document.getElementById('chatList');
+  if (!chats.length) { el.innerHTML = '<div class="empty-state">No chats imported yet.<br>Use the CLI to import chats.</div>'; return; }
+  el.innerHTML = chats.map(c => `
+    <div class="chat-item" data-name="${esc(c.name)}" onclick="selectChat('${esc(c.name)}')">
+      <span class="badge badge-${c.platform}">${c.platform}</span>
+      <div class="chat-meta">
+        <div class="chat-name">${esc(c.name)}</div>
+        <div class="chat-count">${c.message_count.toLocaleString()} messages</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Load stats
+  const stats = await fetchJSON('/api/stats');
+  document.getElementById('statsLine').textContent =
+    `${stats.total_messages.toLocaleString()} messages · ${stats.total_chats} chats`;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Select chat ─────────────────────────────────────
+async function selectChat(name) {
+  currentChat = name;
+  document.querySelectorAll('.chat-item').forEach(el => el.classList.toggle('active', el.dataset.name === name));
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('messages').style.display = 'flex';
+  document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('topbarTitle').textContent = name;
+  document.querySelector('.sidebar').classList.remove('open');
+
+  const msgEl = document.getElementById('messages');
+  msgEl.innerHTML = '<div class="loading-card"><span class="spinner"></span> Loading messages…</div>';
+
+  const msgs = await fetchJSON(`/api/messages?chat=${encodeURIComponent(name)}&limit=200`);
+  renderMessages(msgs);
+}
+
+function renderMessages(msgs) {
+  const el = document.getElementById('messages');
+  if (!msgs.length) { el.innerHTML = '<div class="empty-state">No messages.</div>'; return; }
+
+  const senders = [...new Set(msgs.map(m => m.sender))];
+  // First sender is "left" aligned, others alternate
+  const firstSender = senders[0];
+
+  el.innerHTML = msgs.map(m => {
+    const side = m.sender === firstSender ? 'msg-left' : 'msg-right';
+    const ts = m.timestamp ? new Date(m.timestamp).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="msg ${side}"><div class="msg-sender">${esc(m.sender)}</div><div class="msg-text">${esc(m.text)}</div><div class="msg-time">${ts}</div></div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── AI actions ──────────────────────────────────────
+function addAICard(label, body) {
+  const el = document.getElementById('messages');
+  el.style.display = 'flex';
+  document.getElementById('welcome').style.display = 'none';
+  const card = document.createElement('div');
+  card.className = 'ai-card';
+  card.innerHTML = `<div class="ai-card-label">${esc(label)}</div><div class="ai-card-body">${formatAI(body)}</div>`;
+  el.appendChild(card);
+  el.scrollTop = el.scrollHeight;
+}
+
+function addLoadingCard(text) {
+  const el = document.getElementById('messages');
+  const card = document.createElement('div');
+  card.className = 'loading-card';
+  card.id = 'loadingCard';
+  card.innerHTML = `<span class="spinner"></span> ${text}`;
+  el.appendChild(card);
+  el.scrollTop = el.scrollHeight;
+}
+
+function removeLoading() {
+  const lc = document.getElementById('loadingCard');
+  if (lc) lc.remove();
+}
+
+function formatAI(text) {
+  // Basic markdown-ish rendering
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/\n/g, '<br>');
+}
+
+function setButtons(disabled) {
+  document.getElementById('btnSummarize').disabled = disabled;
+  document.getElementById('btnAnalyze').disabled = disabled;
+  document.getElementById('sendBtn').disabled = disabled;
+}
+
+async function doSummarize() {
+  if (!currentChat) return;
+  setButtons(true);
+  addLoadingCard('Summarizing…');
+  try {
+    const data = await fetchJSON('/api/summarize', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({chat_name:currentChat})});
+    removeLoading();
+    addAICard('Summary', data.summary || data.error);
+  } catch(e) { removeLoading(); addAICard('Error', e.message); }
+  setButtons(false);
+}
+
+async function doAnalyze() {
+  if (!currentChat) return;
+  setButtons(true);
+  addLoadingCard('Running full analysis (this may take a moment)…');
+  try {
+    const data = await fetchJSON('/api/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({chat_name:currentChat})});
+    removeLoading();
+    if (data.error) { addAICard('Error', data.error); }
+    else {
+      const sections = ['summary','sentiment','topics','relationships','timeline'];
+      const body = sections.map(s => data[s] ? `<div class="ai-card-section"><div class="ai-card-section-title">${s.charAt(0).toUpperCase()+s.slice(1)}</div>${formatAI(data[s])}</div>` : '').join('');
+      addAICard('Full Analysis', '');
+      // Replace last card body with sectioned content
+      const cards = document.querySelectorAll('.ai-card');
+      const last = cards[cards.length-1];
+      last.querySelector('.ai-card-body').innerHTML = body;
+    }
+  } catch(e) { removeLoading(); addAICard('Error', e.message); }
+  setButtons(false);
+}
+
+async function doAsk() {
+  const input = document.getElementById('askInput');
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = '';
+
+  // Show user question as a right-aligned message
+  const el = document.getElementById('messages');
+  el.style.display = 'flex';
+  document.getElementById('welcome').style.display = 'none';
+  const qDiv = document.createElement('div');
+  qDiv.className = 'msg msg-right';
+  qDiv.innerHTML = `<div class="msg-sender">You</div><div class="msg-text">${esc(question)}</div>`;
+  el.appendChild(qDiv);
+  el.scrollTop = el.scrollHeight;
+
+  setButtons(true);
+  addLoadingCard('Thinking…');
+  try {
+    const data = await fetchJSON('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, chat_name:currentChat})});
+    removeLoading();
+    addAICard('Answer', data.answer);
+  } catch(e) { removeLoading(); addAICard('Error', e.message); }
+  setButtons(false);
+}
+
+// ── Init ────────────────────────────────────────────
+loadChats();
+</script>
+</body>
+</html>
