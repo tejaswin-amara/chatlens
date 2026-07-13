@@ -3,7 +3,9 @@
 import hashlib
 import json
 import sqlite3
+from typing import Any
 
+from google import genai
 from chatlens import config
 
 
@@ -13,6 +15,7 @@ class MessageStore:
         self._conn = sqlite3.connect(self.db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._embedding_client: genai.Client | None = None
         self._create_tables()
 
     def _create_tables(self):
@@ -31,6 +34,13 @@ class MessageStore:
             );
             CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_name);
             CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(timestamp);
+            CREATE TABLE IF NOT EXISTS message_embeddings (
+                message_id INTEGER PRIMARY KEY,
+                embedding vector NOT NULL,
+                embedding_model TEXT NOT NULL,
+                FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_message_embeddings_model ON message_embeddings(embedding_model);
         """)
         # FTS5 virtual table — separate from main table
         # ponytail: content='' (external content) would save space but complicates inserts.
@@ -48,9 +58,51 @@ class MessageStore:
         key = f"{msg.get('platform')}|{msg.get('chat_name')}|{msg.get('sender')}|{msg.get('timestamp')}|{msg.get('text')}"
         return hashlib.sha256(key.encode()).hexdigest()
 
+    def _embed_text_batch(self, texts: list[str]) -> list[list[float]] | None:
+        if not texts or not config.GEMINI_API_KEY:
+            return None
+        if self._embedding_client is None:
+            self._embedding_client = genai.Client(api_key=config.GEMINI_API_KEY)
+        response = self._embedding_client.models.embed_content(
+            model=config.GEMINI_EMBEDDING_MODEL,
+            contents=texts,
+        )
+        embeddings: list[Any] = response.embeddings or []
+        if len(embeddings) != len(texts):
+            return None
+        vectors: list[list[float]] = []
+        for item in embeddings:
+            values = getattr(item, "values", None)
+            if not isinstance(values, list):
+                return None
+            vectors.append(values)
+        return vectors
+
+    def _store_embeddings(self, rows: list[tuple[int, str | None]]):
+        if not rows:
+            return
+        for i in range(0, len(rows), config.EMBEDDING_BATCH_SIZE):
+            batch = rows[i : i + config.EMBEDDING_BATCH_SIZE]
+            texts = [text or "" for _, text in batch]
+            try:
+                vectors = self._embed_text_batch(texts)
+            except Exception:
+                continue
+            if not vectors:
+                continue
+            self._conn.executemany(
+                "INSERT OR REPLACE INTO message_embeddings (message_id, embedding, embedding_model) "
+                "VALUES (?, ?, ?)",
+                [
+                    (message_id, json.dumps(vector), config.GEMINI_EMBEDDING_MODEL)
+                    for (message_id, _), vector in zip(batch, vectors, strict=True)
+                ],
+            )
+
     def ingest(self, messages: list[dict]) -> int:
         """Bulk insert messages, skipping duplicates. Returns count of inserted rows."""
         inserted = 0
+        inserted_rows: list[tuple[int, str | None]] = []
         for msg in messages:
             h = self._content_hash(msg)
             try:
@@ -75,9 +127,11 @@ class MessageStore:
                     "INSERT INTO messages_fts(rowid, text) VALUES (?, ?)",
                     (cur.lastrowid, msg.get("text")),
                 )
+                inserted_rows.append((cur.lastrowid, msg.get("text")))
                 inserted += 1
             except sqlite3.IntegrityError:
                 continue  # duplicate
+        self._store_embeddings(inserted_rows)
         self._conn.commit()
         return inserted
 

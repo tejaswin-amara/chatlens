@@ -105,7 +105,7 @@ chatlens/
 ## How It Works
 
 1. **Ingest**: Parsers normalize messages from different platforms into a unified format
-2. **Store**: Messages go into SQLite with full-text search indexing
+2. **Store**: Messages go into SQLite with full-text search indexing and per-message embeddings
 3. **Analyze**: When you ask a question or request analysis, relevant messages are retrieved and sent to Gemini as context
 4. **Chunk**: For large chats (800+ messages), the analyzer splits by time windows, processes each chunk, and combines results
 
@@ -117,6 +117,8 @@ chatlens/
 | `TELEGRAM_API_ID` | No | — | Telegram API ID (for live access) |
 | `TELEGRAM_API_HASH` | No | — | Telegram API hash (for live access) |
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model to use |
+| `GEMINI_EMBEDDING_MODEL` | No | `text-embedding-004` | Embedding model used during ingest |
+| `EMBEDDING_BATCH_SIZE` | No | `100` | Number of messages per embedding API batch |
 | `DB_PATH` | No | `chatlens.db` | SQLite database file path |
 
 ## Privacy
