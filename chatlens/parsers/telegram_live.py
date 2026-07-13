@@ -20,7 +20,9 @@ def _sender_name(sender) -> str:
     return getattr(sender, "title", None) or getattr(sender, "username", None) or "Unknown"
 
 
-async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
+async def fetch_telegram_chats_async(
+    chat_names: list[str] | None = None, limit: int = 1000
+) -> list[dict]:
     api_id = config.TELEGRAM_API_ID
     api_hash = config.TELEGRAM_API_HASH
     if not api_id or not api_hash:
@@ -63,11 +65,13 @@ async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
     return results
 
 
-def fetch_telegram_chats(chat_names: list[str] | None = None, limit: int = 1000) -> list[dict]:
+def fetch_telegram_chats(
+    chat_names: list[str] | None = None, limit: int = 1000
+) -> list[dict]:
     """Fetch messages from Telegram chats via live API.
 
     Sync wrapper around the async Telethon client.
     """
     # ponytail: uses asyncio.run; breaks if called inside an existing event loop.
     # Upgrade path: accept an optional loop param or use nest_asyncio.
-    return asyncio.run(_fetch(chat_names, limit))
+    return asyncio.run(fetch_telegram_chats_async(chat_names=chat_names, limit=limit))

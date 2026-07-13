@@ -151,10 +151,10 @@ def search(query: str, limit: int):
 @click.option("--port", default=5000, help="Port to run on.")
 def web(port: int):
     """Start the ChatLens web server."""
-    from chatlens.web import app
+    import uvicorn
 
     click.echo(click.style(f"Starting ChatLens web UI on http://localhost:{port}", fg="cyan"))
-    app.run(debug=True, port=port)
+    uvicorn.run("chatlens.web:app", host="0.0.0.0", port=port, reload=False)
 
 
 if __name__ == "__main__":
