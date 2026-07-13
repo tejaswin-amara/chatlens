@@ -100,6 +100,10 @@ chatlens/
 │   └── telegram_live.py # Live Telegram API (Telethon)
 └── templates/
     └── index.html       # Web UI
+
+frontend/
+├── src/app              # Next.js App Router entrypoints
+└── src/components       # Sidebar/Main Panel React components
 ```
 
 ## How It Works
