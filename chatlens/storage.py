@@ -3,6 +3,8 @@
 import hashlib
 import json
 import sqlite3
+import uuid
+from datetime import datetime, timezone
 
 from chatlens import config
 
@@ -31,6 +33,18 @@ class MessageStore:
             );
             CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_name);
             CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(timestamp);
+            CREATE TABLE IF NOT EXISTS jobs (
+                id TEXT PRIMARY KEY,
+                task_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                payload_json TEXT,
+                result_json TEXT,
+                error TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+            CREATE INDEX IF NOT EXISTS idx_jobs_task_name ON jobs(task_name);
         """)
         # FTS5 virtual table — separate from main table
         # ponytail: content='' (external content) would save space but complicates inserts.
@@ -143,3 +157,47 @@ class MessageStore:
 
     def close(self):
         self._conn.close()
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    def create_job(self, task_name: str, payload: dict | None = None) -> str:
+        job_id = str(uuid.uuid4())
+        now = self._utc_now_iso()
+        self._conn.execute(
+            "INSERT INTO jobs (id, task_name, status, payload_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (job_id, task_name, "queued", json.dumps(payload or {}), now, now),
+        )
+        self._conn.commit()
+        return job_id
+
+    def update_job_status(
+        self,
+        job_id: str,
+        status: str,
+        *,
+        result: dict | None = None,
+        error: str | None = None,
+    ) -> None:
+        now = self._utc_now_iso()
+        self._conn.execute(
+            "UPDATE jobs SET status = ?, result_json = ?, error = ?, updated_at = ? WHERE id = ?",
+            (status, json.dumps(result) if result is not None else None, error, now, job_id),
+        )
+        self._conn.commit()
+
+    def get_job(self, job_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT id, task_name, status, payload_json, result_json, error, created_at, updated_at "
+            "FROM jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        job = dict(row)
+        job["payload"] = json.loads(job.pop("payload_json") or "{}")
+        job["result"] = json.loads(job.pop("result_json")) if job.get("result_json") else None
+        job.pop("result_json", None)
+        return job

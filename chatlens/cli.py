@@ -33,8 +33,16 @@ def import_telegram(path: str):
 
 @import_group.command("whatsapp")
 @click.argument("path", type=click.Path(exists=True))
-def import_whatsapp(path: str):
+@click.option("--background", is_flag=True, help="Queue parsing in Redis/ARQ worker.")
+def import_whatsapp(path: str, background: bool):
     """Import a WhatsApp exported .txt chat file."""
+    if background:
+        from chatlens.jobs import enqueue_parse_whatsapp_export_sync
+
+        job_id = enqueue_parse_whatsapp_export_sync(path)
+        click.echo(click.style(f"Queued background job: {job_id}", fg="cyan"))
+        return
+
     from chatlens.parsers.whatsapp import parse_whatsapp_export
 
     click.echo(f"Parsing {path}...")
@@ -48,8 +56,17 @@ def import_whatsapp(path: str):
 @import_group.command("telegram-live")
 @click.option("--chat", multiple=True, help="Chat name(s) to fetch. Omit for all.")
 @click.option("--limit", default=1000, help="Max messages per chat.")
-def import_telegram_live(chat: tuple[str, ...], limit: int):
+@click.option("--background", is_flag=True, help="Queue fetch in Redis/ARQ worker.")
+def import_telegram_live(chat: tuple[str, ...], limit: int, background: bool):
     """Fetch messages from Telegram via live API."""
+    if background:
+        from chatlens.jobs import enqueue_fetch_telegram_chats_sync
+
+        names = list(chat) if chat else None
+        job_id = enqueue_fetch_telegram_chats_sync(names, limit)
+        click.echo(click.style(f"Queued background job: {job_id}", fg="cyan"))
+        return
+
     from chatlens.parsers.telegram_live import fetch_telegram_chats
 
     names = list(chat) if chat else None
@@ -74,6 +91,22 @@ def list_chats():
     for c in chats:
         badge = click.style(f"[{c['platform']}]", fg="blue" if c["platform"] == "telegram" else "green")
         click.echo(f"  {badge} {c['name']}  ({c['message_count']} messages)")
+
+
+@cli.command("job-status")
+@click.argument("job_id")
+def job_status(job_id: str):
+    """Show status of a background parsing job."""
+    store = MessageStore()
+    job = store.get_job(job_id)
+    if not job:
+        click.echo(click.style(f"No job found for id '{job_id}'.", fg="red"))
+        return
+    click.echo(click.style(f"{job['id']} [{job['status']}]", fg="cyan"))
+    if job.get("error"):
+        click.echo(click.style(f"error: {job['error']}", fg="red"))
+    if job.get("result"):
+        click.echo(click.style(f"result: {job['result']}", fg="green"))
 
 
 @cli.command()

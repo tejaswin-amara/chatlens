@@ -59,6 +59,19 @@ python -m chatlens.cli import telegram-live
 python -m chatlens.cli import whatsapp path/to/chat.txt
 ```
 
+**Background import with Redis/ARQ worker**:
+```bash
+# Queue jobs
+python -m chatlens.cli import whatsapp path/to/chat.txt --background
+python -m chatlens.cli import telegram-live --limit 500 --background
+
+# Check status
+python -m chatlens.cli job-status <job_id>
+
+# Run worker process
+arq chatlens.worker.WorkerSettings
+```
+
 ### 4. Analyze
 
 ```bash
