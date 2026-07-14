@@ -34,3 +34,11 @@ export interface ToastData {
   message: string;
   type: "success" | "error" | "info";
 }
+
+export function cleanSenderName(sender: string): string {
+  const cleaned = sender.replace(/^\d+[\s_-]*/, "").trim();
+  if (cleaned.toLowerCase().replace(/\s+/g, " ") === "prudhvi sai kari") {
+    return "Prudhvi Sai Kari";
+  }
+  return cleaned;
+}

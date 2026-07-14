@@ -10,7 +10,7 @@ interface WelcomePageProps {
 export function WelcomePage({ globalSummary }: WelcomePageProps) {
   return (
     <div className="flex-1 flex items-center justify-center p-6 animate-fade-in">
-      <div className="max-w-2xl w-full text-center">
+      <div className="max-w-4xl w-full text-center">
         <div className="text-[3.5rem] mb-4">🔍</div>
         <h1 className="text-3xl font-bold gradient-text mb-2">Welcome to ChatLens</h1>
         <p className="text-brand-text-dim text-sm mb-10">

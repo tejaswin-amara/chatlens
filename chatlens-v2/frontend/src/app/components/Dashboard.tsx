@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatStats } from "../types";
+import { cleanSenderName } from "../types";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -139,7 +140,7 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
               className="rounded-brand border border-brand-accent/30 bg-gradient-to-br from-brand-accent/10 to-transparent p-4"
             >
               <div className="text-sm font-medium text-brand-text-bright">{title}</div>
-              <div className="text-[0.8rem] text-brand-text-dim mt-1">{winner}</div>
+              <div className="text-[0.8rem] text-brand-text-dim mt-1">{cleanSenderName(winner)}</div>
             </div>
           ))}
         </div>
@@ -189,7 +190,7 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
               >
                 <span className="text-sm text-brand-text">
                   <span className="text-brand-text-dim mr-2 text-xs">{i + 1}.</span>
-                  {s.name}
+                  {cleanSenderName(s.name)}
                 </span>
                 <span className="text-sm text-brand-accent font-medium">
                   {s.count.toLocaleString()}

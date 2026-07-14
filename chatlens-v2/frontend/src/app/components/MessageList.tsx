@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import type { Message } from "../types";
+import { cleanSenderName } from "../types";
 import { AiCard } from "./AiCard";
 
 interface MessageListProps {
@@ -58,7 +59,13 @@ export function MessageList({ messages, loading, aiCards, aiLoading, messagesEnd
     );
   }
 
-  // Determine the first sender to assign left alignment
+  // Find if there is any message sent by the main user (Prudhvi) in this message list
+  const hasUser = messages.some(msg => {
+    const s = msg.sender.toLowerCase();
+    return s.includes("prudhvi") || s.includes("2520030286");
+  });
+
+  // Determine the first sender to assign left alignment (if no user present)
   const firstSender = messages.length > 0 ? messages[0].sender : null;
 
   return (
@@ -67,7 +74,14 @@ export function MessageList({ messages, loading, aiCards, aiLoading, messagesEnd
         const prev = i > 0 ? messages[i - 1] : null;
         const showDate = !prev || !isSameDay(prev.timestamp, msg.timestamp);
         const grouped = prev ? isGrouped(prev, msg) : false;
-        const isLeft = msg.sender === firstSender;
+
+        let isLeft = true;
+        if (hasUser) {
+          const s = msg.sender.toLowerCase();
+          isLeft = !(s.includes("prudhvi") || s.includes("2520030286"));
+        } else {
+          isLeft = msg.sender === firstSender;
+        }
 
         return (
           <div key={i} className="animate-fade-in">
@@ -82,7 +96,7 @@ export function MessageList({ messages, loading, aiCards, aiLoading, messagesEnd
             )}
             <div
               className={clsx(
-                "flex flex-col max-w-[75%]",
+                "flex flex-col max-w-[85%]",
                 grouped ? "mt-0.5" : "mt-2",
                 isLeft ? "self-start items-start" : "self-end items-end"
               )}
@@ -94,7 +108,7 @@ export function MessageList({ messages, loading, aiCards, aiLoading, messagesEnd
                     isLeft ? "text-brand-text-dim" : "text-brand-accent"
                   )}
                 >
-                  {msg.sender}
+                  {cleanSenderName(msg.sender)}
                 </span>
               )}
               <div
