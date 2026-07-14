@@ -84,7 +84,7 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
   if (loading || !chatStats) {
     return (
       <div className="p-6 space-y-6 animate-fade-in">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -116,7 +116,7 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
   return (
     <div className="p-6 space-y-6 animate-fade-in overflow-y-auto">
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map((s) => (
           <div
             key={s.label}
@@ -132,7 +132,7 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
 
       {/* Awards */}
       {awards.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {awards.map(([title, winner]) => (
             <div
               key={title}

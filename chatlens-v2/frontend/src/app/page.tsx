@@ -173,6 +173,14 @@ export default function Home() {
         onCloseMobile={() => setSidebarOpen(false)}
       />
 
+      {/* Mobile sidebar backdrop overlay */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <main className="flex-1 flex flex-col min-w-0 bg-brand-bg relative">
         {currentChat ? (
           <>
