@@ -1,4 +1,4 @@
-# ChatLens v2.0 🔍
+<h1 align="center">ChatLens 🔍</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Version-2.0.0-00d4aa?style=for-the-badge&logo=github" alt="Version" />
