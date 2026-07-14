@@ -1,20 +1,23 @@
 ---
-name: ✨ Feature request
-about: Propose an idea or enhancement for ChatLens
+name: "✨ Feature Request"
+about: Suggest an idea for this project
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''
-
 ---
 
-### 💡 Is your feature request related to a problem?
-A clear and concise description of what the problem is. (e.g. *"I get frustrated when I cannot filter chat logs by date range..."*)
+## 🚀 Is your feature request related to a problem?
 
-### 🛠️ Proposed Solution
-A clear and concise description of what you want to happen and how you envision it working.
+A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 
-### 🔄 Alternatives Considered
-A clear and concise description of any alternative solutions, tools, or workarounds you've considered.
+## 💡 Describe the solution you'd like
 
-### 🎨 Additional Context
-Add any other context, mockup designs, or details about the feature request here.
+A clear and concise description of what you want to happen.
+
+## 🔄 Describe alternatives you've considered
+
+A clear and concise description of any alternative solutions or features you've considered.
+
+## 📝 Additional context
+
+Add any other context or screenshots about the feature request here.
