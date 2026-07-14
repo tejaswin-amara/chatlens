@@ -1,29 +1,35 @@
-## Description
+## 📝 Description
 
-Provide a brief summary of the changes made and the issue/feature being addressed.
+Provide a brief summary of the changes made, the bug fixed, or the feature implemented.
 
-## Type of Change
+---
 
-Please delete options that are not relevant:
+## 🛠️ Type of Change
 
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update (non-breaking change to docs)
+*Please check the options that are relevant:*
 
-## How Has This Been Tested?
+- [ ] 🐛 **Bug Fix** (non-breaking change which fixes an issue)
+- [ ] ✨ **New Feature** (non-breaking change which adds functionality)
+- [ ] 💥 **Breaking Change** (fix or feature that would cause existing functionality to behave differently)
+- [ ] 📖 **Documentation Update** (change strictly targeting docs)
 
-Describe the tests that you ran to verify your changes. Provide instructions so we can reproduce.
+---
 
-- [ ] Parser Tests: `python -m tests.test_parsers`
-- [ ] Frontend Linting: `npm run lint`
-- [ ] Manual test of import flow/UI dashboard
+## 🧪 How Has This Been Tested?
 
-## Checklist
+*Please describe the tests you ran to verify your changes. Provide instructions so we can reproduce:*
 
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings or lint errors
-- [ ] New and existing unit tests pass locally with my changes
+- [ ] **Backend Parser Tests**: Ran `python -m tests.test_parsers` and verified successful output.
+- [ ] **Frontend Linter Check**: Ran `npm run lint` and verified zero warnings/errors.
+- [ ] **Manual UI Verification**: Verified imports, dashboard page loading, and chart renderings manually.
+
+---
+
+## 📋 Checklist
+
+- [ ] My code follows the style and linting guidelines of this project.
+- [ ] I have performed a self-review of my own code.
+- [ ] I have commented my code, particularly in complex or non-obvious sections.
+- [ ] I have made corresponding changes to the documentation (like `README.md` or landing docs).
+- [ ] My changes generate no new build or compiler warnings.
+- [ ] New and existing tests pass locally with my changes.

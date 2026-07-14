@@ -1,33 +1,33 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: 🐛 Bug report
+about: Report a bug or rendering issue in ChatLens
 title: '[BUG] '
 labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
+### 🚨 Description of the Bug
 A clear and concise description of what the bug is.
 
-**To Reproduce**
+### 👣 Steps to Reproduce
 Steps to reproduce the behavior:
-1. Go to '...'
+1. Navigate to '...'
 2. Click on '....'
-3. Scroll down to '....'
-4. See error
+3. Import the file '....'
+4. See error/unexpected output
 
-**Expected behavior**
+### 🎯 Expected Behavior
 A clear and concise description of what you expected to happen.
 
-**Screenshots/Logs**
-If applicable, add screenshots or console/terminal logs to help explain your problem.
+### 📸 Screenshots & Logs
+If applicable, add screenshots or console/terminal log outputs to help explain the problem.
 
-**Environment Information:**
- - OS: [e.g. Windows, macOS, Linux]
- - Browser (if web UI bug): [e.g. chrome, safari]
- - Python Version: [e.g. 3.11]
- - Node Version (if frontend bug): [e.g. 18.16]
+### 💻 Environment Information
+*   **Operating System**: [e.g. Windows 11, macOS Sequoia, Ubuntu 22.04]
+*   **Browser (if UI bug)**: [e.g. Chrome 120, Safari 17]
+*   **Python Version**: [e.g. Python 3.11.4]
+*   **Node Version (if UI bug)**: [e.g. Node 20.9.0]
 
-**Additional context**
+### ℹ️ Additional Context
 Add any other context about the problem here.
