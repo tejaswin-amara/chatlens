@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+import sys
+
+html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -435,13 +437,13 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 function formatAI(text) {
   return text
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\\\\\\\\\*\\\\\\\\\*(.+?)\\\\\\\\\*\\\\\\\\\*/g, '<strong style="color:var(--text-primary)">$1</strong>')
-    .replace(/\\\\\\\\\*(.+?)\\\\\\\\\*/g, '<em>$1</em>')
+    .replace(/\\\\\\\\\\\\\\\\\\*\\\\\\\\\\\\\\\\\\*(.+?)\\\\\\\\\\\\\\\\\\*\\\\\\\\\\\\\\\\\\*/g, '<strong style="color:var(--text-primary)">$1</strong>')
+    .replace(/\\\\\\\\\\\\\\\\\\*(.+?)\\\\\\\\\\\\\\\\\\*/g, '<em>$1</em>')
     .replace(/^### (.+)$/gm, '<h3 style="color:var(--accent-teal);margin-top:10px;margin-bottom:5px">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 style="color:var(--text-primary);margin-top:10px;margin-bottom:5px">$1</h2>')
     .replace(/^# (.+)$/gm, '<h1 style="color:var(--text-primary);margin-top:10px;margin-bottom:5px">$1</h1>')
     .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    .replace(/\\\\\\\\\n/g, '<br>');
+    .replace(/\\\\\\\\\\\\\\\\\\n/g, '<br>');
 }
 
 // Responsive Sidebar toggling
@@ -757,3 +759,9 @@ loadGlobalSummary();
 </script>
 </body>
 </html>
+"""
+
+with open("c:/Bot/chatlens/templates/index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print("Generated new templates/index.html with responsive layout successfully!")
