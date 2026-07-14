@@ -1,4 +1,5 @@
 .env
+.env.*
 *.session
 data/
 __pycache__/
@@ -9,3 +10,10 @@ dist/
 build/
 .venv/
 venv/
+node_modules/
+.next/
+uploads/
+error_output.txt
+*.log
+.idea/
+.vscode/

@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+pgvector
+celery
+redis
+telethon
+google-genai
+python-dotenv
+pydantic
+tenacity
+python-multipart

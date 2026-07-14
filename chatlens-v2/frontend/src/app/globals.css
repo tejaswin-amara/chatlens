@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #0a0a0f;
+  --color-brand-card: rgba(255,255,255,0.04);
+  --color-brand-card-hover: rgba(255,255,255,0.07);
+  --color-brand-border: rgba(255,255,255,0.08);
+  --color-brand-border-active: rgba(0,212,170,0.4);
+  --color-brand-text: #e4e4e7;
+  --color-brand-text-dim: #a1a1aa;
+  --color-brand-text-bright: #fafafa;
+  --color-brand-accent: #00d4aa;
+  --color-brand-accent-glow: rgba(0,212,170,0.15);
+  --color-brand-telegram: #2aabee;
+  --color-brand-whatsapp: #25d366;
+
+  --radius-brand: 12px;
+  --radius-brand-sm: 8px;
+
+  /* Motion Anything - Recipes */
+  --animate-fade-up-stagger: fadeUpStagger 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-ambient-glow: ambientGlow 8s ease-in-out infinite alternate;
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+  --animate-slide-in-right: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes fadeUpStagger {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes ambientGlow {
+    from { opacity: 0.3; transform: scale(1); filter: blur(40px); }
+    to { opacity: 0.6; transform: scale(1.1); filter: blur(50px); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+}
+
+:root {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body {
+  background-color: var(--color-brand-bg);
+  color: var(--color-brand-text);
+  font-family: var(--font-inter, 'Inter'), Arial, Helvetica, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-border);
+  border-radius: 4px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-custom {
+  animation: spin 0.7s linear infinite;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: var(--color-brand-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-brand-border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.glass-panel-hover:hover {
+  background: var(--color-brand-card-hover);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Focus Rings */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-brand-bg), 0 0 0 4px var(--color-brand-accent);
+}
+
+/* Interactive Elements */
+.spring-click {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.spring-click:active {
+  transform: scale(0.96);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-brand-text-bright) 0%, var(--color-brand-text-dim) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Skeleton Shimmer */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-brand-border) 25%, rgba(255,255,255,0.08) 50%, var(--color-brand-border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* Stagger Delay Utility — set --stagger-index via inline style */
+.stagger-item {
+  opacity: 0;
+  animation: fadeUpStagger 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--stagger-index, 0) * 50ms);
+}
+
+/* Drag-and-Drop Zone */
+.drop-zone-active {
+  border-color: var(--color-brand-accent) !important;
+  background: rgba(0, 212, 170, 0.05) !important;
+}
+
+/* Toast Slide-in */
+.toast-enter {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

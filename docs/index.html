@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatLens v2.0 — AI-powered Chat Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0a0a0f;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #00d4aa;
+            --secondary: #00b4d8;
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --font-main: 'Inter', sans-serif;
+            --font-title: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(0, 212, 170, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 180, 216, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            position: relative;
+        }
+
+        .badge {
+            background: linear-gradient(135deg, rgba(0, 212, 170, 0.15), rgba(0, 180, 216, 0.15));
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+            font-family: var(--font-title);
+            animation: pulse 2s infinite alternate;
+        }
+
+        h1 {
+            font-family: var(--font-title);
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #ffffff 30%, var(--primary) 70%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        header p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 40px;
+            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 212, 170, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 212, 170, 0.05);
+        }
+
+        h2 {
+            font-family: var(--font-title);
+            font-size: 1.75rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ffffff;
+        }
+
+        h2 span {
+            color: var(--primary);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(0, 180, 216, 0.2);
+        }
+
+        .feature-icon {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        code {
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--secondary);
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #e4e4e7;
+            font-size: 0.9rem;
+        }
+
+        .tech-tag {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            margin: 0 6px 10px 0;
+            color: #e4e4e7;
+        }
+
+        .tech-tag.highlight {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: rgba(0, 212, 170, 0.05);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--card-border);
+            padding-top: 30px;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        a:hover {
+            color: var(--secondary);
+            text-decoration: underline;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.4); }
+            100% { box-shadow: 0 0 0 6px rgba(0, 212, 170, 0); }
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2.5rem; }
+            .container { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="badge">Official Documentation</div>
+            <h1>ChatLens v2.0 🔍</h1>
+            <p>Privacy-first, AI-powered Telegram & WhatsApp chat analyzer using Google Gemini, Next.js, and FastAPI.</p>
+        </header>
+
+        <section class="glass-card">
+            <h2><span>✦</span> System Overview</h2>
+            <p style="margin-bottom: 20px;">
+                ChatLens is an interactive workspace designed to help you index, search, and run advanced LLM analytics on your conversational archives. Under v2.0, the core is split into a premium glassmorphic React frontend and a Docker-orchestrated FastAPI/Celery parser and database server.
+            </p>
+            <div style="margin-top: 15px;">
+                <span class="tech-tag highlight">Next.js 16</span>
+                <span class="tech-tag highlight">FastAPI</span>
+                <span class="tech-tag highlight">Google Gemini</span>
+                <span class="tech-tag highlight">PostgreSQL + pgvector</span>
+                <span class="tech-tag">Celery</span>
+                <span class="tech-tag">Redis</span>
+                <span class="tech-tag">Telethon (Live Sync)</span>
+                <span class="tech-tag">Docker Compose</span>
+            </div>
+        </section>
+
+        <section class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📁</div>
+                <div class="feature-title">Multi-Platform Ingest</div>
+                <div class="feature-desc">Import standard chat export formats from Telegram (.json) and WhatsApp (.txt). All parsing happens asynchronously via Celery workers.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-title">Live Account Sync</div>
+                <div class="feature-desc">Connect directly to Telegram using your own App API credentials. Authorize securely and import direct message and group logs on demand.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <div class="feature-title">Advanced AI Analysis</div>
+                <div class="feature-desc">Leverage Gemini's massive context window to compile global summaries, identify toxic patterns, map relationships, and run vibe checks.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">Spotify-Wrapped Stats</div>
+                <div class="feature-desc">Get quantitative activity indicators. Track engagement times, hourly activity heatmaps, and unlock fun custom badges (e.g., Monologuer, Speed Demon).</div>
+            </div>
+        </section>
+
+        <section class="glass-card">
+            <h2><span>✦</span> Deploying Locally</h2>
+            <p>Because ChatLens processes private conversations and uses persistent datastores, it must be deployed locally or in a private cloud environment:</p>
+            
+            <pre><code># 1. Clone the repository
+git clone https://github.com/tejaswin-amara/chatlens.git
+cd chatlens
+
+# 2. Configure environment
+cp .env.example .env
+# Open .env and add your GEMINI_API_KEY from Google AI Studio
+
+# 3. Start with Docker Compose
+docker-compose up -d --build</code></pre>
+            
+            <p style="margin-top: 15px;">
+                Once standard services spin up, navigate to <code>http://localhost:3000</code> to launch the web dashboard interface.
+            </p>
+        </section>
+
+        <section class="glass-card">
+            <h2><span>✦</span> Architecture</h2>
+            <pre><code>chatlens/
+├── chatlens/          # Version 1.0 (Flask + SQLite backend)
+└── chatlens-v2/       # Version 2.0 (Next.js + FastAPI + Postgres)
+    ├── backend/       # Asynchronous FastAPI & Celery tasks
+    └── frontend/      # Next.js App Router with glassmorphic UI</code></pre>
+        </section>
+
+        <footer>
+            <p>ChatLens is open-source under the MIT License.</p>
+            <p style="margin-top: 10px; font-size: 0.8rem;">View the source code on <a href="https://github.com/tejaswin-amara/chatlens">GitHub</a>.</p>
+        </footer>
+    </div>
+</body>
+</html>

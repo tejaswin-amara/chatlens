@@ -2,9 +2,9 @@
 
 from google import genai
 
-from chatlens import config
-
-# ponytail: hard-coded chunk size; good enough for gemini-2.0-flash context window.
+import config
+from google.genai.errors import ClientError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 # Upgrade path: estimate tokens instead of message count.
 _CHUNK_SIZE = 800
 
@@ -27,8 +27,13 @@ class ChatAnalyzer:
         self._client = genai.Client(api_key=config.GEMINI_API_KEY)
         self._model = config.GEMINI_MODEL
 
+    @retry(
+        retry=retry_if_exception_type(ClientError),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5)
+    )
     def _call_gemini(self, prompt: str) -> str:
-        """Send a prompt to Gemini and return the text response."""
+        """Send a prompt to Gemini and return the text response with backoff."""
         response = self._client.models.generate_content(
             model=self._model, contents=prompt
         )
