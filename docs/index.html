@@ -6,432 +6,636 @@
     <title>ChatLens 🔍 — AI-Powered Chat Analyzer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0a0a0f;
-            --card-bg: rgba(255, 255, 255, 0.02);
-            --card-border: rgba(255, 255, 255, 0.08);
-            --primary: #00d4aa;
-            --secondary: #00b4d8;
-            --primary-glow: rgba(0, 212, 170, 0.15);
-            --text-primary: #f4f4f5;
-            --text-secondary: #a1a1aa;
-            --font-main: 'Inter', sans-serif;
+            --bg-base: #050508;
+            --bg-surface: rgba(15, 15, 20, 0.4);
+            --bg-glass: rgba(255, 255, 255, 0.02);
+            --bg-glass-strong: rgba(255, 255, 255, 0.06);
+            --border-glass: rgba(255, 255, 255, 0.06);
+            --border-glow: rgba(0, 212, 170, 0.15);
+            
+            --text-primary: #ffffff;
+            --text-secondary: #8a8f98;
+            
+            --accent-teal: #00d4aa;
+            --accent-teal-dim: rgba(0, 212, 170, 0.12);
+            --accent-blue: #00b4d8;
+            --accent-blue-dim: rgba(0, 180, 216, 0.15);
+            --accent-purple: #9d4edd;
+            --accent-emerald: #10b981;
+            --warning: #f59e0b;
+            
+            --font-sans: 'Inter', -apple-system, sans-serif;
             --font-title: 'Outfit', sans-serif;
+            --font-mono: 'Fira Code', monospace;
         }
 
         * {
-            box-sizing: border-box;
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--accent-teal);
+            outline-offset: 4px;
         }
 
         body {
-            background-color: var(--bg-color);
+            font-family: var(--font-sans);
+            background-color: var(--bg-base);
             color: var(--text-primary);
-            font-family: var(--font-main);
             line-height: 1.6;
             overflow-x: hidden;
-            background-image: 
-                radial-gradient(circle at 10% 20%, rgba(0, 212, 170, 0.04) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(0, 180, 216, 0.04) 0%, transparent 40%);
-            background-attachment: fixed;
+            position: relative;
+            cursor: default;
         }
 
-        .container {
+        /* ── Dynamic Cursor Glow ── */
+        #cursor-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-teal-dim) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            transform: translate(-50%, -50%) translateZ(0);
+            transition: opacity 0.5s;
+            opacity: 0;
+        }
+
+        /* ── Background Mesh ── */
+        .mesh-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(157, 78, 221, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 212, 170, 0.04) 0px, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+            transform: translateZ(0);
+        }
+
+        /* ── Typography & Layout ── */
+        h1, h2, h3 {
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+
+        .section {
+            padding: clamp(4rem, 10vw, 8rem) 1.5rem;
             max-width: 1200px;
             margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        /* ── Header ── */
-        header {
-            text-align: center;
-            margin-bottom: 50px;
             position: relative;
+            z-index: 10;
+            scroll-margin-top: 100px;
         }
 
-        .badge {
-            background: linear-gradient(135deg, rgba(0, 212, 170, 0.1), rgba(0, 180, 216, 0.1));
-            border: 1px solid rgba(0, 212, 170, 0.3);
-            color: var(--primary);
-            padding: 6px 16px;
-            border-radius: 30px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            display: inline-block;
-            margin-bottom: 20px;
-            letter-spacing: 0.5px;
-            font-family: var(--font-title);
-            animation: pulse 2.5s infinite alternate;
+        .section-heading {
+            text-align: center;
+            margin-bottom: 4rem;
         }
 
-        h1 {
+        .section-heading h2 {
+            font-size: clamp(2.5rem, 5vw, 3.5rem);
+            margin-bottom: 1rem;
             font-family: var(--font-title);
-            font-size: 4rem;
-            font-weight: 800;
-            margin-bottom: 16px;
-            background: linear-gradient(135deg, #ffffff 30%, var(--primary) 75%, var(--secondary) 100%);
+        }
+
+        .section-heading p {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        .highlight {
+            color: var(--accent-teal);
+            text-shadow: 0 0 15px var(--accent-teal-dim);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #fff 30%, var(--accent-teal) 75%, var(--accent-blue) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            letter-spacing: -1px;
         }
 
-        header p {
-            font-size: 1.3rem;
-            color: var(--text-secondary);
-            max-width: 700px;
-            margin: 0 auto 30px auto;
+        /* ── Floating Navigation ── */
+        .navbar {
+            position: fixed;
+            top: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 4rem);
+            max-width: 1100px;
+            padding: 0.8rem 2rem;
+            background: rgba(10, 10, 15, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 100px;
+            z-index: 100;
+            transition: all 0.3s ease;
         }
 
-        .btn-group {
+        .nav-content {
             display: flex;
-            gap: 16px;
-            justify-content: center;
-            margin-bottom: 20px;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .btn {
-            padding: 12px 24px;
-            border-radius: 8px;
+        .logo {
+            font-size: 1.3rem;
             font-family: var(--font-title);
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ffffff;
+        }
+
+        .logo span.highlight {
+            color: var(--accent-teal);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 0.8rem 1.6rem;
+            border-radius: 100px;
             font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.25s ease;
+            font-size: 0.9rem;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            font-family: var(--font-title);
+            border: 1px solid transparent;
+        }
+        
+        .btn:active {
+            transform: scale(0.97);
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: #050508;
-            border: none;
-            box-shadow: 0 4px 15px rgba(0, 212, 170, 0.2);
+            background: var(--text-primary);
+            color: var(--bg-base);
         }
 
         .btn-primary:hover {
+            background: var(--accent-teal);
+            color: var(--bg-base);
+            box-shadow: 0 0 20px rgba(0, 212, 170, 0.4);
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 212, 170, 0.35);
         }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.04);
-            color: #ffffff;
-            border: 1px solid var(--card-border);
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-glass);
         }
 
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
+            background: var(--bg-glass);
+            border-color: var(--accent-teal);
             transform: translateY(-2px);
         }
 
-        /* ── Glass Card ── */
-        .glass-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 45px;
-            position: relative;
-            overflow: hidden;
+        .btn-github {
+            background: var(--bg-glass-strong);
+            border: 1px solid var(--border-glass);
+            color: var(--text-primary) !important;
+            padding: 0.5rem 1.2rem;
+            font-size: 0.85rem;
         }
 
-        .glass-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+        .btn-github:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--text-secondary);
         }
 
-        h2 {
-            font-family: var(--font-title);
-            font-size: 1.75rem;
-            margin-bottom: 24px;
-            color: #ffffff;
+        /* ── Hero Section ── */
+        .hero {
+            min-height: 100vh;
             display: flex;
             align-items: center;
-            gap: 10px;
+            padding-top: 8rem;
+            padding-bottom: 4rem;
         }
 
-        h2 span {
-            color: var(--primary);
-        }
-
-        /* ── Interactive Workspace Simulator ── */
-        .simulator-layout {
+        .hero-grid {
             display: grid;
-            grid-template-columns: 280px 1fr 340px;
-            gap: 20px;
-            height: 580px;
-            background: rgba(5, 5, 8, 0.6);
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            padding: 16px;
-            overflow: hidden;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 4rem;
+            align-items: center;
+            width: 100%;
+        }
+
+        .version-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.4rem 1rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent-emerald);
+            margin-bottom: 2rem;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-emerald);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-emerald);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.5); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 5vw, 4.5rem);
+            margin-bottom: 1.5rem;
+            font-family: var(--font-title);
+            font-weight: 800;
+        }
+
+        .hero-subtitle {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            margin-bottom: 2.5rem;
+            max-width: 540px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* ── Bento Grid Layout ── */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
             margin-bottom: 50px;
         }
 
-        /* Simulator Left Column: Chat Selector */
-        .chat-sidebar {
+        .bento-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .bento-card:hover {
+            border-color: var(--accent-teal);
+            box-shadow: 0 10px 30px rgba(0, 212, 170, 0.04);
+            transform: translateY(-2px);
+        }
+
+        .bento-card.col-span-2 { grid-column: span 2; }
+        .bento-card.col-span-3 { grid-column: span 3; }
+
+        .card-icon {
+            font-size: 2.2rem;
+            margin-bottom: 1.5rem;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-glass);
+            color: var(--accent-teal);
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-family: var(--font-title);
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 0.75rem;
+        }
+
+        .card-desc {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* ── Premium Interactive Workspace Simulator ── */
+        .workspace-simulator {
+            background: rgba(10, 10, 15, 0.7);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            height: 600px;
+            display: grid;
+            grid-template-columns: 260px 1fr 340px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Left Side: Channels */
+        .sim-sidebar {
+            background: rgba(5, 5, 8, 0.5);
+            border-right: 1px solid var(--border-glass);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+        }
+
+        .sim-sidebar-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .sim-chat-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            border-right: 1px solid rgba(255, 255, 255, 0.05);
-            padding-right: 16px;
-            height: 100%;
             overflow-y: auto;
         }
 
-        .sidebar-title {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
-            font-weight: 700;
-        }
-
-        .chat-item {
+        .sim-chat-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 12px;
-            border-radius: 8px;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
             background: rgba(255, 255, 255, 0.01);
             border: 1px solid transparent;
         }
 
-        .chat-item:hover {
+        .sim-chat-item:hover {
             background: rgba(255, 255, 255, 0.03);
             border-color: rgba(255, 255, 255, 0.05);
         }
 
-        .chat-item.active {
+        .sim-chat-item.active {
             background: rgba(0, 212, 170, 0.08);
             border-color: rgba(0, 212, 170, 0.2);
         }
 
-        .chat-info {
+        .sim-chat-info {
             display: flex;
             flex-direction: column;
             gap: 4px;
             min-width: 0;
         }
 
-        .chat-name {
+        .sim-chat-name {
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: #ffffff;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .chat-meta {
-            font-size: 0.75rem;
+        .sim-chat-meta {
+            font-size: 0.7rem;
             color: var(--text-secondary);
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        .platform-tag {
+        .sim-platform-tag {
             padding: 1px 5px;
-            border-radius: 3px;
-            font-size: 0.65rem;
+            border-radius: 4px;
+            font-size: 0.6rem;
             text-transform: uppercase;
-            font-weight: 700;
+            font-weight: 800;
         }
 
-        .platform-tg { background: rgba(0, 180, 216, 0.15); color: var(--secondary); }
-        .platform-wa { background: rgba(0, 212, 170, 0.15); color: var(--primary); }
+        .sim-platform-tg { background: rgba(0, 180, 216, 0.15); color: var(--accent-blue); }
+        .sim-platform-wa { background: rgba(0, 212, 170, 0.15); color: var(--accent-teal); }
 
-        .chat-msg-count {
+        .sim-chat-badge {
             font-size: 0.75rem;
             color: var(--text-secondary);
             background: rgba(255, 255, 255, 0.04);
             padding: 2px 6px;
-            border-radius: 10px;
+            border-radius: 8px;
         }
 
-        /* Simulator Middle Column: Message Stream */
-        .message-pane {
+        /* Middle Pane: Message Streams */
+        .sim-message-pane {
             display: flex;
             flex-direction: column;
             height: 100%;
-            padding: 0 8px;
+            padding: 20px;
             min-width: 0;
         }
 
-        .pane-header {
+        .sim-pane-header {
             padding-bottom: 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border-glass);
             margin-bottom: 16px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
         }
 
-        .active-chat-title {
+        .sim-active-title {
             font-family: var(--font-title);
-            font-size: 1.25rem;
-            font-weight: 600;
+            font-size: 1.2rem;
+            font-weight: 700;
         }
 
-        .stream-view {
+        .sim-stream {
             flex: 1;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 12px;
             padding-right: 8px;
-            height: 480px;
         }
 
-        .message-bubble {
+        .sim-bubble {
             max-width: 75%;
             padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 0.9rem;
+            border-radius: 14px;
+            font-size: 0.85rem;
             display: flex;
             flex-direction: column;
             gap: 4px;
+            border: 1px solid transparent;
         }
 
-        .msg-received {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .sim-bubble-received {
+            background: rgba(255, 255, 255, 0.02);
+            border-color: var(--border-glass);
             align-self: flex-start;
             border-top-left-radius: 2px;
         }
 
-        .msg-sent {
-            background: rgba(0, 180, 216, 0.1);
-            border: 1px solid rgba(0, 180, 216, 0.2);
+        .sim-bubble-sent {
+            background: rgba(0, 212, 170, 0.06);
+            border-color: rgba(0, 212, 170, 0.15);
             align-self: flex-end;
             border-top-right-radius: 2px;
         }
 
-        .msg-sender {
-            font-weight: 600;
+        .sim-msg-sender {
+            font-weight: 700;
             font-size: 0.75rem;
-            color: var(--primary);
+            color: var(--accent-teal);
         }
 
-        .msg-sent .msg-sender {
-            color: var(--secondary);
+        .sim-bubble-sent .sim-msg-sender {
+            color: var(--accent-blue);
         }
 
-        .msg-text {
+        .sim-msg-text {
             color: #e4e4e7;
         }
 
-        .msg-time {
+        .sim-msg-time {
             font-size: 0.65rem;
             color: var(--text-secondary);
             align-self: flex-end;
         }
 
-        /* Simulator Right Column: Stats & Sandbox Panels */
-        .workspace-sidebar {
+        /* Right Column: AI & Stats */
+        .sim-analytics-sidebar {
+            border-left: 1px solid var(--border-glass);
+            padding: 20px;
             display: flex;
             flex-direction: column;
+            gap: 20px;
             height: 100%;
-            border-left: 1px solid rgba(255, 255, 255, 0.05);
-            padding-left: 16px;
-            overflow-y: auto;
+            background: rgba(5, 5, 8, 0.3);
         }
 
-        .tabs-header {
+        .sim-tabs {
             display: flex;
-            gap: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            padding-bottom: 8px;
-            margin-bottom: 16px;
+            gap: 4px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 3px;
+            border-radius: 8px;
+            border: 1px solid var(--border-glass);
         }
 
-        .tab-btn {
+        .sim-tab-btn {
+            flex: 1;
             background: none;
             border: none;
             color: var(--text-secondary);
             font-family: var(--font-title);
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 6px 12px;
+            border-radius: 6px;
             transition: all 0.2s ease;
         }
 
-        .tab-btn.active {
-            color: var(--primary);
-            background: rgba(0, 212, 170, 0.08);
+        .sim-tab-btn.active {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-glass);
         }
 
-        .tab-content {
+        .sim-tab-pane {
             display: none;
             flex-direction: column;
             gap: 16px;
             height: 100%;
-        }
-
-        .tab-content.active {
-            display: flex;
-        }
-
-        /* AI Q&A Sandbox styling */
-        .ai-card {
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 0.85rem;
-            color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-height: 290px;
             overflow-y: auto;
         }
 
-        .ai-title {
-            font-weight: 700;
-            color: var(--primary);
+        .sim-tab-pane.active {
+            display: flex;
+        }
+
+        .sim-ai-display {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 16px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: #e4e4e7;
+            min-height: 180px;
+            max-height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .sim-ai-display-title {
             font-family: var(--font-title);
+            font-weight: 700;
+            color: var(--accent-teal);
+            margin-bottom: 8px;
+            font-size: 0.85rem;
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.9rem;
         }
 
-        .ai-body {
-            color: var(--text-secondary);
-            white-space: pre-wrap;
-            line-height: 1.5;
-        }
-
-        .preset-questions {
+        .sim-presets {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
         }
 
-        .preset-btn {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
+        .sim-preset-btn {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
             padding: 8px 12px;
             color: #e4e4e7;
             font-size: 0.8rem;
@@ -439,387 +643,471 @@
             cursor: pointer;
             transition: all 0.2s ease;
             width: 100%;
+            font-family: var(--font-sans);
         }
 
-        .preset-btn:hover {
-            background: rgba(0, 212, 170, 0.05);
+        .sim-preset-btn:hover {
+            background: rgba(0, 212, 170, 0.06);
             border-color: rgba(0, 212, 170, 0.2);
-            color: var(--primary);
+            color: var(--accent-teal);
         }
 
-        .sandbox-input-group {
+        .sim-input-bar {
             display: flex;
             gap: 8px;
             margin-top: auto;
-            padding-bottom: 8px;
+            border-top: 1px solid var(--border-glass);
+            padding-top: 12px;
         }
 
-        .sandbox-input {
+        .sim-query-input {
             flex: 1;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 6px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
             padding: 8px 12px;
             color: #ffffff;
             font-size: 0.8rem;
-            font-family: var(--font-main);
             outline: none;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.25s;
         }
 
-        .sandbox-input:focus {
-            border-color: var(--primary);
+        .sim-query-input:focus {
+            border-color: var(--accent-teal);
         }
 
-        .sandbox-send {
-            background: var(--primary);
-            color: #050508;
+        .sim-query-send {
+            background: #ffffff;
+            color: var(--bg-base);
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             padding: 8px 14px;
             cursor: pointer;
-            font-weight: 600;
-            font-size: 0.8rem;
+            font-weight: 700;
             font-family: var(--font-title);
+            font-size: 0.8rem;
+            transition: all 0.2s;
         }
 
-        /* Stats Tab layout */
-        .stats-award-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 10px 12px;
-            font-size: 0.85rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+        .sim-query-send:hover {
+            background: var(--accent-teal);
+            box-shadow: 0 0 10px var(--accent-teal-dim);
         }
 
-        .award-label {
-            font-weight: 500;
-            color: #e4e4e7;
-        }
-
-        .award-value {
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .stat-metric {
+        /* Stats tab components */
+        .sim-metric-row {
             display: flex;
             justify-content: space-between;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             margin-bottom: 4px;
+            color: var(--text-secondary);
         }
 
-        .stat-metric-bar {
+        .sim-metric-bar {
             width: 100%;
             height: 6px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 10px;
             overflow: hidden;
         }
 
-        .stat-metric-fill {
+        .sim-metric-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            border-radius: 4px;
+            background: linear-gradient(90deg, var(--accent-teal), var(--accent-blue));
+            border-radius: 10px;
+            transition: width 0.5s ease-out;
         }
 
-        /* ── Install Tab Section ── */
-        .install-tabs {
+        .sim-award-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sim-award-title {
+            color: var(--text-secondary);
+        }
+
+        .sim-award-val {
+            font-weight: 700;
+            color: var(--accent-teal);
+        }
+
+        /* ── Bento-Style System Setup Card ── */
+        .setup-bento {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            margin-bottom: 50px;
+        }
+
+        .setup-tabs {
             display: flex;
             gap: 12px;
-            border-bottom: 1px solid var(--card-border);
-            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-glass);
+            padding-bottom: 10px;
         }
 
-        .install-tab-btn {
+        .setup-tab-btn {
             background: none;
             border: none;
             color: var(--text-secondary);
             font-family: var(--font-title);
             font-size: 1rem;
             font-weight: 600;
-            padding: 8px 16px;
             cursor: pointer;
+            padding: 6px 12px;
             border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
+            transition: all 0.25s;
         }
 
-        .install-tab-btn.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
+        .setup-tab-btn.active {
+            color: var(--accent-teal);
+            border-bottom-color: var(--accent-teal);
         }
 
-        .install-pane {
+        .setup-pane {
             display: none;
         }
 
-        .install-pane.active {
+        .setup-pane.active {
             display: block;
         }
 
-        pre {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .setup-code-block {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border-glass);
             padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 15px 0;
-        }
-
-        pre code {
-            color: #e4e4e7;
-            font-size: 0.9rem;
-            font-family: 'Courier New', Courier, monospace;
-        }
-
-        /* ── Features List ── */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px;
-            margin-bottom: 50px;
-        }
-
-        .feature-card {
-            background: rgba(255, 255, 255, 0.015);
-            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 12px;
-            padding: 26px;
-            transition: all 0.3s ease;
+            overflow-x: auto;
+            position: relative;
         }
 
-        .feature-card:hover {
-            background: rgba(255, 255, 255, 0.03);
-            border-color: rgba(0, 180, 216, 0.25);
-            transform: translateY(-2px);
+        .setup-code-block code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #e4e4e7;
         }
 
-        .feature-icon {
-            font-size: 1.75rem;
-            margin-bottom: 16px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: inline-block;
-        }
-
-        .feature-title {
-            font-size: 1.15rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            color: #ffffff;
-            font-family: var(--font-title);
-        }
-
-        .feature-desc {
+        .copy-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--bg-glass-strong);
+            border: 1px solid var(--border-glass);
             color: var(--text-secondary);
-            font-size: 0.95rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-family: var(--font-title);
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            color: #ffffff;
+            border-color: var(--accent-teal);
         }
 
         footer {
             text-align: center;
-            margin-top: 80px;
+            margin-top: 60px;
             color: var(--text-secondary);
             font-size: 0.9rem;
-            border-top: 1px solid var(--card-border);
-            padding-top: 40px;
+            border-top: 1px solid var(--border-glass);
+            padding-top: 30px;
         }
 
         a {
-            color: var(--primary);
-            text-decoration: none;
-            transition: color 0.2s ease;
+            color: var(--accent-teal);
+            transition: color 0.2s;
         }
 
         a:hover {
-            color: var(--secondary);
-            text-decoration: underline;
+            color: var(--accent-blue);
         }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.3); }
-            100% { box-shadow: 0 0 0 8px rgba(0, 212, 170, 0); }
-        }
-
+        /* ── Responsive Styling ── */
         @media (max-width: 992px) {
-            .simulator-layout {
+            .hero-grid {
+                grid-template-columns: 1fr;
+                gap: 3rem;
+                text-align: center;
+            }
+            .hero {
+                padding-top: 10rem;
+            }
+            .hero-subtitle {
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .hero-actions {
+                justify-content: center;
+            }
+            .bento-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .workspace-simulator {
                 grid-template-columns: 200px 1fr;
                 height: auto;
             }
-            .workspace-sidebar {
+            .sim-analytics-sidebar {
                 grid-column: span 2;
                 border-left: none;
-                border-top: 1px solid rgba(255, 255, 255, 0.05);
-                padding-left: 0;
-                padding-top: 16px;
-                margin-top: 16px;
-                height: 380px;
+                border-top: 1px solid var(--border-glass);
+                padding-top: 20px;
+                height: auto;
+                min-height: 400px;
             }
         }
 
         @media (max-width: 768px) {
-            h1 { font-size: 2.75rem; }
-            .simulator-layout {
+            .navbar {
+                width: calc(100% - 2rem);
+                padding: 0.8rem 1.2rem;
+            }
+            .nav-links {
+                display: none; /* Mobile simple layout */
+            }
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+            .workspace-simulator {
                 display: flex;
                 flex-direction: column;
                 height: auto;
             }
-            .chat-sidebar {
+            .sim-sidebar {
                 border-right: none;
-                padding-right: 0;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-                padding-bottom: 12px;
-                margin-bottom: 12px;
-            }
-            .workspace-sidebar {
+                border-bottom: 1px solid var(--border-glass);
                 height: auto;
+                padding-bottom: 16px;
             }
-            .btn-group {
-                flex-direction: column;
+            .sim-message-pane {
+                height: 400px;
+            }
+            .sim-analytics-sidebar {
+                height: auto;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Background visual assets -->
+    <div id="cursor-glow"></div>
+    <div class="mesh-bg"></div>
+
+    <!-- Floating Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="logo">🧬 Chat<span class="highlight">Lens</span></div>
+            <div class="nav-links">
+                <a href="#simulator">Simulator</a>
+                <a href="#architecture">Architecture</a>
+                <a href="#setup">Setup Guide</a>
+                <a href="https://github.com/tejaswin-amara/chatlens" class="btn btn-github" target="_blank" rel="noopener noreferrer">
+                    <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 4px;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
     <div class="container">
-        <header>
-            <div class="badge">ChatLens v2.0 Dashboard Showcase</div>
-            <h1>ChatLens 🔍</h1>
-            <p>Self-hosted, AI-powered chat indexer and analytics platform. Import your messaging histories securely and explore them locally using Google Gemini.</p>
-            <div class="btn-group">
-                <a href="#simulator" class="btn btn-primary">Try Web UI Simulator</a>
-                <a href="https://github.com/tejaswin-amara/chatlens" class="btn btn-secondary">View GitHub Source</a>
+        
+        <!-- Hero Section -->
+        <header class="hero section">
+            <div class="hero-grid">
+                <div class="hero-text">
+                    <div class="version-pill">
+                        <span class="live-dot"></span> v2.0.0-Dockerized is LIVE
+                    </div>
+                    <h1 class="hero-title">The Privacy-First<br><span class="gradient-text">Chat Analyzer.</span></h1>
+                    <p class="hero-subtitle">ChatLens ingests messaging history from Telegram and WhatsApp, indexes the records locally in PostgreSQL using pgvector, and lets you explore your conversations using Google Gemini.</p>
+                    <div class="hero-actions">
+                        <a href="#setup" class="btn btn-primary">Deploy Now</a>
+                        <a href="#simulator" class="btn btn-secondary">Explore Simulator</a>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <!-- Dashboard UI Bento Card -->
+                    <div class="bento-card" style="box-shadow: 0 20px 40px rgba(0,0,0,0.5); padding: 2rem;">
+                        <span class="card-icon">⚡</span>
+                        <h3 class="card-title">Asynchronous Pipeline</h3>
+                        <p class="card-desc" style="margin-bottom: 20px;">FastAPI leverages Celery workers and a Redis task queue to parse millions of messages concurrently without UI drift or page blockages.</p>
+                        <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px; border: 1px solid var(--border-glass);">
+                            <div class="sim-metric-row"><span>Docker-Services Status</span><span style="color: var(--accent-emerald)">● ACTIVE</span></div>
+                            <div class="sim-metric-row" style="margin-top: 8px;"><span>Database</span><span style="font-family: var(--font-mono)">Postgres 16</span></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
-        <!-- ── Product Interactive Simulator ── -->
-        <h2 style="margin-bottom: 12px;" id="simulator"><span>✦</span> ChatLens Web UI Simulator</h2>
-        <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem;">Experience the direct interface and analytics queries without running a local python database server.</p>
-        
-        <div class="simulator-layout">
-            <!-- Sidebar: Available Chats -->
-            <div class="chat-sidebar">
-                <div class="sidebar-title">Imported Chats</div>
-                <div class="chat-item active" onclick="switchChat('elite')" id="chat-btn-elite">
-                    <div class="chat-info">
-                        <span class="chat-name">Elite 2.0 🎯</span>
-                        <span class="chat-meta"><span class="platform-tag platform-tg">Telegram</span></span>
-                    </div>
-                    <span class="chat-msg-count">47</span>
-                </div>
-                <div class="chat-item" onclick="switchChat('design')" id="chat-btn-design">
-                    <div class="chat-info">
-                        <span class="chat-name">Design Team 🎨</span>
-                        <span class="chat-meta"><span class="platform-tag platform-wa">WhatsApp</span></span>
-                    </div>
-                    <span class="chat-msg-count">72</span>
-                </div>
-                <div class="chat-item" onclick="switchChat('family')" id="chat-btn-family">
-                    <div class="chat-info">
-                        <span class="chat-name">Family Lounge 🏡</span>
-                        <span class="chat-meta"><span class="platform-tag platform-tg">Telegram</span></span>
-                    </div>
-                    <span class="chat-msg-count">115</span>
-                </div>
+        <!-- Interactive Dashboard Section -->
+        <section class="section" id="simulator" style="padding-top: 2rem;">
+            <div class="section-heading">
+                <h2>Interactive <span class="highlight">Dashboard</span> Simulator</h2>
+                <p>Simulate indexing records, calculating Spotify-wrapped awards, and querying Gemini AI directly.</p>
             </div>
 
-            <!-- Middle Pane: Message Streams -->
-            <div class="message-pane">
-                <div class="pane-header">
-                    <span class="active-chat-title" id="active-chat-label">Elite 2.0 🎯</span>
-                </div>
-                <div class="stream-view" id="message-stream-body">
-                    <!-- Loaded dynamically -->
-                </div>
-            </div>
-
-            <!-- Right Pane: AI Q&A and Spotify Stats tabs -->
-            <div class="workspace-sidebar">
-                <div class="tabs-header">
-                    <button class="tab-btn active" onclick="switchTab('ai')" id="tab-btn-ai">Gemini AI</button>
-                    <button class="tab-btn" onclick="switchTab('stats')" id="tab-btn-stats">Wrapped Stats</button>
-                </div>
-
-                <!-- AI Tab -->
-                <div class="tab-content active" id="tab-pane-ai">
-                    <div class="ai-card">
-                        <div class="ai-title">🤖 Gemini Output</div>
-                        <div class="ai-body" id="ai-output-text">Select a preset question below or write a custom query to test Gemini's streaming analysis.</div>
-                    </div>
-                    
-                    <div class="preset-questions">
-                        <span class="sidebar-title" style="margin-top: 10px;">Preset Queries</span>
-                        <button class="preset-btn" onclick="runPresetQuery('summary')">📝 Generate Chat Recap (TL;DR)</button>
-                        <button class="preset-btn" onclick="runPresetQuery('vibe')">🔥 Run Vibe Check</button>
-                        <button class="preset-btn" onclick="runPresetQuery('flags')">🟢 Green & Red Flags</button>
-                    </div>
-
-                    <div class="sandbox-input-group">
-                        <input type="text" class="sandbox-input" placeholder="Ask anything about this chat..." id="ai-query-input" onkeydown="if(event.key==='Enter') runCustomQuery()">
-                        <button class="sandbox-send" onclick="runCustomQuery()">Ask</button>
+            <!-- Workspace Simulator Grid -->
+            <div class="workspace-simulator">
+                
+                <!-- Left: Channels -->
+                <div class="sim-sidebar">
+                    <div class="sim-sidebar-title">Ingested Logs</div>
+                    <div class="sim-chat-list">
+                        <div class="sim-chat-item active" onclick="switchChat('elite')" id="chat-btn-elite">
+                            <div class="sim-chat-info">
+                                <span class="sim-chat-name">Elite 2.0 🎯</span>
+                                <span class="sim-chat-meta"><span class="sim-platform-tag sim-platform-tg">Telegram</span></span>
+                            </div>
+                            <span class="sim-chat-badge">47</span>
+                        </div>
+                        <div class="sim-chat-item" onclick="switchChat('design')" id="chat-btn-design">
+                            <div class="sim-chat-info">
+                                <span class="sim-chat-name">Design Team 🎨</span>
+                                <span class="sim-chat-meta"><span class="sim-platform-tag sim-platform-wa">WhatsApp</span></span>
+                            </div>
+                            <span class="sim-chat-badge">72</span>
+                        </div>
+                        <div class="sim-chat-item" onclick="switchChat('family')" id="chat-btn-family">
+                            <div class="sim-chat-info">
+                                <span class="sim-chat-name">Family Lounge 🏡</span>
+                                <span class="sim-chat-meta"><span class="sim-platform-tag sim-platform-tg">Telegram</span></span>
+                            </div>
+                            <span class="sim-chat-badge">115</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Stats Tab -->
-                <div class="tab-content" id="tab-pane-stats">
-                    <div class="sidebar-title">Metrics</div>
-                    <div>
-                        <div class="stat-metric"><span>Total Messages</span><span id="stat-total-msgs">47</span></div>
-                        <div class="stat-metric-bar"><div class="stat-metric-fill" style="width: 40%;" id="bar-total-msgs"></div></div>
+                <!-- Middle: Stream View -->
+                <div class="sim-message-pane">
+                    <div class="sim-pane-header">
+                        <span class="sim-active-title" id="active-chat-label">Elite 2.0 🎯</span>
                     </div>
-                    <div>
-                        <div class="stat-metric"><span>Total Words</span><span id="stat-total-words">462</span></div>
-                        <div class="stat-metric-bar"><div class="stat-metric-fill" style="width: 30%;" id="bar-total-words"></div></div>
-                    </div>
-
-                    <div class="sidebar-title" style="margin-top: 20px;">Top Senders</div>
-                    <div id="stat-senders-list">
-                        <!-- Loaded dynamically -->
-                    </div>
-
-                    <div class="sidebar-title" style="margin-top: 20px;">Wrapped Awards</div>
-                    <div id="stat-awards-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="sim-stream" id="message-stream-body">
                         <!-- Loaded dynamically -->
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- ── Features Section ── -->
-        <section class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">📂</div>
-                <div class="feature-title">Multi-Platform Ingestion</div>
-                <div class="feature-desc">Asynchronously upload and parse file exports from Telegram (.json) and WhatsApp (.txt) using background task queues.</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <div class="feature-title">Live Account Sync</div>
-                <div class="feature-desc">Securely connect and authenticate via Telethon live login flow. Sync channels, groups, and direct logs locally in real-time.</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🧠</div>
-                <div class="feature-title">Vector Search (pgvector)</div>
-                <div class="feature-desc">Embed and store chat records in a PostgreSQL database using pgvector. Run semantic lookups that retrieve messages matching concepts, not just words.</div>
+                <!-- Right: Analytics Panel -->
+                <div class="sim-analytics-sidebar">
+                    <div class="sim-tabs">
+                        <button class="sim-tab-btn active" onclick="switchTab('ai')" id="tab-btn-ai">Gemini AI</button>
+                        <button class="sim-tab-btn" onclick="switchTab('stats')" id="tab-btn-stats">Wrapped Stats</button>
+                    </div>
+
+                    <!-- AI Tab Content -->
+                    <div class="sim-tab-pane active" id="tab-pane-ai">
+                        <div class="sim-ai-display">
+                            <div class="sim-ai-display-title">🤖 Gemini Output</div>
+                            <div id="ai-output-text">Select a preset check below or write a custom query to trigger Gemini's context parsing.</div>
+                        </div>
+
+                        <div class="sim-presets">
+                            <div class="sim-sidebar-title">Preset Checks</div>
+                            <button class="sim-preset-btn" onclick="runPresetQuery('summary')">📝 Generate Chat Recap (TL;DR)</button>
+                            <button class="sim-preset-btn" onclick="runPresetQuery('vibe')">🔥 Run Vibe Check</button>
+                            <button class="sim-preset-btn" onclick="runPresetQuery('flags')">🟢 Green & Red Flags</button>
+                        </div>
+
+                        <div class="sim-input-bar">
+                            <input type="text" class="sim-query-input" placeholder="Ask anything about this chat..." id="ai-query-input" onkeydown="if(event.key==='Enter') runCustomQuery()">
+                            <button class="sim-query-send" onclick="runCustomQuery()">Ask</button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Tab Content -->
+                    <div class="sim-tab-pane" id="tab-pane-stats">
+                        <div class="sim-sidebar-title">Statistics</div>
+                        <div>
+                            <div class="sim-metric-row"><span>Total Messages</span><span id="stat-total-msgs">47</span></div>
+                            <div class="sim-metric-bar"><div class="sim-metric-fill" style="width: 40%;" id="bar-total-msgs"></div></div>
+                        </div>
+                        <div>
+                            <div class="sim-metric-row"><span>Total Words</span><span id="stat-total-words">462</span></div>
+                            <div class="sim-metric-bar"><div class="sim-metric-fill" style="width: 30%;" id="bar-total-words"></div></div>
+                        </div>
+
+                        <div class="sim-sidebar-title" style="margin-top: 10px;">Top Contributors</div>
+                        <div id="stat-senders-list" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Filled dynamically -->
+                        </div>
+
+                        <div class="sim-sidebar-title" style="margin-top: 10px;">Spotify-Wrapped Awards</div>
+                        <div id="stat-awards-list" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Filled dynamically -->
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
         </section>
 
-        <!-- ── Local Installation Guide ── -->
-        <section class="glass-card">
-            <h2><span>✦</span> System Installation Guide</h2>
-            <p style="margin-bottom: 20px; color: var(--text-secondary);">Deploy ChatLens in your own secure environment in under 5 minutes.</p>
-            
-            <div class="install-tabs">
-                <button class="install-tab-btn active" onclick="switchInstallTab('docker')" id="inst-btn-docker">Docker Compose</button>
-                <button class="install-tab-btn" onclick="switchInstallTab('manual')" id="inst-btn-manual">Manual Setup</button>
+        <!-- Bento Grid Section -->
+        <section class="section" id="architecture" style="padding-top: 2rem;">
+            <div class="section-heading">
+                <h2>Product <span class="highlight">Bento</span> Overview</h2>
+                <p>ChatLens utilizes a highly decoupled, modern tech stack designed for security and speed.</p>
             </div>
 
-            <div class="install-pane active" id="inst-pane-docker">
-                <p>Run the entire FastAPI backend, Next.js frontend, PostgreSQL database, and Redis Celery broker in containerized mode:</p>
-                <pre><code># 1. Clone the repository and configure env
+            <div class="bento-grid">
+                <div class="bento-card col-span-2">
+                    <span class="card-icon">🧠</span>
+                    <h3 class="card-title">LLM Analysis Engine</h3>
+                    <p class="card-desc">Integrates seamlessly with Gemini models using Google's generative-ai SDK. Handles massive chat transcripts easily by parsing context streams in configurable timeline chunks.</p>
+                </div>
+                <div class="bento-card row-span-1">
+                    <span class="card-icon">📁</span>
+                    <h3 class="card-title">Multi-Platform</h3>
+                    <p class="card-desc">Ingests standard JSON exports from Telegram Desktop or raw WhatsApp text file backups on the fly.</p>
+                </div>
+                <div class="bento-card">
+                    <span class="card-icon">🔍</span>
+                    <h3 class="card-title">pgvector Indexes</h3>
+                    <p class="card-desc">Executes semantic lookups across chat messages in PostgreSQL utilizing the pgvector extension for high-performance retrieval.</p>
+                </div>
+                <div class="bento-card col-span-2">
+                    <span class="card-icon">🎨</span>
+                    <h3 class="card-title">Glassmorphic Web UI</h3>
+                    <p class="card-desc">React frontend built on Next.js App Router. Features clean, hardware-accelerated transitions, shimmering skeletons, empty-state prompts, and fully responsive layouts.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bento Setup Guide -->
+        <section class="section" id="setup" style="padding-top: 2rem;">
+            <div class="section-heading">
+                <h2>System <span class="highlight">Setup</span> Guide</h2>
+                <p>Configure and launch ChatLens in a few terminal steps.</p>
+            </div>
+
+            <div class="setup-bento">
+                <div class="setup-tabs">
+                    <button class="setup-tab-btn active" onclick="switchInstallTab('docker')" id="inst-btn-docker">Docker Compose</button>
+                    <button class="setup-tab-btn" onclick="switchInstallTab('manual')" id="inst-btn-manual">Manual Setup</button>
+                </div>
+
+                <div class="setup-pane active" id="inst-pane-docker">
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">Spin up PostgreSQL, Redis, backend Celery tasks, and Next.js frontend services concurrently:</p>
+                    <div class="setup-code-block">
+                        <button class="copy-btn" onclick="copyCode('docker-code')">Copy</button>
+                        <pre><code id="docker-code"># 1. Clone the repository and configure env
 git clone https://github.com/tejaswin-amara/chatlens.git
 cd chatlens
 cp .env.example .env  # Add your GEMINI_API_KEY from Google AI Studio
@@ -829,24 +1117,29 @@ docker-compose up -d --build
 
 # 3. Open UI
 # Navigate to http://localhost:3000</code></pre>
-            </div>
+                    </div>
+                </div>
 
-            <div class="install-pane" id="inst-pane-manual">
-                <p>Run standard services locally on your host environment (Requires PostgreSQL with `pgvector` and Redis running):</p>
-                <pre><code># 1. Setup Backend environment
+                <div class="setup-pane" id="inst-pane-manual">
+                    <p style="margin-bottom: 12px; color: var(--text-secondary);">Run FastAPI server and Next.js locally (requires local PostgreSQL + pgvector and Redis):</p>
+                    <div class="setup-code-block">
+                        <button class="copy-btn" onclick="copyCode('manual-code')">Copy</button>
+                        <pre><code id="manual-code"># 1. Start Python Backend server
 cd chatlens-v2/backend
 python -m venv venv
 source venv/bin/activate  # venv\Scripts\activate on Windows
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 
-# 2. Run Celery workers (in separate terminal)
+# 2. Start Celery worker in separate terminal
 celery -A celery_worker.celery_app worker --loglevel=info
 
-# 3. Build & Run Frontend
+# 3. Start Next.js Web UI
 cd ../frontend
 npm install
-npm run dev  # Serves the site on http://localhost:3000</code></pre>
+npm run dev</code></pre>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -854,10 +1147,23 @@ npm run dev  # Serves the site on http://localhost:3000</code></pre>
             <p>ChatLens is an open-source analytics dashboard distributed under the MIT License.</p>
             <p style="margin-top: 10px; font-size: 0.8rem;">Copyright © 2026 Tejaswin Amara. Source on <a href="https://github.com/tejaswin-amara/chatlens">GitHub</a>.</p>
         </footer>
+
     </div>
 
-    <!-- ── Interactive Simulator Script ── -->
+    <!-- ── Interactive Simulator & Glow Script ── -->
     <script>
+        // Cursor Glow Positioning
+        const glow = document.getElementById('cursor-glow');
+        window.addEventListener('mousemove', (e) => {
+            glow.style.opacity = '1';
+            glow.style.left = e.clientX + 'px';
+            glow.style.top = e.clientY + 'px';
+        });
+        window.addEventListener('mouseleave', () => {
+            glow.style.opacity = '0';
+        });
+
+        // Mock Chat Data
         const chatData = {
             elite: {
                 name: "Elite 2.0 🎯",
@@ -962,70 +1268,62 @@ npm run dev  # Serves the site on http://localhost:3000</code></pre>
         function switchChat(chatId) {
             if (activeChat === chatId) return;
             
-            // UI Toggle Active Item
-            document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.sim-chat-item').forEach(el => el.classList.remove('active'));
             document.getElementById(`chat-btn-${chatId}`).classList.add('active');
             
             activeChat = chatId;
             const data = chatData[chatId];
             
-            // Header Name
             document.getElementById('active-chat-label').textContent = data.name;
             
-            // Populate Messages
             const stream = document.getElementById('message-stream-body');
             stream.innerHTML = '';
             
             data.messages.forEach(msg => {
                 const bubble = document.createElement('div');
-                bubble.className = `message-bubble ${msg.sender === 'Tejaswin Amara' || msg.sender === 'Me' || msg.sender === 'Rahul' ? 'msg-sent' : 'msg-received'}`;
+                bubble.className = `sim-bubble ${msg.sender === 'Tejaswin Amara' || msg.sender === 'Me' || msg.sender === 'Rahul' ? 'sim-bubble-sent' : 'sim-bubble-received'}`;
                 bubble.innerHTML = `
-                    <span class="msg-sender">${msg.sender}</span>
-                    <span class="msg-text">${msg.text}</span>
-                    <span class="msg-time">${msg.time}</span>
+                    <span class="sim-msg-sender">${msg.sender}</span>
+                    <span class="sim-msg-text">${msg.text}</span>
+                    <span class="sim-msg-time">${msg.time}</span>
                 `;
                 stream.appendChild(bubble);
             });
             
-            // Populate Stats
             document.getElementById('stat-total-msgs').textContent = data.stats.msgs;
             document.getElementById('stat-total-words').textContent = data.stats.words;
             
-            // Update Bar fill width
             document.getElementById('bar-total-msgs').style.width = Math.min((data.stats.msgs / 150) * 100, 100) + '%';
             document.getElementById('bar-total-words').style.width = Math.min((data.stats.words / 1500) * 100, 100) + '%';
             
-            // Top Senders list
             const sendersList = document.getElementById('stat-senders-list');
             sendersList.innerHTML = '';
             data.stats.senders.forEach(s => {
                 const item = document.createElement('div');
-                item.className = 'stat-metric';
+                item.className = 'sim-metric-row';
                 item.style.marginBottom = '8px';
-                item.innerHTML = `<span>${s.name}</span><span style="font-weight:600">${s.count} msgs</span>`;
+                item.innerHTML = `<span>${s.name}</span><span style="color:#ffffff; font-weight:600">${s.count} msgs</span>`;
                 sendersList.appendChild(item);
             });
             
-            // Awards
             const awardsList = document.getElementById('stat-awards-list');
             awardsList.innerHTML = '';
             for (const [awardName, awardVal] of Object.entries(data.stats.awards)) {
                 const card = document.createElement('div');
-                card.className = 'stats-award-card';
-                card.innerHTML = `<span class="award-label">${awardName}</span><span class="award-value">${awardVal}</span>`;
+                card.className = 'sim-award-card';
+                card.innerHTML = `<span class="sim-award-title">${awardName}</span><span class="sim-award-val">${awardVal}</span>`;
                 awardsList.appendChild(card);
             }
             
-            // Reset AI Output Box
             if (typingInterval) clearInterval(typingInterval);
-            document.getElementById('ai-output-text').textContent = 'Select a preset question below or write a custom query to test Gemini\'s streaming analysis.';
+            document.getElementById('ai-output-text').textContent = 'Select a preset check below or write a custom query to trigger Gemini\'s context parsing.';
             document.getElementById('ai-query-input').value = '';
         }
 
         // Switch Workspace Side Tabs
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(pane => pane.classList.remove('active'));
+            document.querySelectorAll('.sim-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.sim-tab-pane').forEach(pane => pane.classList.remove('active'));
             
             document.getElementById(`tab-btn-${tabId}`).classList.add('active');
             document.getElementById(`tab-pane-${tabId}`).classList.add('active');
@@ -1046,7 +1344,6 @@ npm run dev  # Serves the site on http://localhost:3000</code></pre>
             
             inputEl.value = '';
             
-            // Build a smart simulated reply based on keywords
             let response = '';
             const q = question.toLowerCase();
             const data = chatData[activeChat];
@@ -1077,7 +1374,6 @@ npm run dev  # Serves the site on http://localhost:3000</code></pre>
             let i = 0;
             typingInterval = setInterval(() => {
                 if (i < text.length) {
-                    // Quick tag-to-render handling for code block styling in simulation
                     el.innerHTML = formatMarkdownSim(text.slice(0, i + 1));
                     i++;
                 } else {
@@ -1092,16 +1388,29 @@ npm run dev  # Serves the site on http://localhost:3000</code></pre>
                 .replace(/\n/g, '<br>')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:4px;color:var(--secondary)">$1</code>');
+                .replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:4px;color:var(--accent-blue)">$1</code>');
         }
 
         // Switch Installation Guide Tabs
         function switchInstallTab(tabId) {
-            document.querySelectorAll('.install-tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.install-pane').forEach(pane => pane.classList.remove('active'));
+            document.querySelectorAll('.setup-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.setup-pane').forEach(pane => pane.classList.remove('active'));
             
             document.getElementById(`inst-btn-${tabId}`).classList.add('active');
             document.getElementById(`inst-pane-${tabId}`).classList.add('active');
+        }
+
+        // Copy Code to Clipboard helper
+        function copyCode(elementId) {
+            const code = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector(`[onclick="copyCode('${elementId}')"]`);
+                const originalText = btn.innerText;
+                btn.innerText = "Copied!";
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                }, 1500);
+            });
         }
 
         // Initial Load
