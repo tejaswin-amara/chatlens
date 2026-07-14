@@ -1,295 +1,360 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ChatLens — AI Chat Analysis</title>
-<meta name="description" content="AI-powered chat analysis tool for Telegram and WhatsApp conversations">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0a0a0f;--bg-card:rgba(255,255,255,.04);--bg-card-hover:rgba(255,255,255,.07);
-  --border:rgba(255,255,255,.08);--border-active:rgba(0,212,170,.4);
-  --text:#e4e4e7;--text-dim:#71717a;--text-bright:#fafafa;
-  --accent:#00d4aa;--accent-glow:rgba(0,212,170,.15);
-  --telegram:#2aabee;--whatsapp:#25d366;
-  --radius:12px;--radius-sm:8px;
-}
-html{font-size:15px}
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatLens 🔍 — AI Chat Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-base: #050508;
+            --bg-surface: rgba(15, 15, 20, 0.4);
+            --bg-glass: rgba(255, 255, 255, 0.02);
+            --bg-glass-strong: rgba(255, 255, 255, 0.06);
+            --border-glass: rgba(255, 255, 255, 0.06);
+            --border-glow: rgba(0, 212, 170, 0.15);
+            
+            --text-primary: #ffffff;
+            --text-secondary: #8a8f98;
+            
+            --accent-teal: #00d4aa;
+            --accent-teal-dim: rgba(0, 212, 170, 0.12);
+            --accent-blue: #00b4d8;
+            --accent-blue-dim: rgba(0, 180, 216, 0.15);
+            
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-title: 'Outfit', sans-serif;
+            --font-mono: 'Fira Code', monospace;
+        }
 
-/* ── Sidebar ────────────────────────────────────────── */
-.sidebar{width:300px;min-width:260px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:rgba(10,10,18,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-.sidebar-header{padding:24px 20px 16px;border-bottom:1px solid var(--border)}
-.logo{font-size:1.4rem;font-weight:700;color:var(--text-bright);display:flex;align-items:center;gap:8px}
-.logo span{background:linear-gradient(135deg,var(--accent),#00b4d8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.sidebar-stats{font-size:.75rem;color:var(--text-dim);margin-top:8px}
-.chat-list{flex:1;overflow-y:auto;padding:8px}
-.chat-list::-webkit-scrollbar{width:4px}
-.chat-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-.chat-item{padding:12px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:10px;margin-bottom:2px}
-.chat-item:hover{background:var(--bg-card-hover)}
-.chat-item.active{background:var(--accent-glow);border:1px solid var(--border-active)}
-.chat-item:not(.active){border:1px solid transparent}
-.badge{font-size:.6rem;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
-.badge-telegram{background:rgba(42,171,238,.15);color:var(--telegram)}
-.badge-whatsapp{background:rgba(37,211,102,.15);color:var(--whatsapp)}
-.chat-meta{flex:1;min-width:0}
-.chat-name{font-size:.85rem;font-weight:500;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chat-count{font-size:.7rem;color:var(--text-dim);margin-top:2px}
-.empty-state{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:.85rem;line-height:1.6}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow: hidden;
+            height: 100vh;
+        }
 
-/* ── Main ───────────────────────────────────────────── */
-.main{flex:1;display:flex;flex-direction:column;min-width:0}
-.topbar{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,rgba(0,212,170,.03) 0%,transparent 100%)}
-.topbar-title{font-size:1.05rem;font-weight:600;color:var(--text-bright);flex:1}
-.btn{padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.78rem;font-weight:500;cursor:pointer;transition:all .2s;font-family:inherit}
-.btn:hover{background:var(--bg-card-hover);border-color:rgba(255,255,255,.15)}
-.btn-primary{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.3);color:var(--accent)}
-.btn-primary:hover{background:rgba(0,212,170,.2)}
-.btn:disabled{opacity:.4;cursor:not-allowed}
+        .mesh-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(157, 78, 221, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 212, 170, 0.04) 0px, transparent 50%);
+            z-index: -1; pointer-events: none;
+        }
 
-/* ── Messages area ──────────────────────────────────── */
-.messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:4px}
-.messages::-webkit-scrollbar{width:5px}
-.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-.msg{max-width:75%;padding:10px 14px;border-radius:var(--radius);font-size:.83rem;line-height:1.5;animation:fadeIn .25s ease}
-.msg-left{align-self:flex-start;background:var(--bg-card);border:1px solid var(--border)}
-.msg-right{align-self:flex-end;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.15)}
-.msg-sender{font-size:.7rem;font-weight:600;color:var(--accent);margin-bottom:3px}
-.msg-time{font-size:.65rem;color:var(--text-dim);margin-top:4px;text-align:right}
-.msg-text{word-break:break-word;white-space:pre-wrap}
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 200; opacity: 0; pointer-events: none; transition: opacity .2s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        .modal {
+            background: rgba(10, 10, 15, 0.95); border: 1px solid var(--border-glass);
+            border-radius: 20px; width: 90%; max-width: 450px; padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.5); transform: translateY(20px); transition: transform .2s;
+            backdrop-filter: blur(12px);
+        }
+        .modal-overlay.open .modal { transform: translateY(0); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { font-family: var(--font-title); font-size: 1.2rem; font-weight: 700; color: var(--text-primary); }
+        .modal-close { background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer; }
+        .modal-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-glass); padding-bottom: 8px; }
+        .modal-tab { background: none; border: none; color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; cursor: pointer; padding: 6px 12px; border-radius: 6px; }
+        .modal-tab.active { color: var(--accent-teal); background: var(--accent-teal-dim); }
+        .modal-pane { display: none; }
+        .modal-pane.active { display: block; }
+        .file-drop {
+            border: 2px dashed var(--border-glass); border-radius: 12px; padding: 30px 20px;
+            text-align: center; color: var(--text-secondary); font-size: 0.85rem; cursor: pointer; transition: all .2s; margin-bottom: 12px;
+        }
+        .file-drop:hover, .file-drop.dragover { border-color: var(--accent-teal); background: rgba(0, 212, 170, 0.05); color: var(--text-primary); }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-group input {
+            width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-glass);
+            background: rgba(0,0,0,0.4); color: var(--text-primary); font-size: 0.85rem;
+        }
+        .form-group input:focus { border-color: var(--accent-teal); outline: none; }
+        .btn-primary {
+            background: var(--text-primary); color: var(--bg-base); border: none; border-radius: 100px;
+            padding: 8px 16px; font-weight: 600; font-family: var(--font-title); cursor: pointer; transition: all 0.25s;
+        }
+        .btn-primary:hover { background: var(--accent-teal); box-shadow: 0 0 15px var(--accent-teal-dim); transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-/* ── AI Card ────────────────────────────────────────── */
-.ai-card{align-self:stretch;background:linear-gradient(135deg,rgba(0,212,170,.06),rgba(0,180,216,.06));border:1px solid rgba(0,212,170,.2);border-radius:var(--radius);padding:18px 20px;margin:8px 0;animation:fadeIn .3s ease;backdrop-filter:blur(8px)}
-.ai-card-label{font-size:.7rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.ai-card-label::before{content:'✦';font-size:.8rem}
-.ai-card-body{font-size:.84rem;line-height:1.7;color:var(--text)}
-.ai-card-body h1,.ai-card-body h2,.ai-card-body h3{font-size:.9rem;font-weight:600;color:var(--text-bright);margin:12px 0 4px}
-.ai-card-body ul,.ai-card-body ol{padding-left:18px;margin:4px 0}
-.ai-card-body p{margin:6px 0}
-.ai-card-section{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)}
-.ai-card-section-title{font-size:.75rem;font-weight:600;color:var(--accent);margin-bottom:8px}
+        /* Workspace Simulator (Fullscreen) */
+        .workspace-simulator {
+            height: 100vh; width: 100vw;
+            display: grid; grid-template-columns: 280px 1fr 380px;
+            overflow: hidden; position: relative;
+        }
 
-/* ── Dashboard ──────────────────────────────────────── */
-.dashboard{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:20px}
-.dashboard::-webkit-scrollbar{width:5px}
-.dashboard::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px}
-.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
-.stat-value{font-size:1.8rem;font-weight:700;color:var(--accent);margin-bottom:4px}
-.stat-label{font-size:.75rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px}
-.awards-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px}
-.award-card{background:linear-gradient(135deg, rgba(0,212,170,.1), transparent);border:1px solid rgba(0,212,170,.3);border-radius:var(--radius);padding:16px;text-align:center}
-.award-title{font-size:.9rem;font-weight:600;color:var(--text-bright);margin-bottom:6px}
-.award-winner{font-size:.85rem;color:var(--accent)}
-.chart-container{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;height:300px}
+        /* Sidebar */
+        .sim-sidebar {
+            background: rgba(5, 5, 8, 0.5); border-right: 1px solid var(--border-glass);
+            padding: 20px; display: flex; flex-direction: column; gap: 16px; height: 100%;
+        }
+        .logo { font-size: 1.3rem; font-family: var(--font-title); font-weight: 800; color: #ffffff; }
+        .logo span { color: var(--accent-teal); }
+        .sim-sidebar-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); font-weight: 800; margin-bottom: 4px; }
+        .sim-chat-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex:1; }
+        .sim-chat-list::-webkit-scrollbar { width: 4px; }
+        .sim-chat-list::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 4px; }
+        .sim-chat-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.01); border: 1px solid transparent;
+        }
+        .sim-chat-item:hover { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.05); }
+        .sim-chat-item.active { background: rgba(0, 212, 170, 0.08); border-color: rgba(0, 212, 170, 0.2); }
+        .sim-chat-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .sim-chat-name { font-weight: 600; font-size: 0.9rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sim-chat-meta { font-size: 0.7rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+        .sim-platform-tag { padding: 1px 5px; border-radius: 4px; font-size: 0.6rem; text-transform: uppercase; font-weight: 800; }
+        .sim-platform-telegram { background: rgba(0, 180, 216, 0.15); color: var(--accent-blue); }
+        .sim-platform-whatsapp { background: rgba(0, 212, 170, 0.15); color: var(--accent-teal); }
 
-/* ── Topbar Tabs ────────────────────────────────────── */
-.topbar-tabs{display:flex;gap:10px;background:rgba(255,255,255,.05);padding:4px;border-radius:var(--radius-sm)}
-.topbar-tab{padding:6px 12px;border-radius:4px;font-size:.8rem;font-weight:600;color:var(--text-dim);cursor:pointer;user-select:none;transition:all .2s}
-.topbar-tab.active{background:var(--bg-card);color:var(--text-bright);box-shadow:0 2px 5px rgba(0,0,0,.2)}
-.insight-buttons{display:flex;gap:8px}
+        /* Middle Pane */
+        .sim-message-pane { display: flex; flex-direction: column; height: 100%; padding: 20px; min-width: 0; }
+        .sim-pane-header { padding-bottom: 12px; border-bottom: 1px solid var(--border-glass); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+        .sim-active-title { font-family: var(--font-title); font-size: 1.2rem; font-weight: 700; }
+        .sim-tabs { display: flex; gap: 4px; background: rgba(0, 0, 0, 0.2); padding: 3px; border-radius: 8px; border: 1px solid var(--border-glass); }
+        .sim-tab-btn { flex: 1; background: none; border: none; color: var(--text-secondary); font-family: var(--font-title); font-weight: 600; font-size: 0.8rem; cursor: pointer; padding: 6px 12px; border-radius: 6px; transition: all 0.2s ease; }
+        .sim-tab-btn.active { color: #ffffff; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border-glass); }
+        
+        .sim-stream { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 8px; }
+        .sim-stream::-webkit-scrollbar { width: 4px; }
+        .sim-stream::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 4px; }
+        
+        .sim-bubble { max-width: 75%; padding: 10px 14px; border-radius: 14px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 4px; border: 1px solid transparent; }
+        .sim-bubble-received { background: rgba(255, 255, 255, 0.02); border-color: var(--border-glass); align-self: flex-start; border-top-left-radius: 2px; }
+        .sim-bubble-sent { background: rgba(0, 212, 170, 0.06); border-color: rgba(0, 212, 170, 0.15); align-self: flex-end; border-top-right-radius: 2px; }
+        .sim-msg-sender { font-weight: 700; font-size: 0.75rem; color: var(--accent-teal); }
+        .sim-bubble-sent .sim-msg-sender { color: var(--accent-blue); }
+        .sim-msg-text { color: #e4e4e7; white-space: pre-wrap; word-break: break-word; }
+        .sim-msg-time { font-size: 0.65rem; color: var(--text-secondary); align-self: flex-end; }
 
-/* ── Input bar ──────────────────────────────────────── */
-.input-bar{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;background:rgba(10,10,18,.5);backdrop-filter:blur(12px)}
-.input-bar input{flex:1;padding:10px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.85rem;font-family:inherit;outline:none;transition:border .2s}
-.input-bar input:focus{border-color:var(--border-active)}
-.input-bar input::placeholder{color:var(--text-dim)}
-.send-btn{width:40px;height:40px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:var(--bg);font-size:1.1rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.send-btn:hover{filter:brightness(1.15);transform:scale(1.05)}
-.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+        .dashboard-view { flex: 1; display: none; flex-direction: column; gap: 20px; overflow-y: auto; padding-right: 8px; }
+        .dashboard-view::-webkit-scrollbar { width: 4px; }
+        .dashboard-view::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 4px; }
 
-/* ── Welcome ────────────────────────────────────────── */
-.welcome{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:40px}
-.welcome-icon{font-size:3.5rem;margin-bottom:16px}
-.welcome h2{font-size:1.3rem;font-weight:600;color:var(--text-bright);margin-bottom:8px}
-.welcome p{color:var(--text-dim);font-size:.85rem;max-width:360px;line-height:1.6}
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .bento-card { background: var(--bg-surface); border: 1px solid var(--border-glass); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; }
+        .stat-value { font-size: 2rem; font-family: var(--font-title); font-weight: 700; color: var(--accent-teal); }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+        
+        .awards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .award-card { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px 16px; }
+        .award-title { font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+        .award-winner { font-size: 0.95rem; font-weight: 600; color: var(--accent-teal); }
+        
+        .chart-container { background: var(--bg-surface); border: 1px solid var(--border-glass); border-radius: 16px; padding: 16px; height: 300px; }
 
-/* ── Loading ────────────────────────────────────────── */
-.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.loading-card{align-self:stretch;text-align:center;padding:30px;color:var(--text-dim);font-size:.84rem}
+        /* Analytics Sidebar */
+        .sim-analytics-sidebar { border-left: 1px solid var(--border-glass); padding: 20px; display: flex; flex-direction: column; gap: 16px; height: 100%; background: rgba(5, 5, 8, 0.3); }
+        .sim-ai-display-title { font-family: var(--font-title); font-weight: 700; color: var(--accent-teal); font-size: 0.9rem; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;}
+        .sim-ai-display { background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 12px; padding: 16px; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.6; color: #e4e4e7; flex: 1; overflow-y: auto; white-space: pre-wrap; }
+        .sim-presets { display: flex; flex-direction: column; gap: 8px; }
+        .sim-preset-btn { background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 8px; padding: 8px 12px; color: #e4e4e7; font-size: 0.8rem; text-align: left; cursor: pointer; transition: all 0.2s ease; width: 100%; font-family: var(--font-sans); }
+        .sim-preset-btn:hover { background: rgba(0, 212, 170, 0.06); border-color: rgba(0, 212, 170, 0.2); color: var(--accent-teal); }
 
-/* ── Modal ──────────────────────────────────────────── */
-.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
-.modal-overlay.open{opacity:1;pointer-events:auto}
-.modal{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:90%;max-width:400px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.5);transform:translateY(20px);transition:transform .2s}
-.modal-overlay.open .modal{transform:translateY(0)}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.modal-title{font-size:1.1rem;font-weight:600;color:var(--text-bright)}
-.modal-close{background:none;border:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer}
-.modal-tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px}
-.modal-tab{background:none;border:none;color:var(--text-dim);font-size:.85rem;font-weight:500;cursor:pointer;padding:4px 8px;border-radius:4px}
-.modal-tab.active{color:var(--accent);background:var(--accent-glow)}
-.modal-pane{display:none}
-.modal-pane.active{display:block}
-.file-drop{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:30px 20px;text-align:center;color:var(--text-dim);font-size:.85rem;cursor:pointer;transition:all .2s;margin-bottom:12px}
-.file-drop:hover,.file-drop.dragover{border-color:var(--accent);background:var(--bg-card-hover);color:var(--text)}
-.form-group{margin-bottom:12px}
-.form-group label{display:block;font-size:.75rem;color:var(--text-dim);margin-bottom:6px}
-.form-group input{width:100%;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:.85rem}
-.form-group input:focus{border-color:var(--accent);outline:none}
-
-/* ── Responsive ─────────────────────────────────────── */
-.sidebar-toggle{display:none;position:fixed;top:12px;left:12px;z-index:100;width:36px;height:36px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:1.2rem;cursor:pointer;backdrop-filter:blur(8px)}
-@media(max-width:700px){
-  .sidebar{position:fixed;left:-300px;top:0;bottom:0;z-index:90;transition:left .3s ease}
-  .sidebar.open{left:0}
-  .sidebar-toggle{display:flex;align-items:center;justify-content:center}
-  .msg{max-width:90%}
-}
-</style>
+        .sim-input-bar { display: flex; gap: 8px; margin-top: 16px; border-top: 1px solid var(--border-glass); padding-top: 16px; }
+        .sim-query-input { flex: 1; background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass); border-radius: 8px; padding: 10px 14px; color: #ffffff; font-size: 0.85rem; outline: none; transition: border-color 0.25s; }
+        .sim-query-input:focus { border-color: var(--accent-teal); }
+        .sim-query-send { background: #ffffff; color: var(--bg-base); border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-weight: 700; font-family: var(--font-title); font-size: 0.85rem; transition: all 0.2s; }
+        .sim-query-send:hover { background: var(--accent-teal); box-shadow: 0 0 10px var(--accent-teal-dim); }
+        
+        .spinner { width: 14px; height: 14px; border: 2px solid var(--border-glass); border-top-color: var(--accent-teal); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .empty-state { text-align:center; padding: 40px 20px; color: var(--text-secondary); font-size: 0.9rem; }
+    </style>
 </head>
 <body>
+    <div class="mesh-bg"></div>
 
-<button class="sidebar-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle sidebar">☰</button>
-
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <div class="logo">🔍 <span>ChatLens</span></div>
-    <div class="sidebar-stats" id="statsLine"></div>
-    <button class="btn btn-primary" style="width:100%; margin-top:12px;" onclick="openImportModal()">+ Import Data</button>
-  </div>
-  <div class="chat-list" id="chatList">
-    <div class="empty-state">Loading chats…</div>
-  </div>
-</aside>
-
-<!-- Import Modal -->
-<div class="modal-overlay" id="importModal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Import Data</div>
-      <button class="modal-close" onclick="closeImportModal()">✕</button>
-    </div>
-    <div class="modal-tabs">
-      <button class="modal-tab active" onclick="switchTab('file')">File Upload</button>
-      <button class="modal-tab" onclick="switchTab('live')">Telegram Live</button>
-    </div>
-    <div class="modal-pane active" id="pane-file">
-      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px">Upload WhatsApp (.txt) or Telegram (.json) exports.</p>
-      <input type="file" id="fileInput" style="display:none" accept=".txt,.json">
-      <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
-        Click or drag file here<br><span style="font-size:0.7rem;opacity:0.7">(whatsapp .txt or telegram .json)</span>
-      </div>
-      <div id="uploadStatus" style="font-size:0.8rem;color:var(--accent);text-align:center"></div>
-    </div>
-    <div class="modal-pane" id="pane-live">
-      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px">Connect live to Telegram using your phone number.</p>
-      <div id="step-phone">
-        <div class="form-group">
-          <label>Phone Number (with country code)</label>
-          <input type="text" id="tgPhone" placeholder="+1234567890">
+    <!-- Import Modal -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Import Data</div>
+                <button class="modal-close" onclick="closeImportModal()">✕</button>
+            </div>
+            <div class="modal-tabs">
+                <button class="modal-tab active" onclick="switchModalTab('file')">File Upload</button>
+                <button class="modal-tab" onclick="switchModalTab('live')">Telegram Live</button>
+            </div>
+            <div class="modal-pane active" id="pane-file">
+                <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px">Upload WhatsApp (.txt) or Telegram (.json) exports.</p>
+                <input type="file" id="fileInput" style="display:none" accept=".txt,.json">
+                <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+                    Click or drag file here<br><span style="font-size:0.7rem;opacity:0.7">(whatsapp .txt or telegram .json)</span>
+                </div>
+                <div id="uploadStatus" style="font-size:0.8rem;color:var(--accent-teal);text-align:center"></div>
+            </div>
+            <div class="modal-pane" id="pane-live">
+                <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px">Connect live to Telegram using your phone number.</p>
+                <div id="step-phone">
+                    <div class="form-group">
+                        <label>Phone Number (with country code)</label>
+                        <input type="text" id="tgPhone" placeholder="+1234567890">
+                    </div>
+                    <button class="btn-primary" style="width:100%" onclick="sendTgCode()" id="btnSendCode">Send Code</button>
+                </div>
+                <div id="step-code" style="display:none">
+                    <div class="form-group">
+                        <label>Telegram Code</label>
+                        <input type="text" id="tgCode" placeholder="12345">
+                    </div>
+                    <button class="btn-primary" style="width:100%" onclick="verifyTgCode()" id="btnVerifyCode">Verify & Sync</button>
+                </div>
+                <div id="tgStatus" style="font-size:0.8rem;color:var(--accent-teal);text-align:center;margin-top:12px"></div>
+            </div>
         </div>
-        <button class="btn btn-primary" style="width:100%" onclick="sendTgCode()" id="btnSendCode">Send Code</button>
-      </div>
-      <div id="step-code" style="display:none">
-        <div class="form-group">
-          <label>Telegram Code</label>
-          <input type="text" id="tgCode" placeholder="12345">
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="workspace-simulator">
+        <!-- Sidebar -->
+        <div class="sim-sidebar">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="logo">🔍 <span>ChatLens</span></div>
+            </div>
+            <div id="statsLine" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px;"></div>
+            <button class="btn-primary" style="width:100%" onclick="openImportModal()">+ Import Data</button>
+            
+            <div class="sim-sidebar-title" style="margin-top:16px;">Your Chats</div>
+            <div class="sim-chat-list" id="chatList">
+                <div class="empty-state">Loading chats...</div>
+            </div>
         </div>
-        <button class="btn btn-primary" style="width:100%" onclick="verifyTgCode()" id="btnVerifyCode">Verify & Sync</button>
-      </div>
-      <div id="tgStatus" style="font-size:0.8rem;color:var(--accent);text-align:center;margin-top:12px"></div>
-    </div>
-  </div>
-</div>
 
-<main class="main" id="mainPanel">
-  <div class="topbar" id="topbar" style="display:none">
-    <div class="topbar-title" id="topbarTitle"></div>
-    <div class="topbar-tabs" id="viewTabs">
-      <div class="topbar-tab active" onclick="switchView('messages')">Messages</div>
-      <div class="topbar-tab" onclick="switchView('dashboard')">Dashboard</div>
-    </div>
-    <div class="insight-buttons" id="insightBtns">
-      <button class="btn btn-primary" onclick="doInsight('relationship_dynamics')">Dynamics</button>
-      <button class="btn btn-primary" onclick="doInsight('vibe_check')">Vibe Check</button>
-      <button class="btn btn-primary" onclick="doInsight('flags')">Flags</button>
-      <button class="btn btn-primary" onclick="doInsight('recap')">Recap</button>
-      <button class="btn btn-primary" onclick="doAnalyze()">Full Analysis</button>
-    </div>
-  </div>
+        <!-- Middle Pane -->
+        <div class="sim-message-pane">
+            <!-- Welcome -->
+            <div id="welcome" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+                <div style="font-size: 3rem; margin-bottom:16px;">🔍</div>
+                <h2 style="font-family: var(--font-title); font-size: 1.5rem; margin-bottom:8px;">Welcome to ChatLens</h2>
+                <p style="color: var(--text-secondary); font-size:0.9rem; max-width: 400px;">Select a chat from the sidebar to view messages, or import new data.</p>
+                <div style="margin-top: 30px; text-align: left; width: 100%; max-width: 600px;">
+                    <div class="sim-ai-display-title">✨ Global Chat Summary</div>
+                    <div id="globalSummaryBody" class="sim-ai-display" style="background: var(--bg-surface); min-height: 100px; max-height: 250px;">
+                        <span class="spinner"></span> Loading global summary...
+                    </div>
+                </div>
+            </div>
 
-  <div class="welcome" id="welcome">
-    <div style="max-width: 700px; width: 100%; text-align: left; padding: 20px;">
-      <div class="welcome-icon" style="text-align: center;">🔍</div>
-      <h2 style="text-align: center;">Welcome to ChatLens</h2>
-      <p style="text-align: center;">Select a chat from the sidebar to view messages, or use the input bar to ask questions across all your conversations.</p>
-      
-      <div id="globalSummaryContainer" style="margin-top: 30px; text-align: left;">
-        <h3 style="color: var(--accent); margin-bottom: 12px; font-size: 1rem;">✨ Global Chat Summary</h3>
-        <div id="globalSummaryBody" style="font-size: 0.88rem; color: var(--text); line-height: 1.7; background: var(--bg-card); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border);">
-          <span class="spinner"></span> Reading recent messages across all your chats...
+            <!-- Topbar -->
+            <div class="sim-pane-header" id="topbar" style="display:none;">
+                <div class="sim-active-title" id="topbarTitle">Chat Name</div>
+                <div class="sim-tabs" id="viewTabs">
+                    <button class="sim-tab-btn active" onclick="switchView('messages')">Messages</button>
+                    <button class="sim-tab-btn" onclick="switchView('dashboard')">Dashboard</button>
+                </div>
+            </div>
+
+            <!-- Messages View -->
+            <div class="sim-stream" id="messages" style="display:none;"></div>
+
+            <!-- Dashboard View -->
+            <div class="dashboard-view" id="dashboard"></div>
         </div>
-      </div>
+
+        <!-- Right Pane: Analytics -->
+        <div class="sim-analytics-sidebar" id="analyticsSidebar" style="display:none;">
+            <div class="sim-ai-display-title">✨ Gemini Insights</div>
+            <div class="sim-ai-display" id="ai-output-text">
+                Select a preset check below or write a custom query to trigger Gemini's context parsing.
+            </div>
+            
+            <div class="sim-presets" id="insightBtns">
+                <button class="sim-preset-btn" onclick="doInsight('relationship_dynamics')">👥 Analyze Dynamics</button>
+                <button class="sim-preset-btn" onclick="doInsight('vibe_check')">🔥 Quick Vibe Check</button>
+                <button class="sim-preset-btn" onclick="doInsight('flags')">🚩 Identify Red/Green Flags</button>
+                <button class="sim-preset-btn" onclick="doInsight('recap')">📝 Executive Recap</button>
+                <button class="sim-preset-btn" style="border-color: var(--accent-teal); color: var(--accent-teal);" onclick="doAnalyze()">✨ Full Analysis</button>
+            </div>
+            
+            <div class="sim-input-bar">
+                <input type="text" id="askInput" class="sim-query-input" placeholder="Ask Gemini..." onkeydown="if(event.key==='Enter')doAsk()">
+                <button class="sim-query-send" id="sendBtn" onclick="doAsk()">Ask</button>
+            </div>
+        </div>
     </div>
-  </div>
-
-  <div class="messages" id="messages" style="display:none"></div>
-  <div class="dashboard" id="dashboard" style="display:none"></div>
-
-  <div class="input-bar" id="inputBar">
-    <input type="text" id="askInput" placeholder="Ask a question about your chats…" onkeydown="if(event.key==='Enter')doAsk()">
-    <button class="send-btn" id="sendBtn" onclick="doAsk()" title="Send">➤</button>
-  </div>
-</main>
 
 <script>
 let currentChat = null;
+let hourChart = null;
+let dayChart = null;
 
 async function fetchJSON(url, opts) {
   const r = await fetch(url, opts);
   return r.json();
 }
 
-// ── Load chats ──────────────────────────────────────
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function formatAI(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3 style="color:var(--accent-teal);margin-top:10px;margin-bottom:5px">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="color:var(--text-primary);margin-top:10px;margin-bottom:5px">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="color:var(--text-primary);margin-top:10px;margin-bottom:5px">$1</h1>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/
+/g, '<br>');
+}
+
 async function loadChats() {
   const chats = await fetchJSON('/api/chats');
   const el = document.getElementById('chatList');
-  if (!chats.length) { el.innerHTML = '<div class="empty-state">No chats imported yet.<br>Use the CLI to import chats.</div>'; return; }
+  if (!chats.length) { el.innerHTML = '<div class="empty-state">No chats imported yet.</div>'; return; }
   el.innerHTML = chats.map(c => `
-    <div class="chat-item" data-name="${esc(c.name)}" onclick="selectChat('${esc(c.name)}')">
-      <span class="badge badge-${c.platform}">${c.platform}</span>
-      <div class="chat-meta">
-        <div class="chat-name">${esc(c.name)}</div>
-        <div class="chat-count">${c.message_count.toLocaleString()} messages</div>
+    <div class="sim-chat-item" data-name="${esc(c.name)}" onclick="selectChat('${esc(c.name)}')">
+      <div class="sim-chat-info">
+        <div class="sim-chat-name">${esc(c.name)}</div>
+        <div class="sim-chat-meta">
+            <span class="sim-platform-tag sim-platform-${c.platform.toLowerCase()}">${c.platform}</span>
+            <span>${c.message_count.toLocaleString()} msgs</span>
+        </div>
       </div>
     </div>
   `).join('');
 
-  // Load stats
   const stats = await fetchJSON('/api/stats');
-  document.getElementById('statsLine').textContent =
-    `${stats.total_messages.toLocaleString()} messages · ${stats.total_chats} chats`;
+  document.getElementById('statsLine').textContent = `${stats.total_messages.toLocaleString()} messages · ${stats.total_chats} chats`;
 }
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-
-// ── Select chat ─────────────────────────────────────
 async function selectChat(name) {
   currentChat = name;
-  document.querySelectorAll('.chat-item').forEach(el => el.classList.toggle('active', el.dataset.name === name));
+  document.querySelectorAll('.sim-chat-item').forEach(el => el.classList.toggle('active', el.dataset.name === name));
   document.getElementById('welcome').style.display = 'none';
   document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('analyticsSidebar').style.display = 'flex';
   document.getElementById('topbarTitle').textContent = name;
-  document.querySelector('.sidebar').classList.remove('open');
-
+  
+  document.getElementById('ai-output-text').innerHTML = "Select a preset check below or write a custom query to trigger Gemini's context parsing.";
+  
   switchView('messages');
 }
 
 function switchView(view) {
   document.getElementById('messages').style.display = view === 'messages' ? 'flex' : 'none';
   document.getElementById('dashboard').style.display = view === 'dashboard' ? 'flex' : 'none';
-  document.getElementById('inputBar').style.display = view === 'messages' ? 'flex' : 'none';
-  document.getElementById('insightBtns').style.display = view === 'messages' ? 'flex' : 'none';
   
-  document.querySelectorAll('#viewTabs .topbar-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase() === view));
+  const tabs = document.querySelectorAll('#viewTabs .sim-tab-btn');
+  tabs[0].classList.toggle('active', view === 'messages');
+  tabs[1].classList.toggle('active', view === 'dashboard');
 
   if (view === 'messages') loadMessages();
   if (view === 'dashboard') loadDashboard();
@@ -297,46 +362,57 @@ function switchView(view) {
 
 async function loadMessages() {
   const msgEl = document.getElementById('messages');
-  msgEl.innerHTML = '<div class="loading-card"><span class="spinner"></span> Loading messages…</div>';
+  msgEl.innerHTML = '<div class="empty-state"><span class="spinner"></span> Loading messages...</div>';
   const msgs = await fetchJSON(`/api/messages?chat=${encodeURIComponent(currentChat)}&limit=200`);
-  renderMessages(msgs);
-}
+  
+  if (!msgs.length) { msgEl.innerHTML = '<div class="empty-state">No messages.</div>'; return; }
 
-let hourChart = null;
-let dayChart = null;
+  const senders = [...new Set(msgs.map(m => m.sender))];
+  const firstSender = senders[0];
+
+  msgEl.innerHTML = msgs.map(m => {
+    const isSent = m.sender !== firstSender;
+    const ts = m.timestamp ? new Date(m.timestamp).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="sim-bubble ${isSent ? 'sim-bubble-sent' : 'sim-bubble-received'}">
+        <span class="sim-msg-sender">${esc(m.sender)}</span>
+        <span class="sim-msg-text">${esc(m.text)}</span>
+        <span class="sim-msg-time">${ts}</span>
+    </div>`;
+  }).join('');
+  msgEl.scrollTop = msgEl.scrollHeight;
+}
 
 async function loadDashboard() {
   const dashEl = document.getElementById('dashboard');
-  dashEl.innerHTML = '<div class="loading-card"><span class="spinner"></span> Calculating stats and awards…</div>';
+  dashEl.innerHTML = '<div class="empty-state"><span class="spinner"></span> Calculating stats...</div>';
   
   const stats = await fetchJSON(`/api/chats/${encodeURIComponent(currentChat)}/stats`);
   
   let awardsHtml = '';
   if (stats.awards && Object.keys(stats.awards).length > 0) {
       awardsHtml = '<div class="awards-grid">' + 
-          Object.entries(stats.awards).map(([k,v]) => `<div class="award-card"><div class="award-title">${esc(k)}</div><div class="award-winner">${esc(v)}</div></div>`).join('')
+          Object.entries(stats.awards).map(([k,v]) => `<div class="award-card"><span class="award-title">${esc(k)}</span><span class="award-winner">${esc(v)}</span></div>`).join('')
       + '</div>';
   }
 
-  let topSendersHtml = stats.top_senders.map(s => `<div><b>${esc(s.name)}</b>: ${s.count} msgs</div>`).join('');
+  let topSendersHtml = stats.top_senders.map(s => `<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.85rem;"><span style="color:#fff">${esc(s.name)}</span><span style="color:var(--accent-teal)">${s.count} msgs</span></div>`).join('');
 
   dashEl.innerHTML = `
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-value">${stats.total_messages.toLocaleString()}</div><div class="stat-label">Total Messages</div></div>
-      <div class="stat-card"><div class="stat-value">${stats.total_words.toLocaleString()}</div><div class="stat-label">Total Words</div></div>
+      <div class="bento-card"><div class="stat-value">${stats.total_messages.toLocaleString()}</div><div class="stat-label">Total Messages</div></div>
+      <div class="bento-card"><div class="stat-value">${stats.total_words.toLocaleString()}</div><div class="stat-label">Total Words</div></div>
     </div>
     ${awardsHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div class="chart-container"><canvas id="hourChart"></canvas></div>
         <div class="chart-container"><canvas id="dayChart"></canvas></div>
     </div>
-    <div class="stat-card" style="text-align:left">
-        <div class="stat-label" style="margin-bottom:8px">Top Contributors</div>
+    <div class="bento-card">
+        <div class="stat-label" style="margin-bottom:12px;color:var(--text-primary);">Top Contributors</div>
         ${topSendersHtml}
     </div>
   `;
 
-  // Draw Charts
   if (hourChart) hourChart.destroy();
   if (dayChart) dayChart.destroy();
 
@@ -345,9 +421,9 @@ async function loadDashboard() {
       type: 'bar',
       data: {
           labels: Array.from({length:24}, (_,i) => i+":00"),
-          datasets: [{ label: 'Messages by Hour', data: Object.values(stats.activity_by_hour), backgroundColor: '#00d4aa' }]
+          datasets: [{ label: 'Messages', data: Object.values(stats.activity_by_hour), backgroundColor: '#00d4aa', borderRadius: 4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins:{legend:{labels:{color:'#e4e4e7'}}} }
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins:{legend:{display:false}} }
   });
 
   const ctxD = document.getElementById('dayChart').getContext('2d');
@@ -355,66 +431,10 @@ async function loadDashboard() {
       type: 'bar',
       data: {
           labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-          datasets: [{ label: 'Messages by Day', data: Object.values(stats.activity_by_day), backgroundColor: '#00b4d8' }]
+          datasets: [{ label: 'Messages', data: Object.values(stats.activity_by_day), backgroundColor: '#00b4d8', borderRadius: 4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins:{legend:{labels:{color:'#e4e4e7'}}} }
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins:{legend:{display:false}} }
   });
-}
-
-function renderMessages(msgs) {
-  const el = document.getElementById('messages');
-  if (!msgs.length) { el.innerHTML = '<div class="empty-state">No messages.</div>'; return; }
-
-  const senders = [...new Set(msgs.map(m => m.sender))];
-  // First sender is "left" aligned, others alternate
-  const firstSender = senders[0];
-
-  el.innerHTML = msgs.map(m => {
-    const side = m.sender === firstSender ? 'msg-left' : 'msg-right';
-    const ts = m.timestamp ? new Date(m.timestamp).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div class="msg ${side}"><div class="msg-sender">${esc(m.sender)}</div><div class="msg-text">${esc(m.text)}</div><div class="msg-time">${ts}</div></div>`;
-  }).join('');
-  el.scrollTop = el.scrollHeight;
-}
-
-// ── AI actions ──────────────────────────────────────
-function addAICard(label, body) {
-  const el = document.getElementById('messages');
-  el.style.display = 'flex';
-  document.getElementById('welcome').style.display = 'none';
-  const card = document.createElement('div');
-  card.className = 'ai-card';
-  card.innerHTML = `<div class="ai-card-label">${esc(label)}</div><div class="ai-card-body">${formatAI(body)}</div>`;
-  el.appendChild(card);
-  el.scrollTop = el.scrollHeight;
-}
-
-function addLoadingCard(text) {
-  const el = document.getElementById('messages');
-  const card = document.createElement('div');
-  card.className = 'loading-card';
-  card.id = 'loadingCard';
-  card.innerHTML = `<span class="spinner"></span> ${text}`;
-  el.appendChild(card);
-  el.scrollTop = el.scrollHeight;
-}
-
-function removeLoading() {
-  const lc = document.getElementById('loadingCard');
-  if (lc) lc.remove();
-}
-
-function formatAI(text) {
-  // Basic markdown-ish rendering
-  return text
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    .replace(/\n/g, '<br>');
 }
 
 function setButtons(disabled) {
@@ -425,35 +445,29 @@ function setButtons(disabled) {
 async function doInsight(type) {
   if (!currentChat) return;
   setButtons(true);
-  addLoadingCard('Analyzing ' + type.replace('_', ' ') + '…');
+  document.getElementById('ai-output-text').innerHTML = `<span class="spinner"></span> Analyzing ${type.replace('_', ' ')}...`;
   try {
     const data = await fetchJSON(`/api/chats/${encodeURIComponent(currentChat)}/insights`, {
         method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type})
     });
-    removeLoading();
-    addAICard('Insight: ' + type.replace('_', ' ').toUpperCase(), data.insight || data.error);
-  } catch(e) { removeLoading(); addAICard('Error', e.message); }
+    document.getElementById('ai-output-text').innerHTML = formatAI(data.insight || data.error);
+  } catch(e) { document.getElementById('ai-output-text').innerHTML = 'Error: ' + esc(e.message); }
   setButtons(false);
 }
 
 async function doAnalyze() {
   if (!currentChat) return;
   setButtons(true);
-  addLoadingCard('Running full analysis (this may take a moment)…');
+  document.getElementById('ai-output-text').innerHTML = `<span class="spinner"></span> Running full analysis...`;
   try {
     const data = await fetchJSON('/api/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({chat_name:currentChat})});
-    removeLoading();
-    if (data.error) { addAICard('Error', data.error); }
+    if (data.error) { document.getElementById('ai-output-text').innerHTML = esc(data.error); }
     else {
       const sections = ['summary','sentiment','topics','relationships','timeline'];
-      const body = sections.map(s => data[s] ? `<div class="ai-card-section"><div class="ai-card-section-title">${s.charAt(0).toUpperCase()+s.slice(1)}</div>${formatAI(data[s])}</div>` : '').join('');
-      addAICard('Full Analysis', '');
-      // Replace last card body with sectioned content
-      const cards = document.querySelectorAll('.ai-card');
-      const last = cards[cards.length-1];
-      last.querySelector('.ai-card-body').innerHTML = body;
+      const body = sections.map(s => data[s] ? `<div style="margin-top:16px;border-top:1px solid var(--border-glass);padding-top:8px"><div style="color:var(--accent-teal);font-weight:700;font-family:var(--font-title)">${s.charAt(0).toUpperCase()+s.slice(1)}</div>${formatAI(data[s])}</div>` : '').join('');
+      document.getElementById('ai-output-text').innerHTML = body;
     }
-  } catch(e) { removeLoading(); addAICard('Error', e.message); }
+  } catch(e) { document.getElementById('ai-output-text').innerHTML = 'Error: ' + esc(e.message); }
   setButtons(false);
 }
 
@@ -463,38 +477,26 @@ async function doAsk() {
   if (!question) return;
   input.value = '';
 
-  // Show user question as a right-aligned message
-  const el = document.getElementById('messages');
-  el.style.display = 'flex';
-  document.getElementById('welcome').style.display = 'none';
-  const qDiv = document.createElement('div');
-  qDiv.className = 'msg msg-right';
-  qDiv.innerHTML = `<div class="msg-sender">You</div><div class="msg-text">${esc(question)}</div>`;
-  el.appendChild(qDiv);
-  el.scrollTop = el.scrollHeight;
-
   setButtons(true);
-  addLoadingCard('Thinking…');
+  document.getElementById('ai-output-text').innerHTML = `<span class="spinner"></span> Thinking...`;
   try {
     const data = await fetchJSON('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, chat_name:currentChat})});
-    removeLoading();
-    addAICard('Answer', data.answer);
-  } catch(e) { removeLoading(); addAICard('Error', e.message); }
+    document.getElementById('ai-output-text').innerHTML = `<div style="margin-bottom:10px;color:var(--text-secondary);font-size:0.75rem">Q: ${esc(question)}</div>${formatAI(data.answer)}`;
+  } catch(e) { document.getElementById('ai-output-text').innerHTML = 'Error: ' + esc(e.message); }
   setButtons(false);
 }
 
-// ── Import Modal ────────────────────────────────────
+// Modal Logic
 function openImportModal() { document.getElementById('importModal').classList.add('open'); }
 function closeImportModal() { document.getElementById('importModal').classList.remove('open'); }
 
-function switchTab(tab) {
+function switchModalTab(tab) {
   document.querySelectorAll('.modal-tab').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.modal-pane').forEach(el => el.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('pane-' + tab).classList.add('active');
 }
 
-// File Upload Logic
 const fileDrop = document.getElementById('fileDrop');
 const fileInput = document.getElementById('fileInput');
 
@@ -525,13 +527,12 @@ async function handleFileUpload(file) {
     const data = await r.json();
     if (data.error) throw new Error(data.error);
     status.textContent = `Success! Ingested ${data.count} messages.`;
-    setTimeout(() => { status.textContent = ''; closeImportModal(); loadChats(); }, 1500);
+    setTimeout(() => { status.textContent = ''; closeImportModal(); loadChats(); loadGlobalSummary(); }, 1500);
   } catch (e) {
     status.textContent = 'Error: ' + e.message;
   }
 }
 
-// Telegram Live Logic
 let currentPhoneHash = '';
 async function sendTgCode() {
   const phone = document.getElementById('tgPhone').value.trim();
@@ -547,13 +548,12 @@ async function sendTgCode() {
     if (data.error) throw new Error(data.error);
     if (data.phone_code_hash === "ALREADY_AUTHORIZED") {
       status.textContent = "Already authorized! Fetching chats...";
-      // trigger fetch via verify with empty code/hash to trigger sync
       const v = await fetchJSON('/api/telegram/auth/verify', {
         method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({phone, code:'already', phone_code_hash:'already'})
       });
       if (v.error) throw new Error(v.error);
       status.textContent = `Synced ${v.count} messages.`;
-      setTimeout(() => { closeImportModal(); loadChats(); }, 1500);
+      setTimeout(() => { closeImportModal(); loadChats(); loadGlobalSummary(); }, 1500);
     } else {
       currentPhoneHash = data.phone_code_hash;
       document.getElementById('step-phone').style.display = 'none';
@@ -570,7 +570,7 @@ async function verifyTgCode() {
   if (!code) return alert('Enter code');
   const btn = document.getElementById('btnVerifyCode');
   const status = document.getElementById('tgStatus');
-  btn.disabled = true; status.textContent = 'Verifying and syncing (this may take a minute)...';
+  btn.disabled = true; status.textContent = 'Verifying and syncing...';
   
   try {
     const data = await fetchJSON('/api/telegram/auth/verify', {
@@ -578,7 +578,7 @@ async function verifyTgCode() {
     });
     if (data.error) throw new Error(data.error);
     status.textContent = `Success! Synced ${data.count} messages.`;
-    setTimeout(() => { closeImportModal(); loadChats(); }, 1500);
+    setTimeout(() => { closeImportModal(); loadChats(); loadGlobalSummary(); }, 1500);
   } catch(e) { status.textContent = 'Error: ' + e.message; }
   btn.disabled = false;
 }
@@ -593,7 +593,7 @@ async function loadGlobalSummary() {
   }
 }
 
-// ── Init ────────────────────────────────────────────
+// Init
 loadChats();
 loadGlobalSummary();
 </script>
