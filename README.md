@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Version-2.0.0-00d4aa?style=for-the-badge&logo=github" alt="Version" />
-  <img src="https://img.shields.io/badge/Gemini-1.5%20%7C%202.0%20%7C%202.5-00b4d8?style=for-the-badge&logo=google-gemini" alt="Gemini" />
+  <img src="https://img.shields.io/badge/Gemini-2.5-00b4d8?style=for-the-badge&logo=google-gemini" alt="Gemini" />
   <img src="https://img.shields.io/badge/Next.js-16.0-ffffff?style=for-the-badge&logo=nextdotjs&logoColor=black" alt="Next.js" />
   <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
   <img src="https://img.shields.io/badge/PostgreSQL-pgvector-4169e1?style=for-the-badge&logo=postgresql" alt="PostgreSQL" />
@@ -21,12 +21,14 @@
 *   **🗂️ Multi-Platform Ingestion**
     *   **Telegram**: Import standard JSON exports or authorize live via Telethon API.
     *   **WhatsApp**: Import standard `.txt` chat exports.
-*   **🧠 Deep AI Analysis** (Powered by Gemini's 1M+ token context window):
+*   **🧠 Deep AI Analysis** (Powered by Gemini 2.5's 1M+ token context window):
     *   **Summarization**: Dynamic, context-aware chat recaps.
     *   **Sentiment Tracking**: Analyze emotional trends and tone shifts.
     *   **Topic Clustering**: Auto-extract themes and key discussion points.
     *   **Relationship Mapping**: Map interaction frequencies and dynamics.
 *   **💬 Interactive Q&A**: Ask natural language questions about your chats (e.g. *"What did we decide on for dinner last Tuesday?"*).
+*   **🚀 Fully Async Analysis Backend**: Modern asynchronous Python utilizing `asyncio.gather` for parallel generation and the official modern Google GenAI SDK.
+*   **🛡️ Robust Error Handling**: Employs `tenacity` based exponential back-off for resilient API requests and better quota management.
 *   **📊 Spotify-Wrapped style Stats**:
     *   Quantitative dashboards with hourly and daily activity graphs.
     *   Fun, automated awards: `🗣️ Top Talker`, `👀 The Observer`, `📜 The Monologuer`, `🧊 The Icebreaker`, and `⚡ Speed Demon`.
@@ -130,7 +132,7 @@ Open `http://localhost:3000`.
 | `GEMINI_API_KEY` | **Yes** | — | Google Gemini API key from Google AI Studio |
 | `TELEGRAM_API_ID` | No | — | Telegram App API ID (from [my.telegram.org](https://my.telegram.org)) |
 | `TELEGRAM_API_HASH` | No | — | Telegram App API Hash (from [my.telegram.org](https://my.telegram.org)) |
-| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model to use for analysis |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model to use for analysis |
 | `DATABASE_URL` | No | `postgresql+asyncpg://...` | PostgreSQL async connection string |
 | `CELERY_BROKER_URL`| No | `redis://localhost:6379/0`| Redis Celery broker connection string |
 

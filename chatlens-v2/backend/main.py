@@ -209,7 +209,7 @@ async def api_global_summarize(db: AsyncSession = Depends(get_db)):
     if not messages:
         return {"summary": "No chats have been imported yet. Import a chat to see your summary."}
     
-    summary = await asyncio.to_thread(get_analyzer().summarize, messages)
+    summary = await get_analyzer().summarize(messages)
     return {"summary": summary}
 
 @app.post("/api/analyze")
@@ -219,7 +219,7 @@ async def api_analyze(req: ChatRequest, db: AsyncSession = Depends(get_db)):
     if not messages:
         raise HTTPException(status_code=404, detail=f"No messages for '{req.chat_name}'.")
         
-    analysis = await asyncio.to_thread(get_analyzer().full_analysis, messages)
+    analysis = await get_analyzer().full_analysis(messages)
     return analysis
 
 @app.post("/api/ask")
@@ -236,7 +236,7 @@ async def api_ask(req: AskRequest, db: AsyncSession = Depends(get_db)):
     if not messages:
         return {"answer": "No relevant messages found for that question."}
         
-    answer = await asyncio.to_thread(get_analyzer().ask, req.question, messages)
+    answer = await get_analyzer().ask(req.question, messages)
     return {"answer": answer}
 
 @app.post("/api/chats/{chat_name}/insights")
@@ -247,7 +247,7 @@ async def api_chat_insights(chat_name: str, req: InsightRequest, db: AsyncSessio
         raise HTTPException(status_code=404, detail=f"No messages for '{chat_name}'.")
         
     try:
-        insight = await asyncio.to_thread(get_analyzer().generate_insight, req.type, messages)
+        insight = await get_analyzer().generate_insight(req.type, messages)
         return {"insight": insight}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
