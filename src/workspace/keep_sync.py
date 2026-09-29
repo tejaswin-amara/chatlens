@@ -30,9 +30,7 @@ class KeepSync:
             note_name = self.note_id if is_prefix else f"notes/{self.note_id}"
             body = {"title": title, "body": {"text": {"text": today_timetable_text}}}
             updated = (
-                service.notes()
-                .patch(name=note_name, updateMask="title,body", body=body)
-                .execute()
+                service.notes().patch(name=note_name, updateMask="title,body", body=body).execute()
             )
             logger.info("Updated Google Keep live timetable note", note_id=note_name)
             return updated

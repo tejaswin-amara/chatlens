@@ -31,9 +31,7 @@ class SheetsLogger:
 
             if AUDIT_TAB not in tab_names:
                 body = {"requests": [{"addSheet": {"properties": {"title": AUDIT_TAB}}}]}
-                service.spreadsheets().batchUpdate(
-                    spreadsheetId=self.sheet_id, body=body
-                ).execute()
+                service.spreadsheets().batchUpdate(spreadsheetId=self.sheet_id, body=body).execute()
 
                 service.spreadsheets().values().update(
                     spreadsheetId=self.sheet_id,
@@ -76,7 +74,7 @@ class SheetsLogger:
             .append(
                 spreadsheetId=self.sheet_id,
                 range=f"{AUDIT_TAB}!A:F",
-                valueInputOption="USER_ENTERED",
+                valueInputOption="RAW",
                 body={"values": [row_values]},
             )
             .execute()

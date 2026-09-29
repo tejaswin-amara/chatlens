@@ -1,5 +1,6 @@
 """Telegram event handlers for commands, announcements, and multimodal media."""
 
+import asyncio
 import time
 from datetime import datetime, timedelta
 
@@ -30,7 +31,7 @@ def _get_sender_name(sender) -> str:
 
 
 def register_handlers(client: TelegramClient) -> None:
-    @client.on(events.NewMessage(pattern=r"^/today"))
+    @client.on(events.NewMessage(pattern=r"^/today", outgoing=True))
     async def handle_today_command(event: events.NewMessage.Event) -> None:
         today_str = datetime.now().strftime("%Y-%m-%d")
         response_text = (
@@ -43,7 +44,7 @@ def register_handlers(client: TelegramClient) -> None:
         )
         await event.respond(response_text)
 
-    @client.on(events.NewMessage(pattern=r"^/next"))
+    @client.on(events.NewMessage(pattern=r"^/next", outgoing=True))
     async def handle_next_command(event: events.NewMessage.Event) -> None:
         now = datetime.now()
         next_time_str = (now + timedelta(minutes=35)).strftime("%I:%M %p")
@@ -56,7 +57,7 @@ def register_handlers(client: TelegramClient) -> None:
         )
         await event.respond(response_text)
 
-    @client.on(events.NewMessage(pattern=r"^/task(?:\s+(.+))?"))
+    @client.on(events.NewMessage(pattern=r"^/task(?:\s+(.+))?", outgoing=True))
     async def handle_task_command(event: events.NewMessage.Event) -> None:
         task_text = event.pattern_match.group(1)
         if not task_text:
@@ -64,7 +65,7 @@ def register_handlers(client: TelegramClient) -> None:
             return
 
         try:
-            created = tasks_sync.create_task(title=task_text)
+            created = await asyncio.to_thread(tasks_sync.create_task, title=task_text)
             task_id = created.get("id", "N/A")
             await event.respond(f"✅ **Task Created:** {task_text}\nTask ID: `{task_id}`")
         except Exception as e:
@@ -76,6 +77,11 @@ def register_handlers(client: TelegramClient) -> None:
         if not msg:
             return
 
+        # Early return for outgoing messages to prevent receipt re-ingestion
+        if event.out:
+            return
+
+        # Ignore command triggers
         if msg.text and msg.text.startswith("/"):
             return
 
@@ -100,8 +106,8 @@ def register_handlers(client: TelegramClient) -> None:
             try:
                 media_bytes = await client.download_media(msg, file=bytes)
                 if media_bytes:
-                    parsed_event = ai_extractor.extract_from_voice(
-                        media_bytes, message_date=msg.date
+                    parsed_event = await asyncio.to_thread(
+                        ai_extractor.extract_from_voice, media_bytes, message_date=msg.date
                     )
             except Exception as e:
                 logger.error("Failed voice extraction", error=str(e))
@@ -112,8 +118,11 @@ def register_handlers(client: TelegramClient) -> None:
                 mime_type = "application/pdf" if is_pdf else "image/jpeg"
                 media_bytes = await client.download_media(msg, file=bytes)
                 if media_bytes:
-                    parsed_event = ai_extractor.extract_from_media(
-                        media_bytes, mime_type=mime_type, message_date=msg.date
+                    parsed_event = await asyncio.to_thread(
+                        ai_extractor.extract_from_media,
+                        media_bytes,
+                        mime_type=mime_type,
+                        message_date=msg.date,
                     )
             except Exception as e:
                 logger.error("Failed media vision extraction", error=str(e))
@@ -122,7 +131,9 @@ def register_handlers(client: TelegramClient) -> None:
             parsed_event = RegexParser.parse(msg_text, msg.date)
             if not parsed_event:
                 try:
-                    parsed_event = ai_extractor.extract_from_text(msg_text, msg.date)
+                    parsed_event = await asyncio.to_thread(
+                        ai_extractor.extract_from_text, msg_text, msg.date
+                    )
                 except Exception as e:
                     logger.error("Failed AI text extraction", error=str(e))
 
@@ -135,7 +146,8 @@ def register_handlers(client: TelegramClient) -> None:
         try:
             if parsed_event.intent == "ROOM_OVERRIDE" and parsed_event.room:
                 target_dt = parsed_event.target_date or datetime.now().strftime("%Y-%m-%d")
-                calendar_sync.update_class_room(
+                await asyncio.to_thread(
+                    calendar_sync.update_class_room,
                     course_name=parsed_event.course_name,
                     course_code=parsed_event.course_code,
                     new_room=parsed_event.room,
@@ -144,24 +156,27 @@ def register_handlers(client: TelegramClient) -> None:
                 )
                 details_list.append("Google Calendar Patched")
 
-                keep_sync.update_live_timetable_note(
-                    today_timetable_text=(
-                        f"Updated Room: {parsed_event.room} for "
-                        f"{parsed_event.course_name or 'Class'} ({parsed_event.period or 'Today'})"
-                    )
+                keep_text = (
+                    f"Updated Room: {parsed_event.room} for "
+                    f"{parsed_event.course_name or 'Class'} ({parsed_event.period or 'Today'})"
+                )
+                await asyncio.to_thread(
+                    keep_sync.update_live_timetable_note, today_timetable_text=keep_text
                 )
                 details_list.append("Google Keep Updated")
 
             elif parsed_event.intent == "HOLIDAY":
                 target_dt = parsed_event.target_date or datetime.now().strftime("%Y-%m-%d")
-                calendar_sync.create_holiday_event(
+                await asyncio.to_thread(
+                    calendar_sync.create_holiday_event,
                     reason=parsed_event.summary,
                     target_date=target_dt,
                 )
                 details_list.append("Google Calendar Holiday Inserted")
 
             elif parsed_event.intent in ("EXAM_DEADLINE", "TASK") or parsed_event.action_required:
-                tasks_sync.create_task(
+                await asyncio.to_thread(
+                    tasks_sync.create_task,
                     title=parsed_event.summary,
                     due_date=parsed_event.target_date,
                     course_code=parsed_event.course_code,
@@ -174,7 +189,8 @@ def register_handlers(client: TelegramClient) -> None:
 
         latency_ms = int((time.time() - start_time) * 1000)
 
-        sheets_logger.append_audit_log(
+        await asyncio.to_thread(
+            sheets_logger.append_audit_log,
             source_sender=f"{chat_name} ({sender_name})",
             message_text=msg_text or "[Multimodal Media]",
             intent=parsed_event.intent,
@@ -190,8 +206,8 @@ def register_handlers(client: TelegramClient) -> None:
         )
 
         try:
-            c_name = parsed_event.course_name or 'N/A'
-            c_code = parsed_event.course_code or 'N/A'
+            c_name = parsed_event.course_name or "N/A"
+            c_code = parsed_event.course_code or "N/A"
             course_str = f"{c_name} ({c_code})"
             receipt = (
                 "🤖 **ChatLens PA Sync Receipt**\n"

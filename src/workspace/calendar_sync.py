@@ -45,18 +45,17 @@ class CalendarSync:
         )
         items = events_result.get("items", [])
 
-        search_query = (course_code or course_name or "").upper()
+        search_terms = [t.upper() for t in (course_code, course_name) if t]
         matched_event = None
 
-        for item in items:
-            summary = item.get("summary", "").upper()
-            description = item.get("description", "").upper()
-            if search_query and (search_query in summary or search_query in description):
-                matched_event = item
-                break
-
-        if not matched_event and items:
-            matched_event = items[0]
+        if search_terms:
+            for item in items:
+                summary = item.get("summary", "").upper()
+                description = item.get("description", "").upper()
+                text_to_search = f"{summary} {description}"
+                if any(term in text_to_search for term in search_terms):
+                    matched_event = item
+                    break
 
         reminders_override = {
             "useDefault": False,
