@@ -1,0 +1,42 @@
+[
+  {
+    "id": "notice_001",
+    "text": "Dear S-10 students, DSA class scheduled for Period 2 today is moved to room H-005.",
+    "expected_intent": "ROOM_OVERRIDE",
+    "expected_course": "DSA",
+    "expected_room": "H-005",
+    "expected_action_required": false
+  },
+  {
+    "id": "notice_002",
+    "text": "Attention S-11: Machine Learning (25CS2103E) lecture for P3-P4 will be conducted in HC-15C.",
+    "expected_intent": "ROOM_OVERRIDE",
+    "expected_course": "ML",
+    "expected_room": "HC-15C",
+    "expected_action_required": false
+  },
+  {
+    "id": "notice_003",
+    "text": "CIRCULAR: All classes cancelled tomorrow due to University Holiday for Founder's Day.",
+    "expected_intent": "HOLIDAY",
+    "expected_course": null,
+    "expected_room": null,
+    "expected_action_required": false
+  },
+  {
+    "id": "notice_004",
+    "text": "OSSP (25CS2102) Lab Record Submission due by 2026-04-05. Late submissions will not be accepted.",
+    "expected_intent": "TASK",
+    "expected_course": "OSSP",
+    "expected_room": null,
+    "expected_action_required": true
+  },
+  {
+    "id": "notice_005",
+    "text": "Embedded System Design (ESD) Midterm Exam on 2026-04-10 in room H-301A.",
+    "expected_intent": "EXAM_DEADLINE",
+    "expected_course": "ESD",
+    "expected_room": "H-301A",
+    "expected_action_required": true
+  }
+]
