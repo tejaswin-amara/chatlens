@@ -64,7 +64,7 @@ class AIExtractor:
         if response.parsed and isinstance(response.parsed, ExtractedAcademicEvent):
             return response.parsed
 
-        return ExtractedAcademicEvent.model_validate_json(response.text)
+        return ExtractedAcademicEvent.model_validate_json(response.text or "")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def extract_from_voice(
@@ -95,7 +95,7 @@ class AIExtractor:
         if response.parsed and isinstance(response.parsed, ExtractedAcademicEvent):
             return response.parsed
 
-        return ExtractedAcademicEvent.model_validate_json(response.text)
+        return ExtractedAcademicEvent.model_validate_json(response.text or "")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def extract_from_media(
@@ -126,7 +126,7 @@ class AIExtractor:
         if response.parsed and isinstance(response.parsed, ExtractedAcademicEvent):
             return response.parsed
 
-        return ExtractedAcademicEvent.model_validate_json(response.text)
+        return ExtractedAcademicEvent.model_validate_json(response.text or "")
 
 
 ai_extractor = AIExtractor()
