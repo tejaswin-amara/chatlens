@@ -82,7 +82,9 @@ def test_telegram_full_export():
                     "type": "public_group",
                     "id": 1,
                     "messages": [
-                        {"id": 1, "type": "message", "date": "2024-02-01T09:00:00", "from": "Carol", "from_id": "u1", "text": "Morning!"}
+                        {"id": 1, "type": "message",
+                         "date": "2024-02-01T09:00:00", "from": "Carol", "from_id": "u1",
+                         "text": "H"}
                     ]
                 },
                 {
@@ -90,7 +92,9 @@ def test_telegram_full_export():
                     "type": "private_group",
                     "id": 2,
                     "messages": [
-                        {"id": 1, "type": "message", "date": "2024-02-01T10:00:00", "from": "Dave", "from_id": "u2", "text": "Hey"}
+                        {"id": 1, "type": "message",
+                         "date": "2024-02-01T10:00:00", "from": "Dave", "from_id": "u2",
+                         "text": "H"}
                     ]
                 }
             ]
@@ -117,7 +121,7 @@ def test_whatsapp_basic():
     """WhatsApp .txt export with standard DD/MM/YY format."""
     from chatlens.parsers.whatsapp import parse_whatsapp_export
 
-    content = """15/01/24, 10:30 - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them. Tap to learn more.
+    content = """15/01/24, 10:30 - Messages are e2e encrypted.
 15/01/24, 10:30 - Alice: Hello!
 15/01/24, 10:31 - Bob: Hi there, how are you?
 This is a continuation of Bob's message
