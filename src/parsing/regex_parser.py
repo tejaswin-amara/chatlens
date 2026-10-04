@@ -329,18 +329,18 @@ class RegexParser:
             )
 
         # b) ROOM_OVERRIDE strong
-        STRONG_ROOM_OVERRIDE_VERBS = re.compile(
+        strong_room_override_verbs = re.compile(
             r"\b(MOVED|SHIFTED|RELOCATED|CHANGED TO|CONDUCTED IN|HELD IN|HELD AT)\b",
             re.IGNORECASE
         )
-        WEAK_ROOM_OVERRIDE_VERBS = re.compile(
+        weak_room_override_verbs = re.compile(
             r"\b(VENUE|ROOM|WILL BE IN|CLASS IN)\b", re.IGNORECASE
         )
-        CLASS_WORDS = re.compile(
+        class_words = re.compile(
             r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD)\b", re.IGNORECASE
         )
 
-        if detected_room and detected_course and STRONG_ROOM_OVERRIDE_VERBS.search(clean_text):
+        if detected_room and detected_course and strong_room_override_verbs.search(clean_text):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]
             if detected_period:
                 summary_parts.append(f"during {detected_period}")
@@ -380,8 +380,8 @@ class RegexParser:
 
         # d) ROOM_OVERRIDE weak
         if detected_room and detected_course and (
-            WEAK_ROOM_OVERRIDE_VERBS.search(clean_text) or \
-            CLASS_WORDS.search(clean_text) or detected_period
+            weak_room_override_verbs.search(clean_text) or \
+            class_words.search(clean_text) or detected_period
         ):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]
             if detected_period:
