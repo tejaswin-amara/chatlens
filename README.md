@@ -1,150 +1,64 @@
-<h1 align="center">ChatLens 🔍</h1>
+# ChatLens: SPARK PA Daemon
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Version-2.0.0-00d4aa?style=for-the-badge&logo=github" alt="Version" />
-  <img src="https://img.shields.io/badge/Gemini-2.5-00b4d8?style=for-the-badge&logo=google-gemini" alt="Gemini" />
-  <img src="https://img.shields.io/badge/Next.js-16.0-ffffff?style=for-the-badge&logo=nextdotjs&logoColor=black" alt="Next.js" />
-  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/PostgreSQL-pgvector-4169e1?style=for-the-badge&logo=postgresql" alt="PostgreSQL" />
-</p>
+A headless Telegram to Google Workspace assistant ("SPARK PA daemon") designed for one KLEF student.
 
----
+## Architecture
 
-### **AI-powered Telegram & WhatsApp chat analyzer utilizing Google Gemini.**
+A Telethon user-account listener reads an allowlist of chats, classifies each message (regex first, Gemini only for the residual), then writes to Google Calendar, Tasks, and Sheets, and sends receipts to Saved Messages.
 
-**ChatLens** indexes your chat history in a PostgreSQL database using `pgvector` and lets you explore your conversations using Gemini AI. Generate summaries, analyze sentiments, cluster topics, map relationships, and perform natural-language Q&A across your messages.
+## Environment Variables
+See `.env.example` for details.
 
----
+| Variable | Description |
+| -------- | ----------- |
+| `TELEGRAM_API_ID` | Telegram API ID |
+| `TELEGRAM_API_HASH` | Telegram API Hash |
+| `TELEGRAM_SESSION_STRING` | Telegram Session String |
+| `GOOGLE_CREDENTIALS_BASE64` | Base64-encoded Google Credentials JSON |
+| `GOOGLE_CALENDAR_ID` | Google Calendar ID (default: primary) |
+| `GOOGLE_SHEET_ID` | Google Sheet ID for audit logging |
+| `GEMINI_API_KEY` | Gemini API Key |
+| `GEMINI_MODEL` | Gemini Model (default: `gemini-3.5-flash-lite`) |
+| `GEMINI_DAILY_BUDGET` | Daily limit for API calls (default: 50) |
+| `SPARK_MODE` | Operating mode: `dry`, `confirm`, or `live` |
+| `SPARK_CHAT_IDS` | Comma-separated list of allowed chat IDs |
+| `SPARK_DB` | Path to SQLite DB (default: `spark.db`) |
+| `SPARK_MEDIA` | Enable media processing (default: `false`) |
+| `SPARK_TIMETABLE` | Path to timetable TOML file |
+| `LOG_LEVEL` | Logging level (default: `INFO`) |
+| `SENTRY_DSN` | Sentry DSN for error tracking (optional) |
+| `BOT_TOKEN` | Telegram Bot token for notifications |
+| `OWNER_CHAT_ID` | Chat ID of the owner for notifications |
 
-## ✨ Features
+## Setup
 
-*   **🗂️ Multi-Platform Ingestion**
-    *   **Telegram**: Import standard JSON exports or authorize live via Telethon API.
-    *   **WhatsApp**: Import standard `.txt` chat exports.
-*   **🧠 Deep AI Analysis** (Powered by Gemini 2.5's 1M+ token context window):
-    *   **Summarization**: Dynamic, context-aware chat recaps.
-    *   **Sentiment Tracking**: Analyze emotional trends and tone shifts.
-    *   **Topic Clustering**: Auto-extract themes and key discussion points.
-    *   **Relationship Mapping**: Map interaction frequencies and dynamics.
-*   **💬 Interactive Q&A**: Ask natural language questions about your chats (e.g. *"What did we decide on for dinner last Tuesday?"*).
-*   **🚀 Fully Async Analysis Backend**: Modern asynchronous Python utilizing `asyncio.gather` for parallel generation and the official modern Google GenAI SDK.
-*   **🛡️ Robust Error Handling**: Employs `tenacity` based exponential back-off for resilient API requests and better quota management.
-*   **📊 Spotify-Wrapped style Stats**:
-    *   Quantitative dashboards with hourly and daily activity graphs.
-    *   Fun, automated awards: `🗣️ Top Talker`, `👀 The Observer`, `📜 The Monologuer`, `🧊 The Icebreaker`, and `⚡ Speed Demon`.
-*   **🎨 Premium Glassmorphic Web UI**: A responsive UI built using Next.js App Router and TailwindCSS.
+1. **Telegram Session**: Run `python scripts/generate_session.py` to get your `TELEGRAM_SESSION_STRING`.
+2. **List Chats**: Run `python scripts/list_chats.py` to get IDs for `SPARK_CHAT_IDS`.
+3. **Google Token**: Run `python scripts/google_token.py` to get your `GOOGLE_CREDENTIALS_BASE64`.
 
----
+## Modes and Invariants
 
-## 🏗️ Architecture
+- `dry` (default): Classifies, validates, and audits, but makes no Calendar or Tasks writes.
+- `confirm`: Requires the owner's ✅ for every write.
+- `live`: Auto-writes only `ROOM_OVERRIDE` (regex-sourced & timetable-validated) and `TASK`/`EXAM_DEADLINE` (regex-sourced). Gemini-derived events and holidays always need confirmation.
 
-```
-chatlens/
-├── chatlens/             # Legacy v1.0 Module (Flask + SQLite)
-└── chatlens-v2/          # Modern v2.0 Next.js + FastAPI Stack
-    ├── backend/
-    │   ├── main.py            # FastAPI Entry Point
-    │   ├── database.py        # SQLAlchemy & pgvector Connection
-    │   ├── models.py          # SQLAlchemy Models (pgvector)
-    │   ├── celery_worker.py   # Asynchronous celery parser tasks
-    │   ├── analyzer.py        # Gemini AI Analysis Engine
-    │   └── parsers/           # WhatsApp and Telegram Parsers
-    └── frontend/
-        ├── src/app/           # Next.js App Router (Turbopack)
-        ├── components/        # React Components (Lucide + Chart.js)
-        ├── hooks/             # Custom useApi Hook
-        └── types.ts           # Shared TypeScript Interfaces
-```
+*Free-tier note: Free Gemini API prompts may be used by Google to improve its products.*
+
+## Academic Terms
+For the T04 to T05 switch, replace `data/timetable_T04.toml` with the new timetable, and update `SPARK_TIMETABLE` in `.env`.
+
+## Troubleshooting
+Check the application logs for any errors. If a session expires, regenerate it.
 
 ---
 
-## 🚀 Quick Start (Docker Compose)
+## Legacy web app
 
-The easiest way to run ChatLens v2.0 is using Docker Compose, which configures the FastAPI backend, Next.js frontend, PostgreSQL (with pgvector), and Redis.
+The web app is a Flask/FastAPI based chat analyzer.
 
-### 1. Clone & Configure
+### Setup (Legacy)
+Start via Docker:
 ```bash
-git clone https://github.com/tejaswin-amara/chatlens.git
-cd chatlens
-
-# Copy environment template
-cp .env.example .env
+docker compose -f chatlens-v2/docker-compose.yml up -d
 ```
-Edit `.env` and add your **Gemini API Key** (get one free at [Google AI Studio](https://aistudio.google.com/)).
-
-### 2. Launch Services
-```bash
-docker-compose up -d --build
-```
-
-### 3. Open Web UI
-Open your browser and navigate to `http://localhost:3000` to start importing and exploring!
-
----
-
-## 🛠️ Manual Local Setup
-
-If you prefer to run the services locally without Docker:
-
-### ⚙️ Prerequisites
-*   PostgreSQL with the `pgvector` extension installed and running.
-*   Redis server running locally.
-*   Node.js (v18+) and Python 3.10+.
-
-### 🐍 Backend setup
-```bash
-cd chatlens-v2/backend
-
-# Create & activate a virtualenv
-python -m venv venv
-source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start FastAPI server
-uvicorn main:app --reload --port 8000
-```
-
-In a separate terminal, start the Celery worker:
-```bash
-celery -A celery_worker.celery_app worker --loglevel=info
-```
-
-### ⚛️ Frontend setup
-```bash
-cd chatlens-v2/frontend
-
-# Install dependencies
-npm install
-
-# Start Next.js dev server
-npm run dev
-```
-Open `http://localhost:3000`.
-
----
-
-## ⚙️ Environment Variables
-
-| Variable | Required | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `GEMINI_API_KEY` | **Yes** | — | Google Gemini API key from Google AI Studio |
-| `TELEGRAM_API_ID` | No | — | Telegram App API ID (from [my.telegram.org](https://my.telegram.org)) |
-| `TELEGRAM_API_HASH` | No | — | Telegram App API Hash (from [my.telegram.org](https://my.telegram.org)) |
-| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model to use for analysis |
-| `DATABASE_URL` | No | `postgresql+asyncpg://...` | PostgreSQL async connection string |
-| `CELERY_BROKER_URL`| No | `redis://localhost:6379/0`| Redis Celery broker connection string |
-
----
-
-## 🔒 Privacy & Safety
-
-*   **Local First**: All chat messages, parses, and stats are stored locally in your own PostgreSQL instance.
-*   **Transient AI Calls**: The only data that leaves your machine is the contextual prompt sent directly to Google's Gemini API for summarization and Q&A analysis. No chat data is permanently stored on Google's servers.
-
----
-
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
+The root `requirements.txt` is the legacy v1 list (the daemon installs with `pip install -e .`).

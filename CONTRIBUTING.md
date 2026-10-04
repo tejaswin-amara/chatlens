@@ -110,7 +110,7 @@ Run the parser self-checks from the root directory:
 ```bash
 # Set console encoding to UTF-8 on Windows before running:
 # $env:PYTHONIOENCODING="utf-8"
-python -m tests.test_parsers
+python -m pytest -q
 ```
 
 ### ⚛️ Frontend Linting

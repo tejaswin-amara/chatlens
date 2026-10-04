@@ -9,7 +9,7 @@
   },
   {
     "id": "notice_002",
-    "text": "Attention S-11: Machine Learning (25CS2103E) lecture for P3-P4 will be conducted in HC-15C.",
+    "text": "Attention S-11: Machine Learning (25SC2107E) lecture for P3-P4 will be conducted in HC-15C.",
     "expected_intent": "ROOM_OVERRIDE",
     "expected_course": "ML",
     "expected_room": "HC-15C",
@@ -25,7 +25,7 @@
   },
   {
     "id": "notice_004",
-    "text": "OSSP (25CS2102) Lab Record Submission due by 2026-04-05. Late submissions will not be accepted.",
+    "text": "OSSP (25CS2104E) Lab Record Submission due by 2026-04-05. Late submissions will not be accepted.",
     "expected_intent": "TASK",
     "expected_course": "OSSP",
     "expected_room": null,

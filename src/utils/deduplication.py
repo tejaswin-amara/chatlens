@@ -1,46 +1,119 @@
 """Hash-based deduplication cache to prevent re-processing identical messages."""
 
 import hashlib
+import sqlite3
 import time
+
+from src.config import settings
 
 
 class MessageDeduplicator:
-    def __init__(self, ttl_seconds: int = 86400, max_size: int = 10000) -> None:
+    def __init__(self, ttl_seconds: int = 86400 * 7) -> None:
         self.ttl_seconds = ttl_seconds
-        self.max_size = max_size
-        self._seen: dict[str, float] = {}
+        self.db_path = settings.spark_db
+        self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.db_path, isolation_level=None)
+
+    def _init_db(self) -> None:
+        with self._get_conn() as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_state (
+                    chat_id INTEGER PRIMARY KEY,
+                    last_id INTEGER NOT NULL,
+                    updated REAL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pending (
+                    id INTEGER PRIMARY KEY,
+                    created REAL,
+                    chat_id INTEGER,
+                    msg_id INTEGER,
+                    event_json TEXT,
+                    status TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS writes (
+                    id INTEGER PRIMARY KEY,
+                    ts REAL,
+                    kind TEXT,
+                    event_id TEXT,
+                    prior_json TEXT,
+                    undone INTEGER DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS seen (
+                    key TEXT PRIMARY KEY,
+                    ts REAL
+                )
+                """
+            )
 
     def _compute_hash(self, chat_id: int | str, message_id: int | str, content: str = "") -> str:
         raw_key = f"{chat_id}:{message_id}:{content.strip()}"
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     def is_duplicate(self, chat_id: int | str, message_id: int | str, content: str = "") -> bool:
-        self._cleanup()
         msg_hash = self._compute_hash(chat_id, message_id, content)
-        if msg_hash in self._seen:
-            timestamp = self._seen[msg_hash]
-            if time.time() - timestamp < self.ttl_seconds:
-                return True
-            del self._seen[msg_hash]
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT ts FROM seen WHERE key = ?", (msg_hash,))
+            row = cursor.fetchone()
+            if row:
+                if time.time() - row[0] < self.ttl_seconds:
+                    return True
+                else:
+                    conn.execute("DELETE FROM seen WHERE key = ?", (msg_hash,))
         return False
 
     def mark_processed(self, chat_id: int | str, message_id: int | str, content: str = "") -> str:
-        self._cleanup()
         msg_hash = self._compute_hash(chat_id, message_id, content)
-        self._seen[msg_hash] = time.time()
+        now = time.time()
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO seen (key, ts) VALUES (?, ?)", (msg_hash, now)
+            )
         return msg_hash
 
-    def _cleanup(self) -> None:
+
+
+    def get_chat_state(self, chat_id: int) -> int | None:
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT last_id FROM chat_state WHERE chat_id = ?", (chat_id,))
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    def update_chat_state(self, chat_id: int, last_id: int) -> None:
         now = time.time()
-        expired_keys = [k for k, v in self._seen.items() if now - v > self.ttl_seconds]
-        for k in expired_keys:
-            del self._seen[k]
-
-        if len(self._seen) > self.max_size:
-            sorted_keys = sorted(self._seen.keys(), key=lambda k: self._seen[k])
-            keys_to_remove = sorted_keys[: len(self._seen) - self.max_size]
-            for k in keys_to_remove:
-                del self._seen[k]
-
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO chat_state (chat_id, last_id, updated)
+                VALUES (?, ?, ?)
+                ON CONFLICT(chat_id) DO UPDATE SET
+                    last_id = MAX(last_id, excluded.last_id),
+                    updated = excluded.updated
+                """,
+                (chat_id, last_id, now)
+            )
 
 deduplicator = MessageDeduplicator()

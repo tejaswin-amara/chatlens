@@ -19,7 +19,8 @@ Provide a brief summary of the changes made, the bug fixed, or the feature imple
 
 *Please describe the tests you ran to verify your changes. Provide instructions so we can reproduce:*
 
-- [ ] **Backend Parser Tests**: Ran `python -m tests.test_parsers` and verified successful output.
+- [ ] **Backend Parser Tests**: Ran `python -m pytest -q
+ruff check src tests scripts` and verified successful output.
 - [ ] **Frontend Linter Check**: Ran `npm run lint` and verified zero warnings/errors.
 - [ ] **Manual UI Verification**: Verified imports, dashboard page loading, and chart renderings manually.
 

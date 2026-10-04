@@ -1,0 +1,15 @@
+[Unit]
+Description=SPARK PA Daemon
+After=network.target
+
+[Service]
+User=spark
+WorkingDirectory=/opt/chatlens
+EnvironmentFile=/opt/chatlens/.env
+ExecStart=/home/spark/.local/bin/uv run python -m src.main
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=multi-user.target

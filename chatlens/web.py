@@ -73,7 +73,7 @@ def api_upload_telegram():
 
 @app.route("/api/telegram/auth/send_code", methods=["POST"])
 def api_telegram_send_code():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     phone = data.get("phone")
     if not phone:
         return jsonify({"error": "Phone number required"}), 400
@@ -86,7 +86,7 @@ def api_telegram_send_code():
 
 @app.route("/api/telegram/auth/verify", methods=["POST"])
 def api_telegram_verify():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     phone = data.get("phone")
     code = data.get("code")
     phone_code_hash = data.get("phone_code_hash")
@@ -124,7 +124,7 @@ def api_stats():
 
 @app.route("/api/ask", methods=["POST"])
 def api_ask():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     question = data.get("question", "")
     chat_name = data.get("chat_name")
     context = _store.search(question, limit=30)
@@ -138,7 +138,7 @@ def api_ask():
 
 @app.route("/api/summarize", methods=["POST"])
 def api_summarize():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     chat_name = data.get("chat_name", "")
     messages = _store.get_messages(chat_name)
     if not messages:
@@ -158,7 +158,7 @@ def api_global_summarize():
 
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     chat_name = data.get("chat_name", "")
     messages = _store.get_messages(chat_name)
     if not messages:
@@ -174,7 +174,7 @@ def api_chat_stats(chat_name):
 
 @app.route("/api/chats/<path:chat_name>/insights", methods=["POST"])
 def api_chat_insights(chat_name):
-    data = request.get_json(force=True)
+    data = request.get_json(silent=True) or {}
     insight_type = data.get("type")
     if not insight_type:
         return jsonify({"error": "Missing 'type' parameter"}), 400
@@ -189,4 +189,6 @@ def api_chat_insights(chat_name):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    import os
+    app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1", host="127.0.0.1", port=5000)

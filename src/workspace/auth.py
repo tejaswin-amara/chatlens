@@ -16,8 +16,7 @@ logger = get_logger(__name__)
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/tasks",
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/keep",
+    "https://www.googleapis.com/auth/spreadsheets"
 ]
 
 
@@ -57,8 +56,7 @@ class GoogleWorkspaceAuth:
     def get_sheets_service(self) -> Resource:
         return build("sheets", "v4", credentials=self.get_credentials())
 
-    def get_keep_service(self) -> Resource:
-        return build("keep", "v1", credentials=self.get_credentials())
+
 
 
 workspace_auth = GoogleWorkspaceAuth()

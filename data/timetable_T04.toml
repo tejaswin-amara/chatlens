@@ -1,0 +1,27 @@
+# Please replace this sample with your actual timetable CSV export data.
+[meta]
+term = "T04"
+valid_from = 2026-07-23
+valid_to = 2026-10-08
+sample = true
+
+[[slot]]
+day = "Mon"
+period = 1
+course = "DSA"
+room = "H-005"
+faculty = "Dr. A"
+
+[[slot]]
+day = "Mon"
+period = 2
+course = "DSA"
+room = "H-005"
+faculty = "Dr. A"
+
+[[slot]]
+day = "Tue"
+period = 3
+course = "ML"
+room = "HC-15C"
+faculty = "Dr. B"
