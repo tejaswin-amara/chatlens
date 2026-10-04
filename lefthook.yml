@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    ruff:
+      glob: "*.py"
+      run: ruff check src tests scripts
+    gitleaks:
+      run: gitleaks git --pre-commit --staged
+    pytest:
+      glob: "*.py"
+      run: python -m pytest -q

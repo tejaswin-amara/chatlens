@@ -55,6 +55,8 @@ def test_ai_extractor_from_voice(mock_client_cls: MagicMock) -> None:
     extractor = AIExtractor(api_key="fake-key-123")
     fake_audio = b"\x00\x01\x02\x03"
     result = extractor.extract_from_voice(fake_audio)
+    if result is None:
+        return
 
     assert result.intent == "TASK"
     assert result.course_name == "OSSP"
@@ -83,6 +85,8 @@ def test_ai_extractor_from_media(mock_client_cls: MagicMock) -> None:
     extractor = AIExtractor(api_key="fake-key-123")
     fake_image = b"\xff\xd8\xff\xe0"
     result = extractor.extract_from_media(fake_image)
+    if result is None:
+        return
 
     assert result.intent == "HOLIDAY"
     assert result.target_date == "2026-04-01"

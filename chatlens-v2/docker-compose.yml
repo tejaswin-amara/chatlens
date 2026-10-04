@@ -1,15 +1,14 @@
-version: '3.8'
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: chatlens_postgres
     environment:
-      POSTGRES_USER: chatlens
-      POSTGRES_PASSWORD: chatlens_password
-      POSTGRES_DB: chatlens_db
+      POSTGRES_USER: ${POSTGRES_USER:-chatlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatlens_password}
+      POSTGRES_DB: ${POSTGRES_DB:-chatlens}_db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -18,7 +17,7 @@ services:
     image: redis:7-alpine
     container_name: chatlens_redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     restart: unless-stopped
 
 volumes:

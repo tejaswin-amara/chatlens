@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ExtractedAcademicEvent(BaseModel):
-    intent: Literal["ROOM_OVERRIDE", "HOLIDAY", "EXAM_DEADLINE", "TASK", "UNKNOWN"] = Field(
+    intent: Literal["ROOM_OVERRIDE", "HOLIDAY", "EXAM_DEADLINE", "TASK", "CLASS_CANCELLED", "UNKNOWN"] = Field(
         description="The primary intent of the message or notice."
     )
     course_name: str | None = Field(

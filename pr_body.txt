@@ -1,0 +1,27 @@
+# SPARK PA daemon and chatlens cleanup
+
+## Changed
+- **P0:** Removed Google Keep synchronization. Updated the course mapping table and modified the regex parser to respect IST resolution and relative dates. Handlers now enforce a strict chat allowlist, a new `/task` command restricted to the owner, 5MB media limits, and a "dry" operation mode. Deduplication is now backed by SQLite WAL.
+- **P1:** Hardened runtime reliability with explicit validation for Telethon exit codes. Added SQLite-backed catch-up logic to fetch unprocessed messages upon reconnection. Added budget limits and PII redaction (email, phone, URL) to the Gemini AI extractor while disabling `temperature`, `top_p`, and `top_k`. Operations against Tasks and Calendar are now idempotent. Added resilience against `FloodWaitError` and demoted PII verbosity in logs.
+- **P2:** Refined room extraction logic in `RegexParser` to favor destination cues ("to", "in") over source cues ("from"). Supported processing clock-time formats into standard period mapping. Hardened identification of tasks via strict action cues.
+- **P3:** Implemented a TOML-based Timetable loader and validator. Configured a `confirm` mode flow managed via an interactive Telegram Bot (bot sends action requests with 'Apply'/'Ignore' buttons). Created an SQLite `writes` table to allow reversing writes via a `/undo` bot command. Added lifecycle bot messages on startup and crash exits.
+- **P4:** Scheduled a 07:00 IST daily briefing via the bot, summarizing today's classes (with override flags), urgent tasks, attendance flags (indicating <85% or <75%), and academic calendar milestones. Scheduled a 15-minute heartbeat writing to `Status!A1` in Google Sheets.
+- **P5:** Added a `CLASS_CANCELLED` intent with corresponding calendar patching (prepends `CANCELLED:`). Implemented an academic-calendar validation guard for milestone-related tasks to prevent misalignments with official dates.
+- **P6:** Fixed the legacy v1 `chatlens/storage.py` search crash by tokenizing queries. Removed `force=True` on `request.get_json()` across legacy endpoints to prevent crashes. Handled duplicates in v2 by adding a `content_hash` column and `ON CONFLICT DO NOTHING` logic. Dropped sensitive `.db-shm` and `.db-wal` files from git index and updated `.gitignore`.
+- **P7:** Configured a GitHub Actions pipeline (`ci.yml`) including `pytest`, `ruff`, `mypy`, and `gitleaks`. Enforced pre-commit checks using `lefthook` and standardized line endings with `.gitattributes`. Updated documentation, generated a Systemd `spark.service`, and updated Docker bindings.
+
+## Decisions
+- Used exact string parsing or generic matching where ambiguous inputs were provided for the regex parser to minimize false positives, prioritizing stability over guesswork.
+- Bypassed the use of `tenacity` on `LookupError` cases, keeping the 3-attempt exponential wait for typical connection issues in external workspace API calls.
+- Preserved existing warnings or "ignore_missing_imports" for dependencies missing official typed stubs (like Telethon and Google API clients) to focus on enforcing `mypy` strictness within the `src/` modules.
+- Formatted long lines using logical line breaks and `\\` without touching string literal assertions in the testing suite as requested.
+
+## Not done
+- Operations explicitly prohibited for the AI (e.g. running the generation script, entering valid `.env` tokens, provisioning real timetable data) were left to the repository owner.
+- Did not extensively fix the 240+ preexisting linter errors in `chatlens` and `chatlens-v2` legacy directories; only targeted the specific crashes (v1 search and JSON forcing, v2 duplicate handling).
+
+## Verification
+- `uv run python -m pytest -q` passed 28 tests (1 skipped).
+- `uv run ruff check src tests scripts` passed successfully with no errors in tracked directories.
+- `uv run mypy src` passed with no issues.
+- `git status` verifies no `.db-shm` or `.db-wal` files remain tracked.

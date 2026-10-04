@@ -41,9 +41,50 @@ class TasksSync:
             except ValueError:
                 task_body["due"] = due_date
 
+        existing = service.tasks().list(tasklist="@default", showCompleted=False, showHidden=False).execute()
+        for item in existing.get("items", []):
+            item_due = item.get("due", "")
+            if item.get("title") == clean_title:
+                if due_date and item_due.startswith(due_date):
+                    return item
+                elif not due_date and not item_due:
+                    return item
+
         created = service.tasks().insert(tasklist="@default", body=task_body).execute()
+        import json
+        import sqlite3
+        import time
+
+        from src.config import settings
+        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+            conn.execute(
+                "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
+                (time.time(), "insert", created["id"], json.dumps({"action": "delete", "source": "tasks"}))
+            )
         logger.info("Created Google Task", task_id=created.get("id"), title=clean_title)
         return created
 
+
+
+    def list_open_tasks(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        service = self.auth.get_tasks_service()
+        # showCompleted false, showHidden false
+        try:
+            results = service.tasks().list(tasklist="@default", showCompleted=False, showHidden=False).execute()
+        except Exception:
+            return []
+
+        items = results.get("items", [])
+        filtered = []
+        for item in items:
+            due_str = item.get("due", "")
+            if due_str:
+                # Compare on the date part
+                # due is RFC3339 timestamp string
+                due_dt = due_str[:10]
+                if start_date <= due_dt <= end_date:
+                    filtered.append(item)
+
+        return filtered
 
 tasks_sync = TasksSync()

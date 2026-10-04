@@ -40,6 +40,9 @@ async def test_incoming_room_override_message(
         summary="DSA shifted to H-005",
         action_required=False,
     )
+    from src.config import settings
+    settings.spark_mode = "live"
+    settings.spark_media = True
 
     mock_cal.update_class_room.return_value = {"id": "ev_1"}
     mock_sheets.append_audit_log.return_value = {"status": "ok"}

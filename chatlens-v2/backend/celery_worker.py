@@ -13,9 +13,16 @@ async def save_messages(messages: list[dict]):
     if not messages:
         return
     async with AsyncSessionLocal() as session:
-        # bulk insert
-        db_messages = [Message(**msg) for msg in messages]
-        session.add_all(db_messages)
+        # bulk insert with ON CONFLICT DO NOTHING
+        import hashlib
+        from sqlalchemy.dialects.postgresql import insert
+
+        for msg in messages:
+            msg_str = f"{msg.get('platform', '')}|{msg.get('chat_name', '')}|{msg.get('sender', '')}|{msg.get('timestamp', '')}|{msg.get('text', '')}"
+            msg["content_hash"] = hashlib.sha256(msg_str.encode('utf-8')).hexdigest()
+
+        stmt = insert(Message).values(messages).on_conflict_do_nothing(index_elements=['content_hash'])
+        await session.execute(stmt)
         await session.commit()
 
 @celery_app.task
