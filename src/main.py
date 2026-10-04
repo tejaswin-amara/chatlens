@@ -301,14 +301,17 @@ async def run_daemon() -> None:
                     client._spark_startup_sent = True
             backoff = 2
 
-            bot_poll_task = asyncio.create_task(bot_callback_poll())
-            briefing_task = asyncio.create_task(run_briefing())
-            heartbeat_task = asyncio.create_task(run_heartbeat())
-            disconnected_task = asyncio.create_task(client.run_until_disconnected())
-            stop_task = asyncio.create_task(stop_event.wait())
+            tasks_to_wait = []
+            if settings.spark_mode != "dry" and settings.bot_token and settings.owner_chat_id:
+                tasks_to_wait.append(asyncio.create_task(bot_callback_poll()))
+
+            tasks_to_wait.append(asyncio.create_task(run_briefing()))
+            tasks_to_wait.append(asyncio.create_task(run_heartbeat()))
+            tasks_to_wait.append(asyncio.create_task(client.run_until_disconnected()))  # type: ignore
+            tasks_to_wait.append(asyncio.create_task(stop_event.wait()))  # type: ignore
 
             done, pending = await asyncio.wait(
-                [disconnected_task, stop_task, bot_poll_task, briefing_task, heartbeat_task],
+                tasks_to_wait,
                 return_when=asyncio.FIRST_COMPLETED,
             )
 

@@ -6,7 +6,10 @@ Base = declarative_base()
 
 class Message(Base):
     __tablename__ = "messages"
-    __table_args__ = (Index('idx_chat_timestamp', 'chat_name', 'timestamp'),)
+    __table_args__ = (
+        Index('idx_chat_timestamp', 'chat_name', 'timestamp'),
+        Index('ux_messages_content_hash', 'content_hash', unique=True),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     platform = Column(String)

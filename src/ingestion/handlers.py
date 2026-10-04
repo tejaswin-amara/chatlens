@@ -85,12 +85,17 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
                 logger.error("Failed media vision extraction", error=str(e))
 
     elif msg_text.strip():
+        source = None
         parsed_event = RegexParser.parse(msg_text, msg.date)
-        if not parsed_event:
+        if parsed_event:
+            source = "regex"
+        else:
             try:
                 parsed_event = await asyncio.to_thread(
                     ai_extractor.extract_from_text, msg_text, msg.date
                 )
+                if parsed_event:
+                    source = "gemini"
             except Exception as e:
                 logger.error("Failed AI text extraction", error=str(e))
 
@@ -110,8 +115,8 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     # Event dedupe
     if parsed_event:
         import hashlib
-        evt_key = f"{parsed_event.intent}:{parsed_event.course_code}:"
-        f"{parsed_event.room}:{parsed_event.target_date}:{parsed_event.period}"
+        evt_key = (f"{parsed_event.intent}:{parsed_event.course_code}:"
+                   f"{parsed_event.room}:{parsed_event.target_date}:{parsed_event.period}")
         if parsed_event.intent in ("TASK", "EXAM_DEADLINE"):
             evt_key += f":{parsed_event.summary}"
 
@@ -126,7 +131,7 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
                     message_text=msg_text or "[Multimodal Media]",
                     intent=parsed_event.intent,
                     execution_status="DUPLICATE_EVENT",
-                    extra_details="Skipped write due to 24h dedupe",
+                    extra_details="Skipped write due to 7-day dedupe",
                 )
             except Exception:
                 pass
@@ -135,9 +140,55 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         deduplicator.mark_processed("system", "evt", evt_dedupe_key)
 
     try:
+        from src.timetable import load as load_tt
+        from src.timetable import validate as validate_tt
+        tt = load_tt()
+        verdict = validate_tt(parsed_event, tt)
+
+        needs_confirm = False
+        if not verdict.ok:
+            execution_status = "NEEDS_REVIEW"
+            details_list.append(f"Validation failed: {verdict.reason}")
+            needs_confirm = True
+        elif settings.spark_mode == "confirm":
+            needs_confirm = True
+        elif settings.spark_mode == "live":
+            if (
+                source == "gemini"
+                or parsed_event.intent == "HOLIDAY"
+                or parsed_event.intent == "CLASS_CANCELLED"
+            ):
+                needs_confirm = True
+
         if settings.spark_mode == "dry":
             execution_status = "DRY_RUN"
             details_list.append("No workspace calls made")
+        elif needs_confirm:
+            import json
+            import sqlite3
+            event_dict = parsed_event.model_dump()
+            wrapper = {"source": source, "event": event_dict}
+
+            with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+                cursor = conn.execute(
+                    "INSERT INTO pending (created, chat_id, msg_id, event_json, status) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (time.time(), chat_id, msg.id, json.dumps(wrapper), "PENDING")
+                )
+                pending_id = cursor.lastrowid
+
+            from src.notify.bot import bot
+            msg_text_fmt = (
+                f"🔔 **Action Required:**\n- **Intent:** {parsed_event.intent}\n"
+                f"- **Summary:** {parsed_event.summary}\n- **Validation:** {verdict.reason}"
+            )
+            buttons = [
+                {"text": "✅ Apply", "callback_data": f"ok:{pending_id}"},
+                {"text": "❌ Ignore", "callback_data": f"no:{pending_id}"}
+            ]
+            await asyncio.to_thread(bot.send, msg_text_fmt, buttons)
+            execution_status = "PENDING_CONFIRMATION"
+            details_list.append("Awaiting owner confirmation")
         else:
             if parsed_event.intent == "ROOM_OVERRIDE" and parsed_event.room:
                 target_dt = parsed_event.target_date or datetime.now().strftime("%Y-%m-%d")

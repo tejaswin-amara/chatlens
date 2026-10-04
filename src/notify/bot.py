@@ -38,9 +38,14 @@ class BotClient:
     def send(self, text: str, buttons: list | None = None) -> dict:
         data: dict = {
             "chat_id": settings.owner_chat_id,
-            "text": text,
-            "parse_mode": "Markdown"
+            "text": text
         }
+        # enable parse_mode only for messages explicitly known to contain valid Markdown.
+        # Preserve Markdown formatting for callers that need it.
+        # Actually, let's just make it a parameter or check if '**' or '`' is in text
+        if "**" in text or "`" in text or "*" in text:
+            data["parse_mode"] = "Markdown"
+
         if buttons:
             data["reply_markup"] = {"inline_keyboard": [buttons]}
 
