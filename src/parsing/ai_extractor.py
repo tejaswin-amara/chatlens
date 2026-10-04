@@ -20,9 +20,11 @@ SYSTEM_INSTRUCTION = (
     "Extract actionable academic events into the requested JSON schema.\n"
     "Identify:\n"
     "- Intent: ROOM_OVERRIDE, HOLIDAY, CLASS_CANCELLED, EXAM_DEADLINE, TASK, or UNKNOWN.\n"
-    "- Course name and code: use exactly one of DSA=25CS2103E, OSSP=25CS2104E, ML=25SC2107E, ESD=25EC2206E, DBSE=25CS1302E, JAPANESE=25FL2112E; null if none.\n"
+    "- Course name and code: use exactly one of DSA=25CS2103E, OSSP=25CS2104E, "
+    "ML=25SC2107E, ESD=25EC2206E, DBSE=25CS1302E, JAPANESE=25FL2112E; null if none.\n"
     "- Room: (e.g. H-005, HC-15C, H-301A, H107A, H006)\n"
-    "- Target date: (ISO YYYY-MM-DD format). Resolve relative dates against the IST reference date.\n"
+    "- Target date: (ISO YYYY-MM-DD format). Resolve relative "
+    "dates against the IST reference date.\n"
     "- Period: (e.g. P3-P4, Period 1, 10:00 AM - 11:40 AM)\n"
     "- Summary: Concise recap.\n"
     "- Action Required: True if a task/deadline needs fulfillment."
@@ -56,7 +58,8 @@ class AIExtractor:
             if row and row[0] >= settings.gemini_daily_budget:
                 return False
             conn.execute(
-                "INSERT INTO llm_budget (day, calls) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET calls = calls + 1",
+                "INSERT INTO llm_budget (day, calls) VALUES (?, 1) "
+                "ON CONFLICT(day) DO UPDATE SET calls = calls + 1",
                 (today,)
             )
         return True
@@ -66,7 +69,11 @@ class AIExtractor:
         text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', text)
         text = re.sub(r'https?://\S+', '[URL]', text)
         # Redact phones: simple regex
-        text = re.sub(r'\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}', '[PHONE]', text)
+        text = re.sub(
+            r'\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}',
+            '[PHONE]',
+            text
+        )
         return text
 
 

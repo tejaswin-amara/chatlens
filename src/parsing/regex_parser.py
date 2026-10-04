@@ -32,10 +32,14 @@ PERIOD_PATTERN = re.compile(
 )
 SECTION_PATTERN = re.compile(r"\b(S[- ]?10|S[- ]?11)\b", re.IGNORECASE)
 HOLIDAY_PATTERN = re.compile(
-    r"\b(HOLIDAY|NO CLASSES|CLASSES (ARE|WILL BE) CANCELLED|CANCELED|SUSPENDED|UNIVERSITY CLOSED|NON-INSTRUCTIONAL)\b",
+    r"\b(HOLIDAY|NO CLASSES|CLASSES (ARE|WILL BE) CANCELLED|CANCELED|"
+    r"SUSPENDED|UNIVERSITY CLOSED|NON-INSTRUCTIONAL)\b",
     re.IGNORECASE,
 )
-TASK_ACTION_CUES = re.compile(r"\b(SUBMIT|SUBMISSION|DUE|DEADLINE|LAST DATE|PAY|UPLOAD|REGISTER|REGISTRATION CLOSES|BRING)\b", re.IGNORECASE)
+TASK_ACTION_CUES = re.compile(
+    r"\b(SUBMIT|SUBMISSION|DUE|DEADLINE|LAST DATE|PAY|UPLOAD|REGISTER|REGISTRATION CLOSES|BRING)\b",
+    re.IGNORECASE
+)
 EXAM_CUES = re.compile(r"\b(EXAM|MIDTERM|MID-TERM|HALL TICKET)\b", re.IGNORECASE)
 
 ROOM_OVERRIDE_VERBS = re.compile(
@@ -80,11 +84,16 @@ class RegexParser:
                 pass
 
         # Word dates: 12 Oct, 12th of October 2026, Oct 12
-        months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-        months_full = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"]
+        months = [
+            "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+        ]
+
 
         # 12 Oct / 12th of October
-        match = re.search(r"\b(\d{1,2})(?:ST|ND|RD|TH)?\s*(?:OF\s*)?([A-Z]{3,})\s*(\d{4})?\b", upper_text)
+        match = re.search(
+            r"\b(\d{1,2})(?:ST|ND|RD|TH)?\s*(?:OF\s*)?([A-Z]{3,})\s*(\d{4})?\b", upper_text
+        )
         if not match:
             # Oct 12
             match = re.search(r"\b([A-Z]{3,})\s+(\d{1,2})(?:ST|ND|RD|TH)?\s*(\d{4})?\b", upper_text)
@@ -218,7 +227,11 @@ class RegexParser:
         detected_period = period_match.group(1).upper() if period_match else None
 
         # Check for clock time range if detected_period is None or just a clock time
-        time_range_match = re.search(r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b", clean_text, re.IGNORECASE)
+        time_range_match = re.search(
+            r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b",
+            clean_text,
+            re.IGNORECASE
+        )
         if time_range_match:
             try:
                 def parse_time(t_str):
@@ -308,9 +321,16 @@ class RegexParser:
             )
 
         # b) ROOM_OVERRIDE strong
-        STRONG_ROOM_OVERRIDE_VERBS = re.compile(r"\b(MOVED|SHIFTED|RELOCATED|CHANGED TO|CONDUCTED IN|HELD IN|HELD AT)\b", re.IGNORECASE)
-        WEAK_ROOM_OVERRIDE_VERBS = re.compile(r"\b(VENUE|ROOM|WILL BE IN|CLASS IN)\b", re.IGNORECASE)
-        CLASS_WORDS = re.compile(r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD)\b", re.IGNORECASE)
+        STRONG_ROOM_OVERRIDE_VERBS = re.compile(
+            r"\b(MOVED|SHIFTED|RELOCATED|CHANGED TO|CONDUCTED IN|HELD IN|HELD AT)\b",
+            re.IGNORECASE
+        )
+        WEAK_ROOM_OVERRIDE_VERBS = re.compile(
+            r"\b(VENUE|ROOM|WILL BE IN|CLASS IN)\b", re.IGNORECASE
+        )
+        CLASS_WORDS = re.compile(
+            r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD)\b", re.IGNORECASE
+        )
 
         if detected_room and detected_course and STRONG_ROOM_OVERRIDE_VERBS.search(clean_text):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]

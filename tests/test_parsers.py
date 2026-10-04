@@ -138,7 +138,8 @@ on multiple lines.
         msgs = parse_whatsapp_export(path)
         # Should get 3 messages: Alice Hello, Bob multi-line, Alice good thanks
         # Skip system message and media omitted
-        assert len(msgs) == 3, f"Expected 3 messages, got {len(msgs)}: {[m['text'] for m in msgs]}"
+        assert len(msgs) == 3, \
+            f"Expected 3 messages, got {len(msgs)}: {[m['text'] for m in msgs]}"
         assert msgs[0]['sender'] == 'Alice'
         assert msgs[0]['text'] == 'Hello!'
         assert 'continuation' in msgs[1]['text']

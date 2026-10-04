@@ -259,7 +259,10 @@ async def run_daemon() -> None:
             await client.connect()
             await catch_up_chats(client)
             if not await client.is_user_authorized():
-                logger.critical("Telethon session is unauthorized. Regenerate session using scripts/generate_session.py")
+                logger.critical(
+                    "Telethon session is unauthorized. "
+                    "Regenerate session using scripts/generate_session.py"
+                )
                 try:
                     from src.notify.bot import bot
                     bot.send("🛑 SPARK exiting: Telethon session unauthorized")
@@ -273,10 +276,18 @@ async def run_daemon() -> None:
                 tt_status = "loaded" if tt else "missing or sample"
                 try:
                     from src.notify.bot import bot
-                    await asyncio.to_thread(bot.send, f"🚀 SPARK started: mode={settings.spark_mode}, {len(settings.allowed_chat_ids)} chats, timetable {tt_status}")
+                    await asyncio.to_thread(
+                        bot.send,
+                        f"🚀 SPARK started: mode={settings.spark_mode}, "
+                        f"{len(settings.allowed_chat_ids)} chats, timetable {tt_status}"
+                    )
                     client._spark_startup_sent = True
                 except Exception:
-                    await client.send_message("me", f"🚀 SPARK started: mode={settings.spark_mode}, {len(settings.allowed_chat_ids)} chats, timetable {tt_status}")
+                    await client.send_message(
+                        "me",
+                        f"🚀 SPARK started: mode={settings.spark_mode}, "
+                        f"{len(settings.allowed_chat_ids)} chats, timetable {tt_status}"
+                    )
                     client._spark_startup_sent = True
             backoff = 2
 
@@ -303,7 +314,13 @@ async def run_daemon() -> None:
         except FloodWaitError as e:
             logger.warning("Telegram FloodWaitError encountered", seconds=e.seconds)
             await asyncio.sleep(e.seconds)
-        except (AuthKeyUnregisteredError, SessionRevokedError, SessionExpiredError, UserDeactivatedError, UserDeactivatedBanError) as e:
+        except (
+            AuthKeyUnregisteredError,
+            SessionRevokedError,
+            SessionExpiredError,
+            UserDeactivatedError,
+            UserDeactivatedBanError,
+        ) as e:
             logger.critical("Unrecoverable Telegram session error", error=str(e))
             try:
                 from src.notify.bot import bot
