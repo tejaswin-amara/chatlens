@@ -1,7 +1,13 @@
 from datetime import date, datetime
 
 
-def build_briefing(now: datetime, calendar_events: list[dict], tasks: list[dict], attendance_rows: list[dict], milestones: dict[str, date]) -> str:
+def build_briefing(
+    now: datetime,
+    calendar_events: list[dict],
+    tasks: list[dict],
+    attendance_rows: list[dict],
+    milestones: dict[str, date],
+) -> str:
     lines = []
 
     # a) today's Calendar events
@@ -73,7 +79,7 @@ def build_briefing(now: datetime, calendar_events: list[dict], tasks: list[dict]
                 flag = "🔴 <75%" if ratio < 0.75 else "🟡 <85%"
                 lines.append(f"  {flag} {course}: {a}/{h} (Need {attend} more)")
             else:
-                skip = max(0, (100*a - 85*h) // 85)
+
                 # Not alerting if okay, only flagging below 85%
                 pass
 

@@ -41,7 +41,9 @@ class TasksSync:
             except ValueError:
                 task_body["due"] = due_date
 
-        existing = service.tasks().list(tasklist="@default", showCompleted=False, showHidden=False).execute()
+        existing = service.tasks().list(
+            tasklist="@default", showCompleted=False, showHidden=False
+        ).execute()
         for item in existing.get("items", []):
             item_due = item.get("due", "")
             if item.get("title") == clean_title:
@@ -59,9 +61,14 @@ class TasksSync:
         with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
             conn.execute(
                 "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
-                (time.time(), "insert", created["id"], json.dumps({"action": "delete", "source": "tasks"}))
+                (
+                    time.time(), "insert", created["id"],
+                    json.dumps({"action": "delete", "source": "tasks"})
+                )
             )
-        logger.info("Created Google Task", task_id=created.get("id"), title=clean_title)
+        logger.info(
+            "Created Google Task", task_id=created.get("id"), title=clean_title
+        )
         return created
 
 
@@ -70,7 +77,9 @@ class TasksSync:
         service = self.auth.get_tasks_service()
         # showCompleted false, showHidden false
         try:
-            results = service.tasks().list(tasklist="@default", showCompleted=False, showHidden=False).execute()
+            results = service.tasks().list(
+                tasklist="@default", showCompleted=False, showHidden=False
+            ).execute()
         except Exception:
             return []
 

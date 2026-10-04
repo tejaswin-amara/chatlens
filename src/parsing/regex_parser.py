@@ -4,9 +4,11 @@ import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from src.parsing.schemas import ExtractedAcademicEvent
+
 IST = ZoneInfo("Asia/Kolkata")
 
-from src.parsing.schemas import ExtractedAcademicEvent
+
 
 COURSES = {
     "DSA": ["DSA", "DATA STRUCTURES", "DSA3", "DSA-3"],
@@ -51,10 +53,7 @@ class RegexParser:
 
     @staticmethod
     def _resolve_date(clean_text: str, upper_text: str, ref_date: datetime) -> str | None:
-        day: int | None = None
-        mon: str | None = None
-        year: str | None = None
-        # ISO
+                                # ISO
         match = re.search(r"\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b", clean_text)
         if match:
             y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
@@ -193,8 +192,12 @@ class RegexParser:
             if len(room_matches) == 1:
                 detected_room = room_matches[0].group(1).upper().replace(" ", "-")
             else:
-                dest_keywords = re.compile(r"\b(TO|IN|AT|NOW IN|CHANGED TO|MOVED TO)\b", re.IGNORECASE)
-                source_keywords = re.compile(r"\b(FROM|EARLIER|INSTEAD OF|PREVIOUSLY|WAS)\b", re.IGNORECASE)
+                dest_keywords = re.compile(
+            r"\b(TO|IN|AT|NOW IN|CHANGED TO|MOVED TO)\b", re.IGNORECASE
+        )
+                source_keywords = re.compile(
+            r"\b(FROM|EARLIER|INSTEAD OF|PREVIOUSLY|WAS)\b", re.IGNORECASE
+        )
 
                 rooms_with_scores = []
                 for m in room_matches:
@@ -293,9 +296,14 @@ class RegexParser:
         # a) HOLIDAY / CLASS_CANCELLED
         # "no class(es)", "not be held", "will not be conducted"
         # "cancelled", "canceled", "suspended"
-        CANCELLED_PATTERN = re.compile(r"(CANCELLED|CANCELED|SUSPENDED|NO CLASS|NO CLASSES|NOT BE HELD|WILL NOT BE CONDUCTED)", re.IGNORECASE)
 
-        if CANCELLED_PATTERN.search(clean_text):
+
+        if re.search(
+            r"\b(CANCELLED|CANCELED|SUSPENDED|NO CLASS|NO CLASSES|"
+            r"NOT BE HELD|WILL NOT BE CONDUCTED)\b",
+            clean_text,
+            re.IGNORECASE
+        ):
             if detected_course:
                 return ExtractedAcademicEvent(
                     intent="CLASS_CANCELLED",
@@ -354,7 +362,8 @@ class RegexParser:
         if is_task or (is_exam and resolved_date):
             target_dt = resolved_date
             # EXAM_DEADLINE needs EXAM, MIDTERM or HALL TICKET plus a resolved date
-            intent_type: Literal["EXAM_DEADLINE", "TASK"] = "EXAM_DEADLINE" if (is_exam and resolved_date) else "TASK"
+            intent_type: Literal["EXAM_DEADLINE", "TASK"] = \
+                "EXAM_DEADLINE" if (is_exam and resolved_date) else "TASK"
             # Wait, "Last date to pay end exam fee is 26 Sep" is EXAM_DEADLINE.
             # Because it has EXAM and a resolved date.
             # If it has action cue and exam, it should be EXAM_DEADLINE? Yes.
@@ -371,7 +380,8 @@ class RegexParser:
 
         # d) ROOM_OVERRIDE weak
         if detected_room and detected_course and (
-            WEAK_ROOM_OVERRIDE_VERBS.search(clean_text) or CLASS_WORDS.search(clean_text) or detected_period
+            WEAK_ROOM_OVERRIDE_VERBS.search(clean_text) or \
+            CLASS_WORDS.search(clean_text) or detected_period
         ):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]
             if detected_period:

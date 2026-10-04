@@ -17,7 +17,11 @@ class CalendarSync:
         self.calendar_id = calendar_id or settings.google_calendar_id
         self.auth = auth_adapter or workspace_auth
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception(lambda e: not isinstance(e, LookupError)))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(lambda e: not isinstance(e, LookupError))
+    )
     def update_class_room(
         self,
         course_name: str | None,
@@ -73,11 +77,19 @@ class CalendarSync:
                 if p_start in period_map and p_end in period_map:
                     start_str = period_map[p_start][0]
                     end_str = period_map[p_end][1]
-                    period_start = datetime.strptime(f"{target_date} {start_str}", "%Y-%m-%d %H:%M") - timedelta(minutes=1)
-                    period_end = datetime.strptime(f"{target_date} {end_str}", "%Y-%m-%d %H:%M") + timedelta(minutes=1)
+                    period_start = datetime.strptime(
+                        f"{target_date} {start_str}", "%Y-%m-%d %H:%M"
+                    ) - timedelta(minutes=1)
+                    period_end = datetime.strptime(
+                        f"{target_date} {end_str}", "%Y-%m-%d %H:%M"
+                    ) + timedelta(minutes=1)
                 elif "14:20" in period:
-                    period_start = datetime.strptime(f"{target_date} 14:20", "%Y-%m-%d %H:%M") - timedelta(minutes=1)
-                    period_end = datetime.strptime(f"{target_date} 15:10", "%Y-%m-%d %H:%M") + timedelta(minutes=1)
+                    period_start = datetime.strptime(
+                        f"{target_date} 14:20", "%Y-%m-%d %H:%M"
+                    ) - timedelta(minutes=1)
+                    period_end = datetime.strptime(
+                        f"{target_date} 15:10", "%Y-%m-%d %H:%M"
+                    ) + timedelta(minutes=1)
 
         if search_terms:
             for item in items:
@@ -89,16 +101,23 @@ class CalendarSync:
                         start_time_str = item.get("start", {}).get("dateTime")
                         if start_time_str:
                             from zoneinfo import ZoneInfo
-                            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00')).astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+                            start_time = datetime.fromisoformat(
+                                start_time_str.replace("Z", "+00:00")
+                            ).astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
                             if period_start <= start_time <= period_end:
                                 matched_events.append(item)
                     else:
                         matched_events.append(item)
 
         if len(matched_events) == 0:
-            raise LookupError(f"No events found matching course {course_code or course_name} and period {period}")
+            raise LookupError(
+                f"No events found matching course {course_code or course_name} and period {period}"
+            )
         elif len(matched_events) > 1:
-            raise LookupError(f"Multiple events found matching course {course_code or course_name} and period {period}")
+            raise LookupError(
+                f"Multiple events found matching course {course_code or course_name} "
+                f"and period {period}"
+            )
 
         matched_event = matched_events[0]
 
@@ -144,7 +163,11 @@ class CalendarSync:
         )
         return updated
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception(lambda e: not isinstance(e, LookupError)))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(lambda e: not isinstance(e, LookupError))
+    )
     def create_holiday_event(self, reason: str, target_date: str) -> dict[str, Any]:
         service = self.auth.get_calendar_service()
 
@@ -182,16 +205,25 @@ class CalendarSync:
         with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
             conn.execute(
                 "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
-                (time.time(), "insert", created["id"], json.dumps({"action": "delete", "source": "calendar"}))
+                (
+                    time.time(), "insert", created["id"],
+                    json.dumps({"action": "delete", "source": "calendar"})
+                )
             )
-        logger.info("Created university holiday event", reason=reason, target_date=target_date)
+        logger.info(
+            "Created university holiday event", reason=reason, target_date=target_date
+        )
         return created
 
 
 
 
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception(lambda e: not isinstance(e, LookupError)))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception(lambda e: not isinstance(e, LookupError))
+    )
     def cancel_class(
         self,
         course_name: str | None,
@@ -241,8 +273,12 @@ class CalendarSync:
                 if p_start in period_map and p_end in period_map:
                     start_str = period_map[p_start][0]
                     end_str = period_map[p_end][1]
-                    period_start = datetime.strptime(f"{target_date} {start_str}", "%Y-%m-%d %H:%M") - timedelta(minutes=1)
-                    period_end = datetime.strptime(f"{target_date} {end_str}", "%Y-%m-%d %H:%M") + timedelta(minutes=1)
+                    period_start = datetime.strptime(
+                        f"{target_date} {start_str}", "%Y-%m-%d %H:%M"
+                    ) - timedelta(minutes=1)
+                    period_end = datetime.strptime(
+                        f"{target_date} {end_str}", "%Y-%m-%d %H:%M"
+                    ) + timedelta(minutes=1)
 
         if search_terms:
             for item in items:
@@ -254,16 +290,23 @@ class CalendarSync:
                         start_time_str = item.get("start", {}).get("dateTime")
                         if start_time_str:
                             from zoneinfo import ZoneInfo
-                            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00')).astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+                            start_time = datetime.fromisoformat(
+                                start_time_str.replace("Z", "+00:00")
+                            ).astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
                             if period_start <= start_time <= period_end:
                                 matched_events.append(item)
                     else:
                         matched_events.append(item)
 
         if len(matched_events) == 0:
-            raise LookupError(f"No events found matching course {course_code or course_name} and period {period}")
+            raise LookupError(
+                f"No events found matching course {course_code or course_name} and period {period}"
+            )
         elif len(matched_events) > 1:
-            raise LookupError(f"Multiple events found matching course {course_code or course_name} and period {period}")
+            raise LookupError(
+                f"Multiple events found matching course {course_code or course_name} "
+                f"and period {period}"
+            )
 
         matched_event = matched_events[0]
 

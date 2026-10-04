@@ -56,17 +56,12 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             logger.warning("Voice message exceeds 5MB limit", size=msg.file.size)
         else:
             try:
-                try:
-                    media_bytes = await client.download_media(msg, file=bytes)
-                except FloodWaitError as e:
-                    await asyncio.sleep(e.seconds + 1)
-                    media_bytes = await client.download_media(msg, file=bytes)
+                media_bytes = await client.download_media(msg, file=bytes)
                 if media_bytes:
                     parsed_event = await asyncio.to_thread(
                         ai_extractor.extract_from_voice, media_bytes, message_date=msg.date
                     )
-                    if parsed_event:
-                        source = "gemini"
+
             except Exception as e:
                 logger.error("Failed voice extraction", error=str(e))
 
@@ -77,11 +72,7 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             try:
                 is_pdf = msg.document and "pdf" in getattr(msg.document, "mime_type", "")
                 mime_type = "application/pdf" if is_pdf else "image/jpeg"
-                try:
-                    media_bytes = await client.download_media(msg, file=bytes)
-                except FloodWaitError as e:
-                    await asyncio.sleep(e.seconds + 1)
-                    media_bytes = await client.download_media(msg, file=bytes)
+                media_bytes = await client.download_media(msg, file=bytes)
                 if media_bytes:
                     parsed_event = await asyncio.to_thread(
                         ai_extractor.extract_from_media,
@@ -89,21 +80,17 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
                         mime_type=mime_type,
                         message_date=msg.date,
                     )
+
             except Exception as e:
                 logger.error("Failed media vision extraction", error=str(e))
 
     elif msg_text.strip():
-        source = None
         parsed_event = RegexParser.parse(msg_text, msg.date)
-        if parsed_event:
-            source = "regex"
-        else:
+        if not parsed_event:
             try:
                 parsed_event = await asyncio.to_thread(
                     ai_extractor.extract_from_text, msg_text, msg.date
                 )
-                if parsed_event:
-                    source = "gemini"
             except Exception as e:
                 logger.error("Failed AI text extraction", error=str(e))
 
@@ -114,14 +101,17 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     details_list: list[str] = []
 
     # apply canonical course
-    c_name, c_code = RegexParser.canonical_course(parsed_event.course_name, parsed_event.course_code)
+    c_name, c_code = RegexParser.canonical_course(
+        parsed_event.course_name, parsed_event.course_code
+    )
     parsed_event.course_name = c_name
     parsed_event.course_code = c_code
 
     # Event dedupe
     if parsed_event:
         import hashlib
-        evt_key = f"{parsed_event.intent}:{parsed_event.course_code}:{parsed_event.room}:{parsed_event.target_date}:{parsed_event.period}"
+        evt_key = f"{parsed_event.intent}:{parsed_event.course_code}:"
+        f"{parsed_event.room}:{parsed_event.target_date}:{parsed_event.period}"
         if parsed_event.intent in ("TASK", "EXAM_DEADLINE"):
             evt_key += f":{parsed_event.summary}"
 
@@ -174,7 +164,8 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
 
             elif parsed_event.intent == "HOLIDAY":
                 target_dt = parsed_event.target_date or datetime.now().strftime("%Y-%m-%d")
-                # Summary is truncated by regex parser up to 100 chars, but here we can just use the parsed_event.summary
+                # Summary is truncated by regex parser up to 100 chars,
+                # but here we can just use the parsed_event.summary
                 await asyncio.to_thread(
                     calendar_sync.create_holiday_event,
                     reason=parsed_event.summary,
@@ -322,11 +313,15 @@ async def handle_bot_callback(query: dict) -> None:
     pid = int(pid_str)
 
     with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
-        cursor = conn.execute("SELECT event_json, status, created FROM pending WHERE id = ?", (pid,))
+        cursor = conn.execute(
+            "SELECT event_json, status, created FROM pending WHERE id = ?", (pid,)
+        )
         row = cursor.fetchone()
         if not row:
             if msg_id:
-                await asyncio.to_thread(bot.edit, int(msg_id), "⚠️ This request has expired or was not found.")
+                await asyncio.to_thread(
+                    bot.edit, int(msg_id), "⚠️ This request has expired or was not found."
+                )
             return
 
         event_json, status, created = row
@@ -337,7 +332,9 @@ async def handle_bot_callback(query: dict) -> None:
 
         if status != "PENDING":
             if msg_id:
-                await asyncio.to_thread(bot.edit, int(msg_id), f"⚠️ This request was already handled ({status}).")
+                await asyncio.to_thread(
+                    bot.edit, int(msg_id), f"⚠️ This request was already handled ({status})."
+                )
             return
 
         if action == "no":
@@ -402,7 +399,10 @@ async def handle_bot_callback(query: dict) -> None:
         logger.error("Workspace sync error from callback", error=str(e))
 
     if msg_id:
-        result_text = f"✅ Action applied: {parsed_event.intent}\nStatus: {execution_status}\nDetails: {', '.join(details_list)}"
+        result_text = (
+            f"✅ Action applied: {parsed_event.intent}\n"
+            f"Status: {execution_status}\nDetails: {', '.join(details_list)}"
+        )
         await asyncio.to_thread(bot.edit, int(msg_id), result_text)
 
 async def handle_undo_command(msg: dict) -> None:
@@ -415,7 +415,10 @@ async def handle_undo_command(msg: dict) -> None:
     from src.workspace.tasks_sync import tasks_sync
 
     with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
-        cursor = conn.execute("SELECT id, kind, event_id, prior_json FROM writes WHERE undone = 0 ORDER BY ts DESC LIMIT 1")
+        cursor = conn.execute(
+            "SELECT id, kind, event_id, prior_json FROM writes "
+            "WHERE undone = 0 ORDER BY ts DESC LIMIT 1"
+        )
         row = cursor.fetchone()
         if not row:
             await asyncio.to_thread(bot.send, "⚠️ Nothing to undo.")
@@ -437,13 +440,17 @@ async def handle_undo_command(msg: dict) -> None:
                     patch_body["summary"] = prior["summary"]
 
                 service = calendar_sync.auth.get_calendar_service()
-                service.events().patch(calendarId=calendar_sync.calendar_id, eventId=event_id, body=patch_body).execute()
+                service.events().patch(
+                    calendarId=calendar_sync.calendar_id, eventId=event_id, body=patch_body
+                ).execute()
                 await asyncio.to_thread(bot.send, f"✅ Undid patch on event `{event_id}`.")
 
             elif kind == "insert":
                 if prior.get("source") == "calendar":
                     service = calendar_sync.auth.get_calendar_service()
-                    service.events().delete(calendarId=calendar_sync.calendar_id, eventId=event_id).execute()
+                    service.events().delete(
+                        calendarId=calendar_sync.calendar_id, eventId=event_id
+                    ).execute()
                     await asyncio.to_thread(bot.send, "✅ Deleted created calendar event.")
                 elif prior.get("source") == "tasks":
                     service = tasks_sync.auth.get_tasks_service()

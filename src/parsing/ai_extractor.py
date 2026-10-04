@@ -50,8 +50,8 @@ class AIExtractor:
             """)
 
     def _check_budget(self) -> bool:
-        IST = ZoneInfo("Asia/Kolkata")
-        today = datetime.now(IST).strftime("%Y-%m-%d")
+        ist = ZoneInfo("Asia/Kolkata")
+        today = datetime.now(ist).strftime("%Y-%m-%d")
         with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
             cursor = conn.execute("SELECT calls FROM llm_budget WHERE day = ?", (today,))
             row = cursor.fetchone()

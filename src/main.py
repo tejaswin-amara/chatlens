@@ -65,12 +65,14 @@ async def run_briefing() -> None:
     from src.workspace.sheets_logger import sheets_logger
     from src.workspace.tasks_sync import tasks_sync
 
-    IST = ZoneInfo("Asia/Kolkata")
+    ist = ZoneInfo("Asia/Kolkata")
 
     def _is_sent_today(today_str: str) -> bool:
         try:
             with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
-                row = conn.execute("SELECT value FROM meta WHERE key = 'briefing_last_date'").fetchone()
+                row = conn.execute(
+                    "SELECT value FROM meta WHERE key = 'briefing_last_date'"
+                ).fetchone()
                 if row and row[0] == today_str:
                     return True
         except Exception:
@@ -80,12 +82,16 @@ async def run_briefing() -> None:
     def _mark_sent_today(today_str: str) -> None:
         try:
             with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
-                conn.execute("INSERT INTO meta (key, value) VALUES ('briefing_last_date', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (today_str,))
+                conn.execute(
+                    "INSERT INTO meta (key, value) VALUES ('briefing_last_date', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (today_str,)
+                )
         except Exception:
             pass
 
     while True:
-        now = datetime.now(IST)
+        now = datetime.now(ist)
         target = now.replace(hour=7, minute=0, second=0, microsecond=0)
         if now >= target:
             target += timedelta(days=1)
@@ -99,13 +105,13 @@ async def run_briefing() -> None:
             break
 
         # Time to send!
-        today_str = datetime.now(IST).strftime("%Y-%m-%d")
+        today_str = datetime.now(ist).strftime("%Y-%m-%d")
         if _is_sent_today(today_str):
             continue
 
         try:
             # Fetch data
-            now_ist = datetime.now(IST)
+            now_ist = datetime.now(ist)
             start_str = now_ist.strftime("%Y-%m-%d")
             end_str = (now_ist + timedelta(days=3)).strftime("%Y-%m-%d")
 
@@ -142,7 +148,11 @@ async def run_briefing() -> None:
                         if len(row) >= 3:
                             row_dict = dict(zip(headers, row))
                             # Expecting course, attended, held
-                            if "course" in row_dict and "attended" in row_dict and "held" in row_dict:
+                            if (
+                                "course" in row_dict
+                                and "attended" in row_dict
+                                and "held" in row_dict
+                            ):
                                 attendance_rows.append(row_dict)
             except Exception as e:
                 logger.warning("Briefing sheets fetch failed", error=str(e))
@@ -175,12 +185,12 @@ async def run_heartbeat() -> None:
 
     from src.workspace.sheets_logger import sheets_logger
 
-    IST = ZoneInfo("Asia/Kolkata")
+    ist = ZoneInfo("Asia/Kolkata")
 
     while True:
         try:
             await asyncio.sleep(900) # 15 minutes
-            now_str = datetime.now(IST).isoformat()
+            now_str = datetime.now(ist).isoformat()
 
             def do_heartbeat():
                 service = sheets_logger.auth.get_sheets_service()

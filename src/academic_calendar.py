@@ -25,7 +25,8 @@ def load_calendar(path: str = "data/calendar_2026_27.toml") -> AcademicCalendar 
     return AcademicCalendar(terms=terms)
 
 def get_milestone_date(milestone: str, ref_date: date, cal: AcademicCalendar) -> date | None:
-    # find the term whose window contains the message date (nearest following term when between terms)
+    # find the term whose window contains the message date
+    # (nearest following term when between terms)
     best_term = None
     best_diff = None
 

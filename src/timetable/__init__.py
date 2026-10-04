@@ -59,7 +59,11 @@ def parse_periods(text: str) -> list[int]:
         return []
 
     # Check for clock time range
-    time_range_match = re.search(r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b", text, re.IGNORECASE)
+    time_range_match = re.search(
+        r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b",
+        text,
+        re.IGNORECASE
+    )
     if time_range_match:
         try:
             from datetime import datetime
@@ -122,7 +126,10 @@ def validate(event, timetable: Timetable | None) -> Verdict:
     day_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
     event_day = day_map.get(dt.weekday())
 
-    course_slots = [s for s in timetable.slots if s.day == event_day and s.course == event.course_name]
+    course_slots = [
+        s for s in timetable.slots
+        if s.day == event_day and s.course == event.course_name
+    ]
 
     periods = parse_periods(event.period or "")
     if not periods:
@@ -133,7 +140,11 @@ def validate(event, timetable: Timetable | None) -> Verdict:
         blocks = []
         current_block: list[int] = []
         for s in course_slots:
-            if not current_block or s.period == current_block[-1] + 1 or (current_block[-1] == 5 and s.period == 7):
+            if (
+                not current_block
+                or s.period == current_block[-1] + 1
+                or (current_block[-1] == 5 and s.period == 7)
+            ):
                 current_block.append(s.period)
             else:
                 blocks.append(current_block)
@@ -156,13 +167,20 @@ def validate(event, timetable: Timetable | None) -> Verdict:
             return Verdict(False, "PERIOD_MISMATCH", periods)
 
     # Check if the room is already the same
-    # But wait, validate only returns Verdict, it doesn't know the intended room unless we check it here
+    # But wait, validate only returns Verdict, it doesn't know the intended room unless we \
+    # check it here
     # P3 says: "NO_CHANGE"
-    # "validate(event, timetable) -> Verdict(ok, reason, period) for ROOM_OVERRIDE: OUTSIDE_TERM, NO_SLOT, PERIOD_MISMATCH, AMBIGUOUS_PERIOD, NO_CHANGE, OK"
+    # "validate(event, timetable) -> Verdict(ok, reason, period) for ROOM_OVERRIDE: "
+    # "OUTSIDE_TERM, NO_SLOT, PERIOD_MISMATCH, AMBIGUOUS_PERIOD, NO_CHANGE, OK"
     all_rooms_same = True
     for p in periods:
-        s_opt: Slot | None = next((s_for for s_for in course_slots if s_for.period == p), None)
-        if not s_opt or s_opt.room.upper().replace(" ", "-") != (event.room or "").upper().replace(" ", "-"):
+        s_opt: Slot | None = next(
+            (s_for for s_for in course_slots if s_for.period == p), None
+        )
+        if (
+            not s_opt
+            or s_opt.room.upper().replace(" ", "-") != (event.room or "").upper().replace(" ", "-")
+        ):
             all_rooms_same = False
             break
 
