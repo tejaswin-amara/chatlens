@@ -5,6 +5,7 @@ from src.parsing.regex_parser import RegexParser
 
 IST = ZoneInfo("Asia/Kolkata")
 
+
 def test_room_direction():
     ref_date = datetime(2026, 10, 5, 8, 0, tzinfo=IST)
     # The destination wins
@@ -23,6 +24,7 @@ def test_room_direction():
     # Actually wait: our implementation returns None for room.
     assert (not res4) or (res4.room is None)
 
+
 def test_periods_dashes():
     ref_date = datetime(2026, 10, 5, 8, 0, tzinfo=IST)
     res1 = RegexParser.parse("DSA P3–P4 in H-106", ref_date)
@@ -33,6 +35,7 @@ def test_periods_dashes():
 
     res3 = RegexParser.parse("DSA 10:00-11:40 in H-106", ref_date)
     assert res3 and res3.period == "P3-P4"
+
 
 def test_task_precision():
     ref_date = datetime(2026, 10, 5, 8, 0, tzinfo=IST)

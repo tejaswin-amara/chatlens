@@ -8,6 +8,7 @@ from src.parsing.regex_parser import RegexParser
 
 IST = ZoneInfo("Asia/Kolkata")
 
+
 def test_spark_rules_parser():
     tue = datetime(2026, 9, 29, 8, 0, tzinfo=IST)
     thu = datetime(2026, 9, 24, 8, 0, tzinfo=IST)
@@ -70,16 +71,19 @@ def test_spark_rules_parser():
     res_utc = RegexParser.parse("DSA class tomorrow in H-005", utc_msg_aware)
     assert res_utc.target_date == "2026-10-01"
 
+
 def test_spark_rules_canonical():
     assert RegexParser.canonical_course("Machine Learning", None) == ("ML", "25SC2107E")
     assert RegexParser.canonical_course(None, "25EC2206E") == ("ESD", "25EC2206E")
     assert RegexParser.canonical_course(None, None) == (None, None)
+
 
 def test_spark_rules_dedupe():
     db_path = "test_spark.db"
     if os.path.exists(db_path):
         os.remove(db_path)
     from src.utils.deduplication import MessageDeduplicator
+
     dedup = MessageDeduplicator()
     dedup.db_path = db_path
     dedup._init_db()
@@ -100,6 +104,7 @@ def test_spark_rules_dedupe():
     if os.path.exists(db_path):
         os.remove(db_path)
 
+
 def test_spark_rules_calendar():
     from unittest.mock import MagicMock
 
@@ -111,8 +116,16 @@ def test_spark_rules_calendar():
 
     # simulate two DSA events on 2026-09-29 (08:10 and 14:20 IST), P8-P9 patches only afternoon one
     items = [
-        {"id": "ev_1", "summary": "DSA", "start": {"dateTime": "2026-09-29T02:40:00Z"}}, # 08:10 IST
-        {"id": "ev_2", "summary": "DSA", "start": {"dateTime": "2026-09-29T08:50:00Z"}}, # 14:20 IST
+        {
+            "id": "ev_1",
+            "summary": "DSA",
+            "start": {"dateTime": "2026-09-29T02:40:00Z"},
+        },  # 08:10 IST
+        {
+            "id": "ev_2",
+            "summary": "DSA",
+            "start": {"dateTime": "2026-09-29T08:50:00Z"},
+        },  # 14:20 IST
     ]
     service_mock.events().list().execute.return_value = {"items": items}
 

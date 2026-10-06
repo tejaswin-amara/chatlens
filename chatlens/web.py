@@ -2,11 +2,16 @@
 
 import os
 import tempfile
+
 from flask import Flask, jsonify, render_template, request
 
 from chatlens.analyzer import ChatAnalyzer
 from chatlens.parsers.telegram import parse_telegram_export
-from chatlens.parsers.telegram_live import fetch_telegram_chats, send_telegram_code_sync, verify_telegram_code_sync
+from chatlens.parsers.telegram_live import (
+    fetch_telegram_chats,
+    send_telegram_code_sync,
+    verify_telegram_code_sync,
+)
 from chatlens.parsers.whatsapp import parse_whatsapp_export
 from chatlens.storage import MessageStore
 
@@ -39,7 +44,7 @@ def api_upload_whatsapp():
 
     fd, path = tempfile.mkstemp(suffix=".txt")
     try:
-        with os.fdopen(fd, 'wb') as f:
+        with os.fdopen(fd, "wb") as f:
             file.save(f)
         messages = parse_whatsapp_export(path)
         _store.ingest(messages)
@@ -60,7 +65,7 @@ def api_upload_telegram():
 
     fd, path = tempfile.mkstemp(suffix=".json")
     try:
-        with os.fdopen(fd, 'wb') as f:
+        with os.fdopen(fd, "wb") as f:
             file.save(f)
         messages = parse_telegram_export(path)
         _store.ingest(messages)
@@ -127,9 +132,7 @@ def api_ask():
     data = request.get_json(silent=True) or {}
     question = data.get("question", "")
     chat_name = data.get("chat_name")
-    context = _store.search(question, limit=30)
-    if chat_name:
-        context = [m for m in context if m["chat_name"] == chat_name]
+    context = _store.search(question, limit=30, chat_name=chat_name)
     if not context:
         return jsonify({"answer": "No relevant messages found for that question."})
     answer = _get_analyzer().ask(question, context)
@@ -151,7 +154,9 @@ def api_summarize():
 def api_global_summarize():
     messages = _store.get_all_messages(limit=2000)
     if not messages:
-        return jsonify({"summary": "No chats have been imported yet. Import a chat to see your summary."})
+        return jsonify(
+            {"summary": "No chats have been imported yet. Import a chat to see your summary."}
+        )
     summary = _get_analyzer().summarize(messages)
     return jsonify({"summary": summary})
 
@@ -190,5 +195,6 @@ def api_chat_insights(chat_name):
 
 if __name__ == "__main__":
     import os
+
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
     app.run(debug=os.getenv("FLASK_DEBUG") == "1", host="127.0.0.1", port=5000)

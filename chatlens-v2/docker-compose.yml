@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-chatlens}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatlens_password}
-      POSTGRES_DB: ${POSTGRES_DB:-chatlens}_db
+      POSTGRES_DB: ${POSTGRES_DB:-chatlens_db}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

@@ -6,6 +6,7 @@ from typing import Any
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from src.config import settings
+from src.utils import clock
 from src.utils.logging import get_logger
 from src.workspace.auth import workspace_auth
 
@@ -20,7 +21,7 @@ class CalendarSync:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception(lambda e: not isinstance(e, LookupError))
+        retry=retry_if_exception(lambda e: not isinstance(e, LookupError)),
     )
     def update_class_room(
         self,
@@ -57,6 +58,7 @@ class CalendarSync:
         period_end = None
         if period:
             import re
+
             m = re.search(r"P(\d+)", period)
             m_end = re.search(r"-P(\d+)", period)
             if m:
@@ -71,7 +73,7 @@ class CalendarSync:
                     5: ("11:50", "12:40"),
                     7: ("13:20", "14:10"),
                     8: ("14:20", "15:10"),
-                    9: ("15:10", "16:00")
+                    9: ("15:10", "16:00"),
                 }
 
                 if p_start in period_map and p_end in period_map:
@@ -100,10 +102,11 @@ class CalendarSync:
                     if period_start and period_end:
                         start_time_str = item.get("start", {}).get("dateTime")
                         if start_time_str:
-                            from zoneinfo import ZoneInfo
-                            start_time = datetime.fromisoformat(
-                                start_time_str.replace("Z", "+00:00")
-                            ).astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+                            start_time = (
+                                datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
+                                .astimezone(clock.IST)
+                                .replace(tzinfo=None)
+                            )
                             if period_start <= start_time <= period_end:
                                 matched_events.append(item)
                     else:
@@ -129,7 +132,7 @@ class CalendarSync:
         prior_state = {
             "location": matched_event.get("location"),
             "reminders": matched_event.get("reminders"),
-            "extendedProperties": matched_event.get("extendedProperties")
+            "extendedProperties": matched_event.get("extendedProperties"),
         }
 
         event_id = matched_event["id"]
@@ -140,6 +143,7 @@ class CalendarSync:
         patch_body = {
             "location": f"Room {new_room}",
             "reminders": reminders_override,
+            "extendedProperties": {"private": {"spark_override": "1"}},
         }
         updated = (
             service.events()
@@ -148,12 +152,14 @@ class CalendarSync:
         )
 
         import json
-        import sqlite3
         import time
-        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+
+        from src.utils.db import get_connection
+
+        with get_connection() as conn:
             conn.execute(
                 "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
-                (time.time(), "patch", event_id, json.dumps(prior_state))
+                (time.time(), "patch", event_id, json.dumps(prior_state)),
             )
         logger.info(
             "Updated calendar class room",
@@ -166,7 +172,7 @@ class CalendarSync:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception(lambda e: not isinstance(e, LookupError))
+        retry=retry_if_exception(lambda e: not isinstance(e, LookupError)),
     )
     def create_holiday_event(self, reason: str, target_date: str) -> dict[str, Any]:
         service = self.auth.get_calendar_service()
@@ -177,12 +183,13 @@ class CalendarSync:
         time_min = dt.isoformat() + "Z"
         time_max = (dt + timedelta(days=1)).isoformat() + "Z"
 
-        existing = service.events().list(
-            calendarId=self.calendar_id,
-            timeMin=time_min,
-            timeMax=time_max,
-            singleEvents=True
-        ).execute()
+        existing = (
+            service.events()
+            .list(
+                calendarId=self.calendar_id, timeMin=time_min, timeMax=time_max, singleEvents=True
+            )
+            .execute()
+        )
 
         expected_summary = f"University Holiday: {reason}"
         for item in existing.get("items", []):
@@ -200,29 +207,27 @@ class CalendarSync:
 
         created = service.events().insert(calendarId=self.calendar_id, body=event_body).execute()
         import json
-        import sqlite3
         import time
-        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+
+        from src.utils.db import get_connection
+
+        with get_connection() as conn:
             conn.execute(
                 "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
                 (
-                    time.time(), "insert", created["id"],
-                    json.dumps({"action": "delete", "source": "calendar"})
-                )
+                    time.time(),
+                    "insert",
+                    created["id"],
+                    json.dumps({"action": "delete", "source": "calendar"}),
+                ),
             )
-        logger.info(
-            "Created university holiday event", reason=reason, target_date=target_date
-        )
+        logger.info("Created university holiday event", reason=reason, target_date=target_date)
         return created
-
-
-
-
 
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception(lambda e: not isinstance(e, LookupError))
+        retry=retry_if_exception(lambda e: not isinstance(e, LookupError)),
     )
     def cancel_class(
         self,
@@ -258,6 +263,7 @@ class CalendarSync:
         period_end = None
         if period:
             import re
+
             m = re.search(r"P(\d+)", period)
             m_end = re.search(r"-P(\d+)", period)
             if m:
@@ -265,9 +271,14 @@ class CalendarSync:
                 p_end = int(m_end.group(1)) if m_end else p_start
 
                 period_map = {
-                    1: ("08:10", "09:00"), 2: ("09:00", "09:50"), 3: ("10:00", "10:50"),
-                    4: ("10:50", "11:40"), 5: ("11:50", "12:40"), 7: ("13:20", "14:10"),
-                    8: ("14:20", "15:10"), 9: ("15:10", "16:00")
+                    1: ("08:10", "09:00"),
+                    2: ("09:00", "09:50"),
+                    3: ("10:00", "10:50"),
+                    4: ("10:50", "11:40"),
+                    5: ("11:50", "12:40"),
+                    7: ("13:20", "14:10"),
+                    8: ("14:20", "15:10"),
+                    9: ("15:10", "16:00"),
                 }
 
                 if p_start in period_map and p_end in period_map:
@@ -289,10 +300,11 @@ class CalendarSync:
                     if period_start and period_end:
                         start_time_str = item.get("start", {}).get("dateTime")
                         if start_time_str:
-                            from zoneinfo import ZoneInfo
-                            start_time = datetime.fromisoformat(
-                                start_time_str.replace("Z", "+00:00")
-                            ).astimezone(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+                            start_time = (
+                                datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
+                                .astimezone(clock.IST)
+                                .replace(tzinfo=None)
+                            )
                             if period_start <= start_time <= period_end:
                                 matched_events.append(item)
                     else:
@@ -315,12 +327,11 @@ class CalendarSync:
             return matched_event
 
         patch_body = {
-            "summary": f"CANCELLED: {current_summary}"
+            "summary": f"CANCELLED: {current_summary}",
+            "extendedProperties": {"private": {"spark_override": "1"}},
         }
 
-        prior_state = {
-            "summary": current_summary
-        }
+        prior_state = {"summary": current_summary}
 
         updated = (
             service.events()
@@ -329,12 +340,14 @@ class CalendarSync:
         )
 
         import json
-        import sqlite3
         import time
-        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+
+        from src.utils.db import get_connection
+
+        with get_connection() as conn:
             conn.execute(
                 "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
-                (time.time(), "patch", matched_event["id"], json.dumps(prior_state))
+                (time.time(), "patch", matched_event["id"], json.dumps(prior_state)),
             )
 
         return updated

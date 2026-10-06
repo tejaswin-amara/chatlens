@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/tasks",
-    "https://www.googleapis.com/auth/spreadsheets"
+    "https://www.googleapis.com/auth/spreadsheets",
 ]
 
 
@@ -33,7 +33,11 @@ class GoogleWorkspaceAuth:
             raise ValueError("GOOGLE_CREDENTIALS_BASE64 environment variable is not set.")
 
         try:
-            decoded = base64.b64decode(self.b64_creds).decode("utf-8")
+            decoded = base64.b64decode(
+                self.b64_creds.get_secret_value()
+                if hasattr(self.b64_creds, "get_secret_value")
+                else self.b64_creds
+            ).decode("utf-8")
             cred_dict = json.loads(decoded)
         except Exception as e:
             raise ValueError(f"Failed to decode GOOGLE_CREDENTIALS_BASE64 JSON: {e}") from e
@@ -55,8 +59,6 @@ class GoogleWorkspaceAuth:
 
     def get_sheets_service(self) -> Resource:
         return build("sheets", "v4", credentials=self.get_credentials())
-
-
 
 
 workspace_auth = GoogleWorkspaceAuth()

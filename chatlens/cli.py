@@ -12,6 +12,7 @@ def cli():
 
 # ── Import subgroup ───────────────────────────────────────────────
 
+
 @cli.group("import")
 def import_group():
     """Import chat exports into the database."""
@@ -63,6 +64,7 @@ def import_telegram_live(chat: tuple[str, ...], limit: int):
 
 # ── Top-level commands ────────────────────────────────────────────
 
+
 @cli.command("list")
 def list_chats():
     """Show imported chats with message counts."""
@@ -72,7 +74,9 @@ def list_chats():
         click.echo("No chats imported yet.")
         return
     for c in chats:
-        badge = click.style(f"[{c['platform']}]", fg="blue" if c["platform"] == "telegram" else "green")
+        badge = click.style(
+            f"[{c['platform']}]", fg="blue" if c["platform"] == "telegram" else "green"
+        )
         click.echo(f"  {badge} {c['name']}  ({c['message_count']} messages)")
 
 

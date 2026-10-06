@@ -1,9 +1,7 @@
 """Tier-2 Multimodal Gemini AI Extractor for unstructured text, voice, and circular media."""
 
 import re
-import sqlite3
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from google import genai
 from google.genai import errors, types
@@ -11,6 +9,7 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 
 from src.config import settings
 from src.parsing.schemas import ExtractedAcademicEvent
+from src.utils import clock
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,9 +29,10 @@ SYSTEM_INSTRUCTION = (
     "- Action Required: True if a task/deadline needs fulfillment."
 )
 
+
 class AIExtractor:
     def __init__(self, api_key: str | None = None, model_name: str | None = None) -> None:
-        self.api_key = api_key or settings.gemini_api_key
+        self.api_key = api_key or settings.gemini_api_key.get_secret_value()
         self.model_name = model_name or settings.gemini_model
         self._client: genai.Client | None = None
         if self.api_key:
@@ -40,7 +40,9 @@ class AIExtractor:
         self._init_db()
 
     def _init_db(self) -> None:
-        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+        from src.utils.db import get_connection
+
+        with get_connection() as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS llm_budget (
@@ -50,9 +52,11 @@ class AIExtractor:
             """)
 
     def _check_budget(self) -> bool:
-        ist = ZoneInfo("Asia/Kolkata")
+        ist = clock.IST
         today = datetime.now(ist).strftime("%Y-%m-%d")
-        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+        from src.utils.db import get_connection
+
+        with get_connection() as conn:
             cursor = conn.execute("SELECT calls FROM llm_budget WHERE day = ?", (today,))
             row = cursor.fetchone()
             if row and row[0] >= settings.gemini_daily_budget:
@@ -60,22 +64,21 @@ class AIExtractor:
             conn.execute(
                 "INSERT INTO llm_budget (day, calls) VALUES (?, 1) "
                 "ON CONFLICT(day) DO UPDATE SET calls = calls + 1",
-                (today,)
+                (today,),
             )
         return True
 
     def _redact_pii(self, text: str) -> str:
         # Redact phone numbers, emails and URLs
-        text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', text)
-        text = re.sub(r'https?://\S+', '[URL]', text)
+        text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", text)
+        text = re.sub(r"https?://\S+", "[URL]", text)
         # Redact phones: simple regex
         text = re.sub(
-            r'(?<!\d)(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)',
-            '[PHONE]',
-            text
+            r"(?<!\d)(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)",
+            "[PHONE]",
+            text,
         )
         return text
-
 
     def _get_client(self) -> genai.Client:
         if not self._client:
@@ -87,7 +90,7 @@ class AIExtractor:
     @retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception(lambda e: not isinstance(e, errors.ClientError))
+        retry=retry_if_exception(lambda e: not isinstance(e, errors.ClientError)),
     )
     def extract_from_text(
         self, text: str, message_date: datetime | None = None
@@ -97,7 +100,7 @@ class AIExtractor:
             return None
 
         client = self._get_client()
-        ref_date = (message_date or datetime.now()).strftime("%Y-%m-%d")
+        ref_date = (message_date or clock.now_ist()).strftime("%Y-%m-%d")
         safe_text = self._redact_pii(text)
         prompt = f"Reference Today Date: {ref_date}\n\nAnnouncement Text:\n{safe_text}"
 
@@ -107,7 +110,7 @@ class AIExtractor:
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
-                response_schema=ExtractedAcademicEvent
+                response_schema=ExtractedAcademicEvent,
             ),
         )
 
@@ -121,11 +124,10 @@ class AIExtractor:
         except Exception:
             return None
 
-
     @retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception(lambda e: not isinstance(e, errors.ClientError))
+        retry=retry_if_exception(lambda e: not isinstance(e, errors.ClientError)),
     )
     def extract_from_voice(
         self,
@@ -140,7 +142,7 @@ class AIExtractor:
             return None
 
         client = self._get_client()
-        ref_date = (message_date or datetime.now()).strftime("%Y-%m-%d")
+        ref_date = (message_date or clock.now_ist()).strftime("%Y-%m-%d")
         audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
         prompt = (
             f"Reference Today Date: {ref_date}\n"
@@ -153,7 +155,7 @@ class AIExtractor:
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
-                response_schema=ExtractedAcademicEvent
+                response_schema=ExtractedAcademicEvent,
             ),
         )
 
@@ -170,7 +172,7 @@ class AIExtractor:
     @retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception(lambda e: not isinstance(e, errors.ClientError))
+        retry=retry_if_exception(lambda e: not isinstance(e, errors.ClientError)),
     )
     def extract_from_media(
         self,
@@ -185,7 +187,7 @@ class AIExtractor:
             return None
 
         client = self._get_client()
-        ref_date = (message_date or datetime.now()).strftime("%Y-%m-%d")
+        ref_date = (message_date or clock.now_ist()).strftime("%Y-%m-%d")
         media_part = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
         prompt = (
             f"Reference Today Date: {ref_date}\n"
@@ -198,7 +200,7 @@ class AIExtractor:
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
-                response_schema=ExtractedAcademicEvent
+                response_schema=ExtractedAcademicEvent,
             ),
         )
 

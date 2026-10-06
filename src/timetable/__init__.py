@@ -3,6 +3,7 @@ from datetime import date
 from typing import NamedTuple
 
 from src.config import settings
+from src.utils import clock
 
 
 class Slot(NamedTuple):
@@ -12,15 +13,18 @@ class Slot(NamedTuple):
     room: str
     faculty: str
 
+
 class Meta(NamedTuple):
     term: str
     valid_from: date
     valid_to: date
     sample: bool
 
+
 class Timetable(NamedTuple):
     meta: Meta
     slots: list[Slot]
+
 
 def load(path: str | None = None) -> Timetable | None:
     path = path or settings.spark_timetable
@@ -36,37 +40,40 @@ def load(path: str | None = None) -> Timetable | None:
 
     meta = Meta(
         term=meta_dict.get("term", ""),
-        valid_from=meta_dict.get("valid_from", date.today()),
-        valid_to=meta_dict.get("valid_to", date.today()),
-        sample=meta_dict.get("sample", False)
+        valid_from=meta_dict.get("valid_from", clock.today_ist()),
+        valid_to=meta_dict.get("valid_to", clock.today_ist()),
+        sample=meta_dict.get("sample", False),
     )
 
     slots = []
     for slot in data.get("slot", []):
-        slots.append(Slot(
-            day=slot.get("day", ""),
-            period=slot.get("period", 0),
-            course=slot.get("course", ""),
-            room=slot.get("room", ""),
-            faculty=slot.get("faculty", "")
-        ))
+        slots.append(
+            Slot(
+                day=slot.get("day", ""),
+                period=slot.get("period", 0),
+                course=slot.get("course", ""),
+                room=slot.get("room", ""),
+                faculty=slot.get("faculty", ""),
+            )
+        )
 
     return Timetable(meta=meta, slots=slots)
 
+
 def parse_periods(text: str) -> list[int]:
     import re
+
     if not text:
         return []
 
     # Check for clock time range
     time_range_match = re.search(
-        r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b",
-        text,
-        re.IGNORECASE
+        r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b", text, re.IGNORECASE
     )
     if time_range_match:
         try:
             from datetime import datetime
+
             t_str = time_range_match.group(1).strip().upper()
             if "AM" in t_str or "PM" in t_str:
                 t_start = datetime.strptime(t_str, "%I:%M %p").time()
@@ -75,8 +82,14 @@ def parse_periods(text: str) -> list[int]:
 
             start_mins = t_start.hour * 60 + t_start.minute
             period_map = {
-                1: 8*60+10, 2: 9*60+0, 3: 10*60+0, 4: 10*60+50,
-                5: 11*60+50, 7: 13*60+20, 8: 14*60+20, 9: 15*60+10
+                1: 8 * 60 + 10,
+                2: 9 * 60 + 0,
+                3: 10 * 60 + 0,
+                4: 10 * 60 + 50,
+                5: 11 * 60 + 50,
+                7: 13 * 60 + 20,
+                8: 14 * 60 + 20,
+                9: 15 * 60 + 10,
             }
 
             for p, p_mins in period_map.items():
@@ -92,7 +105,7 @@ def parse_periods(text: str) -> list[int]:
         p_start = int(m.group(1))
         p_end = int(m_end.group(1)) if m_end else p_start
         for p in range(p_start, p_end + 1):
-            if p != 6: # No P6
+            if p != 6:  # No P6
                 periods.add(p)
     elif "PERIOD" in text.upper():
         m = re.search(r"PERIOD\s*[-]?\s*(\d+)", text, re.IGNORECASE)
@@ -103,22 +116,29 @@ def parse_periods(text: str) -> list[int]:
 
     return sorted(list(periods))
 
+
 class Verdict(NamedTuple):
     ok: bool
     reason: str
     period: list[int]
 
+
 def validate(event, timetable: Timetable | None) -> Verdict:
-    if not timetable:
-        # P3: missing or sample timetable skips validation with one warning.
-        # It's returning OK, the handler will warn and behave as confirm
-        return Verdict(True, "OK", parse_periods(event.period or ""))
+    if event.intent not in ("ROOM_OVERRIDE", "CLASS_CANCELLED"):
+        return Verdict(True, "NOT_APPLICABLE", [])
+
+    if not timetable or timetable.meta.sample:
+        return Verdict(True, "NO_TIMETABLE", parse_periods(event.period or ""))
+
+    if not event.target_date:
+        return Verdict(False, "INVALID_DATE", parse_periods(event.period or ""))
 
     from datetime import datetime
+
     try:
         dt = datetime.strptime(event.target_date, "%Y-%m-%d").date()
     except Exception:
-        return Verdict(False, "INVALID_DATE", [])
+        return Verdict(False, "INVALID_DATE", parse_periods(event.period or ""))
 
     if dt < timetable.meta.valid_from or dt > timetable.meta.valid_to:
         return Verdict(False, "OUTSIDE_TERM", parse_periods(event.period or ""))
@@ -127,8 +147,7 @@ def validate(event, timetable: Timetable | None) -> Verdict:
     event_day = day_map.get(dt.weekday())
 
     course_slots = [
-        s for s in timetable.slots
-        if s.day == event_day and s.course == event.course_name
+        s for s in timetable.slots if s.day == event_day and s.course == event.course_name
     ]
 
     periods = parse_periods(event.period or "")
@@ -174,12 +193,9 @@ def validate(event, timetable: Timetable | None) -> Verdict:
     # "OUTSIDE_TERM, NO_SLOT, PERIOD_MISMATCH, AMBIGUOUS_PERIOD, NO_CHANGE, OK"
     all_rooms_same = True
     for p in periods:
-        s_opt: Slot | None = next(
-            (s_for for s_for in course_slots if s_for.period == p), None
-        )
-        if (
-            not s_opt
-            or s_opt.room.upper().replace(" ", "-") != (event.room or "").upper().replace(" ", "-")
+        s_opt: Slot | None = next((s_for for s_for in course_slots if s_for.period == p), None)
+        if not s_opt or s_opt.room.upper().replace(" ", "-") != (event.room or "").upper().replace(
+            " ", "-"
         ):
             all_rooms_same = False
             break

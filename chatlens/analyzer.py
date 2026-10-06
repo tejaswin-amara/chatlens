@@ -1,10 +1,10 @@
 """Chat analysis powered by Google Gemini."""
 
 from google import genai
-
-from chatlens import config
 from google.genai.errors import APIError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from chatlens import config
 
 # ponytail: hard-coded chunk size; good enough for gemini-2.0-flash context window.
 # Upgrade path: estimate tokens instead of message count.
@@ -32,13 +32,11 @@ class ChatAnalyzer:
     @retry(
         retry=retry_if_exception_type(APIError),
         wait=wait_exponential(multiplier=1, min=4, max=60),
-        stop=stop_after_attempt(5)
+        stop=stop_after_attempt(5),
     )
     def _call_gemini(self, prompt: str) -> str:
         """Send a prompt to Gemini and return the text response."""
-        response = self._client.models.generate_content(
-            model=self._model, contents=prompt
-        )
+        response = self._client.models.generate_content(model=self._model, contents=prompt)
         return response.text
 
     def summarize(self, messages: list[dict]) -> str:
@@ -125,7 +123,7 @@ class ChatAnalyzer:
     def generate_insight(self, insight_type: str, messages: list[dict]) -> str:
         """Generate specific 'Insight Modes' using custom AI prompts."""
         transcript = _format_messages(messages[-_CHUNK_SIZE:])
-        
+
         prompts = {
             "relationship_dynamics": (
                 "You are an expert behavioral psychologist. Analyze the relationship dynamics in this chat.\n"
@@ -160,12 +158,11 @@ class ChatAnalyzer:
                 "2. Key decisions made or arguments resolved.\n"
                 "3. A funny or notable quote from the chat (if any).\n"
                 "Format as a Markdown report."
-            )
+            ),
         }
-        
+
         prompt = prompts.get(insight_type)
         if not prompt:
             raise ValueError(f"Unknown insight type: {insight_type}")
-            
-        return self._call_gemini(f"{prompt}\n\nConversation Transcript:\n{transcript}")
 
+        return self._call_gemini(f"{prompt}\n\nConversation Transcript:\n{transcript}")

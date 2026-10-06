@@ -5,6 +5,7 @@ import sqlite3
 import time
 
 from src.config import settings
+from src.utils.db import get_connection
 
 
 class MessageDeduplicator:
@@ -14,64 +15,46 @@ class MessageDeduplicator:
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path, isolation_level=None)
+        return get_connection()
 
     def _init_db(self) -> None:
         with self._get_conn() as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute(
+            conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS chat_state (
                     chat_id INTEGER PRIMARY KEY,
                     last_id INTEGER NOT NULL,
                     updated REAL
-                )
-                """
-            )
-            conn.execute(
-                """
+                );
                 CREATE TABLE IF NOT EXISTS pending (
-                    id INTEGER PRIMARY KEY,
-                    created REAL,
-                    chat_id INTEGER,
-                    msg_id INTEGER,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     event_json TEXT,
-                    status TEXT
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS writes (
-                    id INTEGER PRIMARY KEY,
-                    ts REAL,
-                    kind TEXT,
-                    event_id TEXT,
-                    prior_json TEXT,
-                    undone INTEGER DEFAULT 0
-                )
-                """
-            )
-            conn.execute(
-                """
+                    status TEXT,
+                    created REAL
+                );
                 CREATE TABLE IF NOT EXISTS meta (
                     key TEXT PRIMARY KEY,
                     value TEXT
-                )
-                """
-            )
-            conn.execute(
-                """
+                );
                 CREATE TABLE IF NOT EXISTS seen (
                     key TEXT PRIMARY KEY,
-                    ts REAL
-                )
+                    ts REAL NOT NULL
+                );
                 """
             )
 
     def _compute_hash(self, chat_id: int | str, message_id: int | str, content: str = "") -> str:
         raw_key = f"{chat_id}:{message_id}:{content.strip()}"
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+
+    def add_pending(self, event_json: str) -> int:
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO pending (event_json, status, created) VALUES (?, 'PENDING', ?)",
+                (event_json, __import__("time").time()),
+            )
+            return cur.lastrowid or 0
 
     def is_duplicate(self, chat_id: int | str, message_id: int | str, content: str = "") -> bool:
         msg_hash = self._compute_hash(chat_id, message_id, content)
@@ -89,12 +72,8 @@ class MessageDeduplicator:
         msg_hash = self._compute_hash(chat_id, message_id, content)
         now = time.time()
         with self._get_conn() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO seen (key, ts) VALUES (?, ?)", (msg_hash, now)
-            )
+            conn.execute("INSERT OR REPLACE INTO seen (key, ts) VALUES (?, ?)", (msg_hash, now))
         return msg_hash
-
-
 
     def get_chat_state(self, chat_id: int) -> int | None:
         with self._get_conn() as conn:
@@ -113,7 +92,17 @@ class MessageDeduplicator:
                     last_id = MAX(last_id, excluded.last_id),
                     updated = excluded.updated
                 """,
-                (chat_id, last_id, now)
+                (chat_id, last_id, now),
             )
+
+    def meta_set(self, key: str, value: str) -> None:
+        with self._get_conn() as conn:
+            conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value))
+
+    def meta_get(self, key: str) -> str | None:
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+            return row[0] if row else None
+
 
 deduplicator = MessageDeduplicator()
