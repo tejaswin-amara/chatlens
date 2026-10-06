@@ -19,8 +19,8 @@ def test_sentry_before_send():
 
 def test_sentry_before_send_aiza():
     event = {
-        "logentry": {"message": "Called with AIzaSyB-abcdefghijklmnopqrstuvwx_yZ1234"},
-        "exception": {"values": [{"value": "HTTP 401 AIzaSyB-abcdefghijklmnopqrstuvwx_yZ1234"}]},
+        "logentry": {"message": "Called with AIzaFAKE-abcdefghijklmnopqrstuvwx_yZ123"},
+        "exception": {"values": [{"value": "HTTP 401 AIzaFAKE-abcdefghijklmnopqrstuvwx_yZ123"}]},
         "extra": {},
     }
 
@@ -32,7 +32,7 @@ def test_sentry_before_send_aiza():
 def test_structlog_scrub_secrets():
     event_dict = {
         "event": "Using bot12345:1234567890-ABCDEF",
-        "error": "Failed with AIzaSyB-abcdefghijklmnopqrstuvwx_yZ1234",
+        "error": "Failed with AIzaFAKE-abcdefghijklmnopqrstuvwx_yZ123",
         "level": "info",
     }
 
