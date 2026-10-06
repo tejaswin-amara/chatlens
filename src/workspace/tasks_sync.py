@@ -41,9 +41,11 @@ class TasksSync:
             except ValueError:
                 task_body["due"] = due_date
 
-        existing = service.tasks().list(
-            tasklist="@default", showCompleted=False, showHidden=False
-        ).execute()
+        existing = (
+            service.tasks()
+            .list(tasklist="@default", showCompleted=False, showHidden=False)
+            .execute()
+        )
         for item in existing.get("items", []):
             item_due = item.get("due", "")
             if item.get("title") == clean_title:
@@ -54,32 +56,32 @@ class TasksSync:
 
         created = service.tasks().insert(tasklist="@default", body=task_body).execute()
         import json
-        import sqlite3
         import time
 
-        from src.config import settings
-        with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
+        from src.utils.db import get_connection
+
+        with get_connection() as conn:
             conn.execute(
                 "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
                 (
-                    time.time(), "insert", created["id"],
-                    json.dumps({"action": "delete", "source": "tasks"})
-                )
+                    time.time(),
+                    "insert",
+                    created["id"],
+                    json.dumps({"action": "delete", "source": "tasks"}),
+                ),
             )
-        logger.info(
-            "Created Google Task", task_id=created.get("id"), title=clean_title
-        )
+        logger.info("Created Google Task", task_id=created.get("id"), title=clean_title)
         return created
-
-
 
     def list_open_tasks(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
         service = self.auth.get_tasks_service()
         # showCompleted false, showHidden false
         try:
-            results = service.tasks().list(
-                tasklist="@default", showCompleted=False, showHidden=False
-            ).execute()
+            results = (
+                service.tasks()
+                .list(tasklist="@default", showCompleted=False, showHidden=False)
+                .execute()
+            )
         except Exception:
             return []
 
@@ -95,5 +97,6 @@ class TasksSync:
                     filtered.append(item)
 
         return filtered
+
 
 tasks_sync = TasksSync()

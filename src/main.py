@@ -4,10 +4,8 @@ import asyncio
 import signal
 import sys
 
-from telethon import TelegramClient
 from telethon.errors import (
     AuthKeyUnregisteredError,
-    FloodWaitError,
     SessionExpiredError,
     SessionRevokedError,
     UserDeactivatedBanError,
@@ -22,236 +20,138 @@ from src.utils.logging import configure_logging, get_logger
 logger = get_logger(__name__)
 
 
-
 async def bot_callback_poll() -> None:
-    from src.config import settings
-    if settings.spark_mode == "dry" or not settings.bot_token or not settings.owner_chat_id:
-        return
+    import asyncio
 
-    from src.ingestion.handlers import handle_bot_callback
+    from src.ingestion.handlers import handle_bot_callback, handle_undo_command
     from src.notify.bot import bot
 
     offset = 0
     while True:
         try:
-            updates = await asyncio.to_thread(bot.get_updates, offset, 30)
-            for update in updates.get("result", []):
-                offset = update["update_id"] + 1
-                if "callback_query" in update:
-                    await handle_bot_callback(update["callback_query"])
-                elif "message" in update and "text" in update["message"]:
-                    msg = update["message"]
-                    if msg.get("chat", {}).get("id") == settings.owner_chat_id:
-                        if msg["text"].strip().startswith("/undo"):
-                            from src.ingestion.handlers import handle_undo_command
-                            await handle_undo_command(msg)
+            updates = await asyncio.to_thread(bot.get_updates, offset)
+            if updates and "result" in updates:
+                for up in updates["result"]:
+                    update_id = up.get("update_id", offset)
+                    offset = max(offset, update_id + 1)
+
+                    if "callback_query" in up:
+                        await handle_bot_callback(up["callback_query"])
+                    elif "message" in up and up["message"].get("text") == "/undo":
+                        await handle_undo_command(up["message"])
+            await asyncio.sleep(2)
         except asyncio.CancelledError:
-            break
+            raise
         except Exception as e:
-            logger.warning("Bot polling error", error=str(e))
+            logger.error("Bot callback polling error", error=str(e))
             await asyncio.sleep(5)
 
 
 async def run_briefing() -> None:
-    import sqlite3
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo
+    import asyncio
 
-    from src.academic_calendar import load_calendar
-    from src.briefing import build_briefing
-    from src.config import settings
+    from src.briefing import build_briefing, fetch_briefing_inputs, next_run
     from src.notify.bot import bot
-    from src.workspace.calendar_sync import calendar_sync
-    from src.workspace.sheets_logger import sheets_logger
-    from src.workspace.tasks_sync import tasks_sync
-
-    ist = ZoneInfo("Asia/Kolkata")
+    from src.utils import clock
+    from src.utils.deduplication import deduplicator
 
     def _is_sent_today(today_str: str) -> bool:
-        try:
-            with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
-                row = conn.execute(
-                    "SELECT value FROM meta WHERE key = 'briefing_last_date'"
-                ).fetchone()
-                if row and row[0] == today_str:
-                    return True
-        except Exception:
-            pass
-        return False
+        return deduplicator.meta_get("briefing_last_date") == today_str
 
     def _mark_sent_today(today_str: str) -> None:
-        try:
-            with sqlite3.connect(settings.spark_db, isolation_level=None) as conn:
-                conn.execute(
-                    "INSERT INTO meta (key, value) VALUES ('briefing_last_date', ?) "
-                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    (today_str,)
-                )
-        except Exception:
-            pass
+        deduplicator.meta_set("briefing_last_date", today_str)
 
     while True:
-        now = datetime.now(ist)
-        target = now.replace(hour=7, minute=0, second=0, microsecond=0)
-        if now >= target:
-            target += timedelta(days=1)
+        now = clock.now_ist()
+        target = next_run(now)
+        await asyncio.sleep((target - now).total_seconds())
 
-        sleep_seconds = (target - now).total_seconds()
-        logger.info(f"Briefing scheduler sleeping for {sleep_seconds} seconds until 07:00 IST")
-
-        try:
-            await asyncio.sleep(sleep_seconds)
-        except asyncio.CancelledError:
-            break
-
-        # Time to send!
-        today_str = datetime.now(ist).strftime("%Y-%m-%d")
+        today_str = clock.today_ist().strftime("%Y-%m-%d")
         if _is_sent_today(today_str):
             continue
 
         try:
-            # Fetch data
-            now_ist = datetime.now(ist)
-            start_str = now_ist.strftime("%Y-%m-%d")
-            end_str = (now_ist + timedelta(days=3)).strftime("%Y-%m-%d")
-
-            cal_events = []
-            try:
-                service = calendar_sync.auth.get_calendar_service()
-                time_min = now_ist.replace(hour=0, minute=0, second=0).isoformat()
-                time_max = now_ist.replace(hour=23, minute=59, second=59).isoformat()
-                events_result = service.events().list(
-                    calendarId=calendar_sync.calendar_id,
-                    timeMin=time_min,
-                    timeMax=time_max,
-                    timeZone="Asia/Kolkata",
-                    singleEvents=True,
-                    orderBy="startTime"
-                ).execute()
-                cal_events = events_result.get("items", [])
-            except Exception as e:
-                logger.warning("Briefing cal fetch failed", error=str(e))
-
-            tasks = await asyncio.to_thread(tasks_sync.list_open_tasks, start_str, end_str)
-
-            attendance_rows = []
-            try:
-                service = sheets_logger.auth.get_sheets_service()
-                result = service.spreadsheets().values().get(
-                    spreadsheetId=sheets_logger.sheet_id,
-                    range="Attendance!A:C"
-                ).execute()
-                values = result.get("values", [])
-                if len(values) > 1:
-                    headers = [str(h).lower() for h in values[0]]
-                    for row in values[1:]:
-                        if len(row) >= 3:
-                            row_dict = dict(zip(headers, row))
-                            # Expecting course, attended, held
-                            if (
-                                "course" in row_dict
-                                and "attended" in row_dict
-                                and "held" in row_dict
-                            ):
-                                attendance_rows.append(row_dict)
-            except Exception as e:
-                logger.warning("Briefing sheets fetch failed", error=str(e))
-
-            milestones = {}
-            cal = load_calendar()
-            if cal:
-                # Get milestones from terms
-                for term, dates in cal.terms.items():
-                    for name, d in dates.items():
-                        milestones[f"{term} {name}"] = d
-
-            text = build_briefing(now_ist, cal_events, tasks, attendance_rows, milestones)
-
-            await asyncio.to_thread(bot.send, text)
-            _mark_sent_today(today_str)
-
+            inputs = await fetch_briefing_inputs()
+            text = build_briefing(clock.now_ist(), *inputs)
+            for attempt in range(2):
+                try:
+                    await asyncio.to_thread(bot.send, text)
+                    _mark_sent_today(today_str)
+                    logger.info("Daily briefing dispatched")
+                    break
+                except Exception as send_err:
+                    if attempt == 1:
+                        raise send_err
+                    await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
-            logger.error("Failed to send briefing, will retry in 5 minutes", error=str(e))
-            try:
-                await asyncio.sleep(300)
-                await asyncio.to_thread(bot.send, text)
-                _mark_sent_today(today_str)
-            except Exception as e2:
-                logger.error("Briefing retry failed", error=str(e2))
+            logger.error("Failed to build or send briefing", error=str(e))
+
 
 async def run_heartbeat() -> None:
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
+    import asyncio
 
-    from src.workspace.sheets_logger import sheets_logger
-
-    ist = ZoneInfo("Asia/Kolkata")
+    from src.utils import clock
+    from src.utils.deduplication import deduplicator
 
     while True:
         try:
-            await asyncio.sleep(900) # 15 minutes
-            now_str = datetime.now(ist).isoformat()
+            from src.workspace.sheets_logger import sheets_logger
 
-            def do_heartbeat():
-                service = sheets_logger.auth.get_sheets_service()
-                try:
-                    service.spreadsheets().values().update(
-                        spreadsheetId=sheets_logger.sheet_id,
-                        range="Status!A1",
-                        valueInputOption="USER_ENTERED",
-                        body={"values": [[now_str]]}
-                    ).execute()
-                except Exception as e:
-                    # If tab doesn't exist, it throws an error like 'Unable to parse range'
-                    if 'parse range' in str(e).lower() or 'not found' in str(e).lower():
-                        # Create the tab
-                        body = {
-                            "requests": [{
-                                "addSheet": {"properties": {"title": "Status"}}
-                            }]
-                        }
-                        service.spreadsheets().batchUpdate(
-                            spreadsheetId=sheets_logger.sheet_id,
-                            body=body
-                        ).execute()
-                        # Retry
-                        service.spreadsheets().values().update(
-                            spreadsheetId=sheets_logger.sheet_id,
-                            range="Status!A1",
-                            valueInputOption="USER_ENTERED",
-                            body={"values": [[now_str]]}
-                        ).execute()
-                    else:
-                        raise e
-
-            await asyncio.to_thread(do_heartbeat)
-
+            await asyncio.to_thread(sheets_logger.log_heartbeat)
+            deduplicator.meta_set("last_heartbeat", str(clock.now_ist().timestamp()))
+            logger.debug("Heartbeat logged")
         except asyncio.CancelledError:
-            break
+            raise
         except Exception as e:
-            logger.warning("Heartbeat failed", error=str(e))
+            logger.warning("Failed to log heartbeat", error=str(e))
+        await asyncio.sleep(900)
 
-async def run_daemon() -> None:
-    configure_logging()
-    logger.info("Starting ChatLens Enterprise PA Bot Daemon")
 
+BACKOFF_START, BACKOFF_MAX = 2.0, 60.0
+
+
+async def _sleep_or_stop(stop: asyncio.Event, seconds: float) -> None:
+    import asyncio
+    import contextlib
+
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(stop.wait(), timeout=seconds)
+
+
+async def _listen(client, stop: asyncio.Event) -> None:
+    import asyncio
+
+    listen = asyncio.create_task(client.run_until_disconnected())
+    waiter = asyncio.create_task(stop.wait())
     try:
-        settings.validate_required()
-    except ValueError as e:
-        logger.critical("Configuration validation failed", error=str(e))
+        done, _ = await asyncio.wait({listen, waiter}, return_when=asyncio.FIRST_COMPLETED)
+        if listen in done:
+            listen.result()
+    finally:
+        for t in (listen, waiter):
+            t.cancel()
+        await asyncio.gather(listen, waiter, return_exceptions=True)
+
+
+async def supervise(name: str, job, stop: asyncio.Event) -> None:
+    import asyncio
+
+    backoff = BACKOFF_START
+    while not stop.is_set():
         try:
-            from src.notify.bot import bot
-            bot.send(f"🛑 SPARK exiting: Config validation failed: {str(e)}")
-        except Exception:
-            pass
-        sys.exit(2)
+            await job()
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error("Background job crashed", job=name, error=str(e), backoff_s=backoff)
+            await _sleep_or_stop(stop, backoff)
+            backoff = min(backoff * 2, BACKOFF_MAX)
 
-    client: TelegramClient = create_telegram_client()
-    register_handlers(client)
 
-    loop = asyncio.get_running_loop()
-    stop_event = asyncio.Event()
-
+def _install_signal_handlers(loop, stop_event: asyncio.Event) -> None:
     def _signal_handler() -> None:
         logger.info("Shutdown signal received (SIGINT/SIGTERM). Stopping daemon...")
         stop_event.set()
@@ -262,104 +162,86 @@ async def run_daemon() -> None:
         except NotImplementedError:
             pass
 
-    backoff = 2
+
+async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> int:
+    import asyncio
+
+    configure_logging()
+    logger.info("Starting ChatLens Enterprise PA Bot Daemon")
+
+    try:
+        settings.validate_required()
+    except ValueError as e:
+        logger.critical("Configuration validation failed", error=str(e))
+        return 2
+
+    if client is None:
+        client = create_telegram_client()
+
+    loop = asyncio.get_running_loop()
+    if stop_event is None:
+        stop_event = asyncio.Event()
+
+    if handle_signals:
+        _install_signal_handlers(loop, stop_event)
+
+    register_handlers(client)
+
+    jobs = [
+        asyncio.create_task(supervise("briefing", run_briefing, stop_event)),
+        asyncio.create_task(supervise("heartbeat", run_heartbeat, stop_event)),
+    ]
+    if settings.spark_mode != "dry":
+        jobs.append(asyncio.create_task(supervise("bot_poll", bot_callback_poll, stop_event)))
+
+    backoff = BACKOFF_START
     while not stop_event.is_set():
         try:
             logger.info("Connecting Telethon StringSession client...")
             await client.connect()
-            await catch_up_chats(client)
+
             if not await client.is_user_authorized():
-                logger.critical(
-                    "Telethon session is unauthorized. "
-                    "Regenerate session using scripts/generate_session.py"
-                )
-                try:
-                    from src.notify.bot import bot
-                    bot.send("🛑 SPARK exiting: Telethon session unauthorized")
-                except Exception:
-                    pass
-                sys.exit(2)
+                logger.critical("Telethon session is unauthorized.")
+                return 2
+
+            await catch_up_chats(client)
             logger.info("ChatLens PA Bot is live and listening for events")
-            if getattr(client, "_spark_startup_sent", False) is False:
-                from src.timetable import load as load_tt
-                tt = load_tt()
-                tt_status = "loaded" if tt else "missing or sample"
-                try:
-                    from src.notify.bot import bot
-                    await asyncio.to_thread(
-                        bot.send,
-                        f"🚀 SPARK started: mode={settings.spark_mode}, "
-                        f"{len(settings.allowed_chat_ids)} chats, timetable {tt_status}"
-                    )
-                    client._spark_startup_sent = True
-                except Exception:
-                    await client.send_message(
-                        "me",
-                        f"🚀 SPARK started: mode={settings.spark_mode}, "
-                        f"{len(settings.allowed_chat_ids)} chats, timetable {tt_status}"
-                    )
-                    client._spark_startup_sent = True
-            backoff = 2
 
-            tasks_to_wait = []
-            if settings.spark_mode != "dry" and settings.bot_token and settings.owner_chat_id:
-                tasks_to_wait.append(asyncio.create_task(bot_callback_poll()))
+            await _listen(client, stop_event)
 
-            tasks_to_wait.append(asyncio.create_task(run_briefing()))
-            tasks_to_wait.append(asyncio.create_task(run_heartbeat()))
-            tasks_to_wait.append(asyncio.create_task(client.run_until_disconnected()))  # type: ignore
-            tasks_to_wait.append(asyncio.create_task(stop_event.wait()))  # type: ignore
-
-            done, pending = await asyncio.wait(
-                tasks_to_wait,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            for task in pending:
-                task.cancel()
-
-            for task in done:
-                task.result()
-
-            if stop_event.is_set():
-                break
-
-        except FloodWaitError as e:
-            logger.warning("Telegram FloodWaitError encountered", seconds=e.seconds)
-            await asyncio.sleep(e.seconds)
-        except (
-            AuthKeyUnregisteredError,
-            SessionRevokedError,
-            SessionExpiredError,
-            UserDeactivatedError,
-            UserDeactivatedBanError,
-        ) as e:
-            logger.critical("Unrecoverable Telegram session error", error=str(e))
-            try:
-                from src.notify.bot import bot
-                bot.send(f"🛑 SPARK exiting: Session error: {str(e)}")
-            except Exception:
-                pass
-            sys.exit(2)
-        except SystemExit:
-            raise
+            if not stop_event.is_set():
+                logger.warning("Telegram client disconnected cleanly. Reconnecting...")
+                await _sleep_or_stop(stop_event, backoff)
+                backoff = min(backoff * 2, BACKOFF_MAX)
+        except AuthKeyUnregisteredError:
+            logger.critical("Unrecoverable AuthKeyUnregisteredError")
+            return 2
+        except SessionRevokedError:
+            logger.critical("Unrecoverable SessionRevokedError")
+            return 2
+        except SessionExpiredError:
+            logger.critical("Unrecoverable SessionExpiredError")
+            return 2
+        except UserDeactivatedError:
+            logger.critical("Unrecoverable UserDeactivatedError")
+            return 2
+        except UserDeactivatedBanError:
+            logger.critical("Unrecoverable UserDeactivatedBanError")
+            return 2
         except Exception as e:
-            logger.error("Daemon execution error encountered", error=str(e), backoff_s=backoff)
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            logger.error("Transient error in connection loop", error=str(e))
+            await _sleep_or_stop(stop_event, backoff)
+            backoff = min(backoff * 2, BACKOFF_MAX)
 
-    logger.info("Disconnecting Telethon client...")
-    if client.is_connected():
-        await client.disconnect()
-    logger.info("ChatLens PA Bot Daemon stopped cleanly.")
+    stop_event.set()
+    for j in jobs:
+        j.cancel()
+    await asyncio.gather(*jobs, return_exceptions=True)
+    return 0
 
 
 def main() -> None:
-    try:
-        asyncio.run(run_daemon())
-    except KeyboardInterrupt:
-        logger.info("Daemon interrupted by user.")
+    import asyncio
 
-
-if __name__ == "__main__":
-    main()
+    code = asyncio.run(run_daemon())
+    sys.exit(code)

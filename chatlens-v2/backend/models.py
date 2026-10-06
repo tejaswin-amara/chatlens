@@ -1,16 +1,17 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Index
-from sqlalchemy.orm import declarative_base
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import Column, Index, Integer, String, Text
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
+
 
 class Message(Base):
     __tablename__ = "messages"
     __table_args__ = (
-        Index('idx_chat_timestamp', 'chat_name', 'timestamp'),
-        Index('ux_messages_content_hash', 'content_hash', unique=True),
+        Index("idx_chat_timestamp", "chat_name", "timestamp"),
+        Index("ux_messages_content_hash", "content_hash", unique=True),
     )
-    
+
     id = Column(Integer, primary_key=True, index=True)
     platform = Column(String)
     chat_name = Column(String, index=True)

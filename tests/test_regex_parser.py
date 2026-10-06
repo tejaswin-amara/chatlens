@@ -1,9 +1,5 @@
 """Unit tests for Tier-1 Fast-Path Regex Parser."""
 
-
-
-
-
 import json
 from datetime import datetime
 from pathlib import Path
@@ -60,31 +56,31 @@ def test_regex_parser_none_on_unstructured() -> None:
 
 def test_regex_parser_real_circulars() -> None:
     # Optional loader for real circulars
-    fixtures_path = Path(__file__).parent / 'fixtures' / 'real_circulars.json'
+    fixtures_path = Path(__file__).parent / "fixtures" / "real_circulars.json"
     if not fixtures_path.exists():
-        pytest.skip('real_circulars.json not found')
+        pytest.skip("real_circulars.json not found")
 
-    with open(fixtures_path, encoding='utf-8') as f:
+    with open(fixtures_path, encoding="utf-8") as f:
         samples = json.load(f)
         if not samples:
-            pytest.skip('real_circulars.json is empty')
+            pytest.skip("real_circulars.json is empty")
 
     for sample in samples:
         # The owner will drop anonymized S-10/S-11 messages there.
         try:
-            ref_date = datetime.fromisoformat(sample['date'])
+            ref_date = datetime.fromisoformat(sample["date"])
         except Exception:
             ref_date = datetime.now()
 
-        result = RegexParser.parse(sample['text'], message_date=ref_date)
-        if sample['expected_intent'] is None:
+        result = RegexParser.parse(sample["text"], message_date=ref_date)
+        if sample["expected_intent"] is None:
             assert result is None
         else:
             assert result is not None
-            assert result.intent == sample['expected_intent']
-            if sample['expected_course']:
-                assert result.course_name == sample['expected_course']
-            if sample['expected_room']:
-                assert result.room == sample['expected_room']
-            if sample['expected_date']:
-                assert result.target_date == sample['expected_date']
+            assert result.intent == sample["expected_intent"]
+            if sample["expected_course"]:
+                assert result.course_name == sample["expected_course"]
+            if sample["expected_room"]:
+                assert result.room == sample["expected_room"]
+            if sample["expected_date"]:
+                assert result.target_date == sample["expected_date"]

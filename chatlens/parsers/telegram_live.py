@@ -47,8 +47,6 @@ async def verify_code(phone: str, code: str, phone_code_hash: str) -> bool:
     try:
         if await client.is_user_authorized():
             return True
-        if code == 'already':
-            return True
         await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
         return True
     except Exception as e:
@@ -77,18 +75,23 @@ async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
                 if not msg.text:
                     continue
                 sender = await msg.get_sender() if msg.sender_id else None
-                results.append({
-                    "platform": "telegram",
-                    "chat_name": dialog.name or str(dialog.id),
-                    "sender": _sender_name(sender),
-                    "timestamp": msg.date.isoformat() if isinstance(msg.date, datetime) else str(msg.date),
-                    "text": msg.text,
-                    "reply_to": msg.reply_to_msg_id if msg.reply_to else None,
-                    "forwarded_from": (
-                        msg.forward.from_name or str(msg.forward.from_id)
-                        if msg.forward else None
-                    ),
-                })
+                results.append(
+                    {
+                        "platform": "telegram",
+                        "chat_name": dialog.name or str(dialog.id),
+                        "sender": _sender_name(sender),
+                        "timestamp": msg.date.isoformat()
+                        if isinstance(msg.date, datetime)
+                        else str(msg.date),
+                        "text": msg.text,
+                        "reply_to": msg.reply_to_msg_id if msg.reply_to else None,
+                        "forwarded_from": (
+                            msg.forward.from_name or str(msg.forward.from_id)
+                            if msg.forward
+                            else None
+                        ),
+                    }
+                )
     finally:
         await client.disconnect()
 

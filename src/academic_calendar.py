@@ -6,6 +6,7 @@ from typing import NamedTuple
 class AcademicCalendar(NamedTuple):
     terms: dict[str, dict[str, date]]
 
+
 def load_calendar(path: str = "data/calendar_2026_27.toml") -> AcademicCalendar | None:
     try:
         with open(path, "rb") as f:
@@ -23,6 +24,7 @@ def load_calendar(path: str = "data/calendar_2026_27.toml") -> AcademicCalendar 
             terms[term_name] = parsed_dates
 
     return AcademicCalendar(terms=terms)
+
 
 def get_milestone_date(milestone: str, ref_date: date, cal: AcademicCalendar) -> date | None:
     # find the term whose window contains the message date

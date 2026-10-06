@@ -2,12 +2,11 @@
 
 import re
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from src.parsing.schemas import ExtractedAcademicEvent
+from src.utils import clock
 
-IST = ZoneInfo("Asia/Kolkata")
-
+IST = clock.IST
 
 
 COURSES = {
@@ -16,7 +15,7 @@ COURSES = {
     "ML": ["ML", "MLNG", "MACHINE LEARNING"],
     "ESD": ["ESD", "EBSD", "IOT", "EMBEDDED SYSTEM"],
     "DBSE": ["DBSE", "DATABASE SYSTEMS"],
-    "JAPANESE": ["JAPANESE", "JPN", "FLP-2"]
+    "JAPANESE": ["JAPANESE", "JPN", "FLP-2"],
 }
 
 COURSE_CODES = {
@@ -40,7 +39,7 @@ HOLIDAY_PATTERN = re.compile(
 )
 TASK_ACTION_CUES = re.compile(
     r"\b(SUBMIT|SUBMISSION|DUE|DEADLINE|LAST DATE|PAY|UPLOAD|REGISTER|REGISTRATION CLOSES|BRING)\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 EXAM_CUES = re.compile(r"\b(EXAM|MIDTERM|MID-TERM|HALL TICKET)\b", re.IGNORECASE)
 
@@ -50,10 +49,9 @@ ROOM_OVERRIDE_VERBS = re.compile(
 
 
 class RegexParser:
-
     @staticmethod
     def _resolve_date(clean_text: str, upper_text: str, ref_date: datetime) -> str | None:
-                                # ISO
+        # ISO
         match = re.search(r"\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b", clean_text)
         if match:
             y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
@@ -84,10 +82,19 @@ class RegexParser:
 
         # Word dates: 12 Oct, 12th of October 2026, Oct 12
         months = [
-            "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+            "JAN",
+            "FEB",
+            "MAR",
+            "APR",
+            "MAY",
+            "JUN",
+            "JUL",
+            "AUG",
+            "SEP",
+            "OCT",
+            "NOV",
+            "DEC",
         ]
-
 
         # 12 Oct / 12th of October
         match = re.search(
@@ -183,7 +190,6 @@ class RegexParser:
         clean_text = text.strip().replace("–", "-").replace("—", "-")
         upper_text = clean_text.upper()
 
-
         detected_course, detected_code = RegexParser.detect_course(upper_text)
 
         room_matches = list(ROOM_PATTERN.finditer(clean_text))
@@ -193,16 +199,16 @@ class RegexParser:
                 detected_room = room_matches[0].group(1).upper().replace(" ", "-")
             else:
                 dest_keywords = re.compile(
-            r"\b(TO|IN|AT|NOW IN|CHANGED TO|MOVED TO)\b", re.IGNORECASE
-        )
+                    r"\b(TO|IN|AT|NOW IN|CHANGED TO|MOVED TO)\b", re.IGNORECASE
+                )
                 source_keywords = re.compile(
-            r"\b(FROM|EARLIER|INSTEAD OF|PREVIOUSLY|WAS)\b", re.IGNORECASE
-        )
+                    r"\b(FROM|EARLIER|INSTEAD OF|PREVIOUSLY|WAS)\b", re.IGNORECASE
+                )
 
                 rooms_with_scores = []
                 for m in room_matches:
                     score = 0
-                    prefix = clean_text[max(0, m.start() - 20):m.start()]
+                    prefix = clean_text[max(0, m.start() - 20) : m.start()]
                     dest_match = list(dest_keywords.finditer(prefix))
                     src_match = list(source_keywords.finditer(prefix))
 
@@ -225,7 +231,6 @@ class RegexParser:
                     # no clear destination
                     detected_room = None
 
-
         period_match = PERIOD_PATTERN.search(clean_text)
         detected_period = period_match.group(1).upper() if period_match else None
 
@@ -233,10 +238,11 @@ class RegexParser:
         time_range_match = re.search(
             r"\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b",
             clean_text,
-            re.IGNORECASE
+            re.IGNORECASE,
         )
         if time_range_match:
             try:
+
                 def parse_time(t_str):
                     t_str = t_str.strip().upper()
                     if "AM" in t_str or "PM" in t_str:
@@ -255,7 +261,7 @@ class RegexParser:
                     5: (11, 50, 12, 40),
                     7: (13, 20, 14, 10),
                     8: (14, 20, 15, 10),
-                    9: (15, 10, 16, 0)
+                    9: (15, 10, 16, 0),
                 }
 
                 start_p = None
@@ -283,7 +289,6 @@ class RegexParser:
             except ValueError:
                 detected_period = time_range_match.group(0).upper()
 
-
         if message_date and message_date.tzinfo:
             ref_date = message_date.astimezone(IST)
         elif message_date:
@@ -297,12 +302,11 @@ class RegexParser:
         # "no class(es)", "not be held", "will not be conducted"
         # "cancelled", "canceled", "suspended"
 
-
         if re.search(
             r"\b(CANCELLED|CANCELED|SUSPENDED|NO CLASS|NO CLASSES|"
             r"NOT BE HELD|WILL NOT BE CONDUCTED)\b",
             clean_text,
-            re.IGNORECASE
+            re.IGNORECASE,
         ):
             if detected_course:
                 return ExtractedAcademicEvent(
@@ -330,15 +334,12 @@ class RegexParser:
 
         # b) ROOM_OVERRIDE strong
         strong_room_override_verbs = re.compile(
-            r"\b(MOVED|SHIFTED|RELOCATED|CHANGED TO|CONDUCTED IN|HELD IN|HELD AT)\b",
-            re.IGNORECASE
+            r"\b(MOVED|SHIFTED|RELOCATED|CHANGED TO|CONDUCTED IN|HELD IN|HELD AT)\b", re.IGNORECASE
         )
         weak_room_override_verbs = re.compile(
             r"\b(VENUE|ROOM|WILL BE IN|CLASS IN)\b", re.IGNORECASE
         )
-        class_words = re.compile(
-            r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD)\b", re.IGNORECASE
-        )
+        class_words = re.compile(r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD)\b", re.IGNORECASE)
 
         if detected_room and detected_course and strong_room_override_verbs.search(clean_text):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]
@@ -357,13 +358,15 @@ class RegexParser:
 
         # c) TASK or EXAM_DEADLINE
         from typing import Literal
+
         is_task = bool(TASK_ACTION_CUES.search(clean_text))
         is_exam = bool(EXAM_CUES.search(clean_text))
         if is_task or (is_exam and resolved_date):
             target_dt = resolved_date
             # EXAM_DEADLINE needs EXAM, MIDTERM or HALL TICKET plus a resolved date
-            intent_type: Literal["EXAM_DEADLINE", "TASK"] = \
+            intent_type: Literal["EXAM_DEADLINE", "TASK"] = (
                 "EXAM_DEADLINE" if (is_exam and resolved_date) else "TASK"
+            )
             # Wait, "Last date to pay end exam fee is 26 Sep" is EXAM_DEADLINE.
             # Because it has EXAM and a resolved date.
             # If it has action cue and exam, it should be EXAM_DEADLINE? Yes.
@@ -379,9 +382,14 @@ class RegexParser:
             )
 
         # d) ROOM_OVERRIDE weak
-        if detected_room and detected_course and (
-            weak_room_override_verbs.search(clean_text) or \
-            class_words.search(clean_text) or detected_period
+        if (
+            detected_room
+            and detected_course
+            and (
+                weak_room_override_verbs.search(clean_text)
+                or class_words.search(clean_text)
+                or detected_period
+            )
         ):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]
             if detected_period:

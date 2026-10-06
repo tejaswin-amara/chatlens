@@ -32,7 +32,9 @@ def _parse_message(msg: dict, chat_name: str) -> dict | None:
         "sender": msg.get("from", msg.get("actor", "Unknown")),
         "timestamp": msg.get("date", ""),
         "text": text,
-        "reply_to": str(msg.get("reply_to_message_id")) if msg.get("reply_to_message_id") is not None else None,
+        "reply_to": str(msg.get("reply_to_message_id"))
+        if msg.get("reply_to_message_id") is not None
+        else None,
         "forwarded_from": msg.get("forwarded_from"),
     }
 

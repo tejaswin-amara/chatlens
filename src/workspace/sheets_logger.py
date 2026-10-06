@@ -1,11 +1,11 @@
 """Google Sheets Adapter for logging PA audit trails to a PA_Audit_Log tab."""
 
-from datetime import datetime
 from typing import Any
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.config import settings
+from src.utils import clock
 from src.utils.logging import get_logger
 from src.workspace.auth import workspace_auth
 
@@ -58,7 +58,7 @@ class SheetsLogger:
         service = self.auth.get_sheets_service()
         self._ensure_audit_tab(service)
 
-        now_iso = datetime.now().isoformat()
+        now_iso = clock.now_ist().isoformat()
         row_values = [
             now_iso,
             source_sender,
@@ -81,6 +81,31 @@ class SheetsLogger:
         )
         logger.info("Appended audit log to Google Sheets", intent=intent, status=execution_status)
         return result
+
+    def log_heartbeat(self) -> None:
+        from src.utils import clock
+
+        now_str = clock.now_ist().isoformat()
+        service = self.auth.get_sheets_service()
+        try:
+            service.spreadsheets().values().update(
+                spreadsheetId=self.sheet_id,
+                range="Status!A1",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[now_str]]},
+            ).execute()
+        except Exception as e:
+            if "parse range" in str(e).lower() or "not found" in str(e).lower():
+                body = {"requests": [{"addSheet": {"properties": {"title": "Status"}}}]}
+                service.spreadsheets().batchUpdate(spreadsheetId=self.sheet_id, body=body).execute()
+                service.spreadsheets().values().update(
+                    spreadsheetId=self.sheet_id,
+                    range="Status!A1",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [[now_str]]},
+                ).execute()
+            else:
+                raise e
 
 
 sheets_logger = SheetsLogger()

@@ -1,4 +1,24 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+
+
+def classes_can_skip(a: int, h: int, floor: int) -> int:
+    return max(0, (100 * a - floor * h) // floor)
+
+
+def classes_needed(a: int, h: int, floor: int) -> int:
+    import math
+
+    if floor == 100:
+        return 0
+    return max(0, math.ceil((floor * h - 100 * a) / (100 - floor)))
+
+
+def next_run(now: datetime) -> datetime:
+    # return the next 07:00 occurrence
+    run_today = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    if now >= run_today:
+        return run_today + timedelta(days=1)
+    return run_today
 
 
 def build_briefing(
@@ -73,13 +93,13 @@ def build_briefing(
                 continue
 
             ratio = a / h if h > 0 else 0
+            # We use float division just for the condition, exact needed with integer math
             if ratio < 0.85:
-                attend = max(0, -((100*a - 85*h) // 15))
+                attend = classes_needed(a, h, 85)
                 alert_count += 1
                 flag = "🔴 <75%" if ratio < 0.75 else "🟡 <85%"
                 lines.append(f"  {flag} {course}: {a}/{h} (Need {attend} more)")
             else:
-
                 # Not alerting if okay, only flagging below 85%
                 pass
 
@@ -104,3 +124,50 @@ def build_briefing(
     if len(full_text) > 3500:
         return full_text[:3499] + "…"
     return full_text
+
+
+async def fetch_briefing_inputs():
+    import asyncio
+
+    from src.academic_calendar import load_calendar
+    from src.utils import clock
+    from src.workspace.calendar_sync import calendar_sync
+    from src.workspace.sheets_logger import sheets_logger
+    from src.workspace.tasks_sync import tasks_sync
+
+    now = clock.now_ist()
+    time_min = now.replace(hour=0, minute=0, second=0).isoformat()
+    time_max = now.replace(hour=23, minute=59, second=59).isoformat()
+
+    cal_task = asyncio.to_thread(
+        calendar_sync.auth.get_calendar_service()
+        .events()
+        .list(
+            calendarId=calendar_sync.calendar_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            singleEvents=True,
+            orderBy="startTime",
+        )
+        .execute
+    )
+    tasks_task = asyncio.to_thread(
+        tasks_sync.auth.get_tasks_service()
+        .tasks()
+        .list(tasklist="@default", showCompleted=False, showHidden=False)
+        .execute
+    )
+    sheets_task = asyncio.to_thread(sheets_logger.get_attendance)
+
+    cal_res, tasks_res, att_res = await asyncio.gather(
+        cal_task, tasks_task, sheets_task, return_exceptions=True
+    )
+
+    calendar_events = cal_res.get("items", []) if not isinstance(cal_res, Exception) else []
+    tasks = tasks_res.get("items", []) if not isinstance(tasks_res, Exception) else []
+    attendance_rows = att_res if not isinstance(att_res, Exception) else []
+
+    cal = load_calendar()
+    milestones = cal.milestones if cal else {}
+
+    return calendar_events, tasks, attendance_rows, milestones
