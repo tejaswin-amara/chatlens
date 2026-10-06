@@ -1,0 +1,5 @@
+[allowlist]
+description = "Ignore the dummy api key regex string in python files"
+paths = [
+    '''src/utils/logging\.py''',
+]

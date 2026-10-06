@@ -16,11 +16,11 @@ def _scrub_secrets(logger, method_name, event_dict):
     if "error" in event_dict:
         msg = str(event_dict["error"])
         msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-        msg = re.sub(r"AIza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
+        msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
         event_dict["error"] = msg
     msg = str(event_dict.get("event", ""))
     msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-    msg = re.sub(r"AIza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
+    msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
     event_dict["event"] = msg
     return event_dict
 
@@ -45,12 +45,12 @@ def configure_logging() -> None:
 
 def _sentry_before_send(event, hint):
     import re
-    # Sentry scrubber for bot\d+:[\w-]+ and AIza[\w-]{35}|FxxxFAKE[\w-]{31}
+    # Sentry scrubber for bot\d+:[\w-]+ and [AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}
 
     if "logentry" in event and "message" in event["logentry"]:
         msg = event["logentry"]["message"]
         msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-        msg = re.sub(r"AIza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
+        msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
         event["logentry"]["message"] = msg
 
     if "exception" in event and "values" in event["exception"]:
@@ -58,7 +58,7 @@ def _sentry_before_send(event, hint):
             if "value" in exc:
                 msg = exc["value"]
                 msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-                msg = re.sub(r"AIza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
+                msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
                 exc["value"] = msg
 
     if "extra" in event:
