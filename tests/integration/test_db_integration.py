@@ -59,7 +59,7 @@ def test_postgres_pgvector_content_hash() -> None:
                         text TEXT,
                         reply_to VARCHAR,
                         forwarded_from VARCHAR,
-                        embedding vector(1536),
+                        embedding vector(768),
                         content_hash VARCHAR UNIQUE
                     );
                 """)

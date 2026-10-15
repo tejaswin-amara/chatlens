@@ -10,7 +10,8 @@ interface ImportModalProps {
   onImportComplete: () => void;
   onToast: (message: string, type: 'success' | 'error' | 'info') => void;
   api: {
-    uploadFile: (file: File, platform: 'whatsapp' | 'telegram') => Promise<{ status: string; count?: number; error?: string }>;
+    uploadFile: (file: File, platform: 'whatsapp' | 'telegram') => Promise<{ status: string; task_id?: string; count?: number; error?: string }>;
+    getTaskStatus: (taskId: string) => Promise<{ status: string; count?: number; error?: string }>;
     checkTelegramStatus: () => Promise<{ authorized: boolean }>;
     sendTelegramCode: (phone: string) => Promise<{ success: boolean; phone_code_hash: string }>;
     verifyTelegramCode: (phone: string, code: string, hash: string) => Promise<{ success: boolean; count?: number }>;
@@ -66,10 +67,31 @@ export default function ImportModal({ open, onClose, onImportComplete, onToast, 
     setImportStatus('Uploading…');
     try {
       const res = await api.uploadFile(file, platform);
-      if (res.status === 'ok' || res.status === 'success') {
+      if (res.status === 'ok' || res.status === 'success' || res.status === 'done') {
         setImportStatus(`Imported ${res.count ?? 0} messages`);
         onToast(`Imported ${res.count ?? 0} messages from ${platform}`, 'success');
         onImportComplete();
+      } else if (res.status === 'processing' && res.task_id) {
+        setImportStatus('Processing import in background...');
+        onToast('Upload accepted. Processing in background...', 'info');
+        const taskId = res.task_id;
+        const interval = setInterval(async () => {
+          try {
+            const task = await api.getTaskStatus(taskId);
+            if (task.status === 'SUCCESS') {
+              clearInterval(interval);
+              setImportStatus(`Imported ${task.count ?? 0} messages`);
+              onToast(`Imported ${task.count ?? 0} messages from ${platform}`, 'success');
+              onImportComplete();
+            } else if (task.status === 'FAILURE') {
+              clearInterval(interval);
+              setImportStatus(task.error || 'Import failed');
+              onToast(task.error || 'Import failed', 'error');
+            }
+          } catch {
+            clearInterval(interval);
+          }
+        }, 1500);
       } else {
         setImportStatus(res.error || 'Import failed');
         onToast(res.error || 'Import failed', 'error');

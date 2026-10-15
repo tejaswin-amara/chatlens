@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { Chat, Message, ChatStats, GlobalStats } from "@/types";
+import type { Chat, Message, ChatStats, GlobalStats, SparkStatus } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -26,10 +26,29 @@ export function useApi() {
   );
 
   const loadMessages = useCallback(
-    (chat: string, limit = 200) =>
-      fetchJSON<Message[]>(`/api/messages?chat_name=${encodeURIComponent(chat)}&limit=${limit}`).catch(
-        () => [],
-      ),
+    (chat: string, limit = 200, skip = 0) =>
+      fetchJSON<Message[]>(
+        `/api/messages?chat_name=${encodeURIComponent(chat)}&limit=${limit}&skip=${skip}`
+      ).catch(() => []),
+    [],
+  );
+
+  const searchMessages = useCallback(
+    (chat: string | null, query: string, sender?: string) => {
+      const params = new URLSearchParams();
+      if (chat) params.append("chat_name", chat);
+      if (query) params.append("query", query);
+      if (sender) params.append("sender", sender);
+      return fetchJSON<Message[]>(`/api/messages/search?${params.toString()}`).catch(() => []);
+    },
+    [],
+  );
+
+  const deleteChat = useCallback(
+    (chat: string) =>
+      fetchJSON<{ success: boolean; deleted_count: number }>(`/api/chats/${encodeURIComponent(chat)}`, {
+        method: "DELETE",
+      }),
     [],
   );
 
@@ -72,11 +91,30 @@ export function useApi() {
     const formData = new FormData();
     formData.append("file", file);
     const ep = platform === "whatsapp" ? "/api/upload/whatsapp" : "/api/upload/telegram";
-    return fetchJSON<{ status: string; count?: number; error?: string }>(ep, {
+    return fetchJSON<{ status: string; task_id?: string; count?: number; error?: string }>(ep, {
       method: "POST",
       body: formData,
     });
   }, []);
+
+  const getTaskStatus = useCallback(
+    (taskId: string) =>
+      fetchJSON<{ status: string; count?: number; error?: string }>(`/api/tasks/${encodeURIComponent(taskId)}`),
+    [],
+  );
+
+  const getSparkStatus = useCallback(
+    () =>
+      fetchJSON<SparkStatus>("/api/spark/status").catch((e) => ({
+        status: "error",
+        mode: "unknown",
+        seen_messages: 0,
+        pending: [],
+        writes: [],
+        error: e.message,
+      })),
+    [],
+  );
 
   const checkTelegramStatus = useCallback(
     () => fetchJSON<{ authorized: boolean }>("/api/telegram/auth/status"),
@@ -121,11 +159,15 @@ export function useApi() {
       loadStats,
       loadGlobalSummary,
       loadMessages,
+      searchMessages,
+      deleteChat,
       loadChatStats,
       runInsight,
       runFullAnalysis,
       askQuestion,
       uploadFile,
+      getTaskStatus,
+      getSparkStatus,
       checkTelegramStatus,
       sendTelegramCode,
       verifyTelegramCode,
@@ -136,11 +178,15 @@ export function useApi() {
       loadStats,
       loadGlobalSummary,
       loadMessages,
+      searchMessages,
+      deleteChat,
       loadChatStats,
       runInsight,
       runFullAnalysis,
       askQuestion,
       uploadFile,
+      getTaskStatus,
+      getSparkStatus,
       checkTelegramStatus,
       sendTelegramCode,
       verifyTelegramCode,

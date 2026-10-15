@@ -5,9 +5,13 @@ export interface Chat {
 }
 
 export interface Message {
+  id?: number;
   sender: string;
   text: string;
   timestamp: string;
+  platform?: string;
+  reply_to?: string | null;
+  forwarded_from?: string | null;
 }
 
 export interface ChatStats {
@@ -33,6 +37,31 @@ export interface ToastData {
   id: string;
   message: string;
   type: "success" | "error" | "info";
+}
+
+export interface SparkPendingAction {
+  id: number;
+  ts: number;
+  status: string;
+  event: string;
+}
+
+export interface SparkWriteHistory {
+  id: number;
+  ts: number;
+  kind: string;
+  event_id: string;
+  undone: boolean;
+}
+
+export interface SparkStatus {
+  status: string;
+  mode: string;
+  seen_messages: number;
+  message?: string;
+  pending: SparkPendingAction[];
+  writes: SparkWriteHistory[];
+  error?: string;
 }
 
 export function cleanSenderName(sender: string): string {

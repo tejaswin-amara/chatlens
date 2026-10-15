@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Sparkles, Flag, List, Zap } from "lucide-react";
+import { Activity, Sparkles, Flag, List, Zap, Search, Download, Trash2 } from "lucide-react";
 import clsx from "clsx";
 
 interface ChatHeaderProps {
@@ -10,6 +10,10 @@ interface ChatHeaderProps {
   onInsight: (type: string) => void;
   onAnalyze: () => void;
   aiLoading: boolean;
+  onToggleSearch?: () => void;
+  isSearching?: boolean;
+  onExport?: () => void;
+  onDeleteChat?: () => void;
 }
 
 const insightButtons = [
@@ -26,10 +30,14 @@ export default function ChatHeader({
   onInsight,
   onAnalyze,
   aiLoading,
+  onToggleSearch,
+  isSearching,
+  onExport,
+  onDeleteChat,
 }: ChatHeaderProps) {
   return (
     <div className="p-4 px-6 border-b border-brand-border flex items-center gap-3 bg-gradient-to-b from-brand-accent/5 to-transparent flex-wrap">
-      <div className="text-[1.05rem] font-semibold text-brand-text-bright flex-1 pl-10 md:pl-0">
+      <div className="text-[1.05rem] font-semibold text-brand-text-bright flex-1 pl-10 md:pl-0 truncate">
         {chatName}
       </div>
 
@@ -49,6 +57,44 @@ export default function ChatHeader({
             {tab}
           </button>
         ))}
+      </div>
+
+      {/* Action tools */}
+      <div className="flex items-center gap-1.5 border-l border-brand-border/60 pl-3">
+        {onToggleSearch && view === "messages" && (
+          <button
+            onClick={onToggleSearch}
+            className={clsx(
+              "p-2 rounded-brand-sm border text-[0.75rem] transition-colors spring-click",
+              isSearching
+                ? "bg-brand-accent text-brand-bg border-brand-accent"
+                : "border-brand-border bg-brand-card text-brand-text-dim hover:text-brand-text"
+            )}
+            title="Search messages"
+          >
+            <Search size={15} />
+          </button>
+        )}
+
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="p-2 rounded-brand-sm border border-brand-border bg-brand-card text-brand-text-dim hover:text-brand-text text-[0.75rem] transition-colors spring-click"
+            title="Export chat transcript"
+          >
+            <Download size={15} />
+          </button>
+        )}
+
+        {onDeleteChat && (
+          <button
+            onClick={onDeleteChat}
+            className="p-2 rounded-brand-sm border border-brand-border bg-brand-card text-brand-text-dim hover:text-rose-400 text-[0.75rem] transition-colors spring-click"
+            title="Delete chat"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
       </div>
 
       {/* Insight buttons */}

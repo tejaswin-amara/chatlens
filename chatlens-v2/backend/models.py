@@ -20,5 +20,5 @@ class Message(Base):
     text = Column(Text)
     reply_to = Column(String, nullable=True)
     forwarded_from = Column(String, nullable=True)
-    embedding = Column(Vector(1536), nullable=True)
+    embedding = Column(Vector(768), nullable=True)
     content_hash = Column(String, nullable=True)

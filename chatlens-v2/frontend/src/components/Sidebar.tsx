@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus, MessageSquare } from "lucide-react";
+import { Search, Plus, MessageSquare, Bot } from "lucide-react";
 import clsx from "clsx";
 import type { Chat } from "@/types";
 
@@ -12,6 +12,7 @@ interface SidebarProps {
   sidebarOpen: boolean;
   onSelectChat: (name: string) => void;
   onImportClick: () => void;
+  onSparkClick?: () => void;
   onCloseMobile: () => void;
 }
 
@@ -22,6 +23,7 @@ export default function Sidebar({
   sidebarOpen,
   onSelectChat,
   onImportClick,
+  onSparkClick,
   onCloseMobile,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,15 +51,28 @@ export default function Sidebar({
         <div className="text-[0.75rem] text-brand-text-dim mt-2">
           {globalStats.total_messages.toLocaleString()} messages · {globalStats.total_chats} chats
         </div>
-        <button
-          onClick={() => {
-            onImportClick();
-            onCloseMobile();
-          }}
-          className="w-full mt-3 px-4 py-2 rounded-brand-sm border border-brand-accent/30 bg-brand-accent/10 text-brand-accent text-[0.78rem] font-medium hover:bg-brand-accent/20 transition-colors flex items-center justify-center gap-2 spring-click"
-        >
-          <Plus size={16} /> Import Data
-        </button>
+        <div className="flex flex-col gap-2 mt-3">
+          <button
+            onClick={() => {
+              onImportClick();
+              onCloseMobile();
+            }}
+            className="w-full px-4 py-2 rounded-brand-sm border border-brand-accent/30 bg-brand-accent/10 text-brand-accent text-[0.78rem] font-medium hover:bg-brand-accent/20 transition-colors flex items-center justify-center gap-2 spring-click"
+          >
+            <Plus size={16} /> Import Data
+          </button>
+          {onSparkClick && (
+            <button
+              onClick={() => {
+                onSparkClick();
+                onCloseMobile();
+              }}
+              className="w-full px-4 py-1.5 rounded-brand-sm border border-brand-border bg-brand-card hover:bg-white/5 text-brand-text-dim hover:text-brand-text text-[0.75rem] font-medium transition-colors flex items-center justify-center gap-2 spring-click"
+            >
+              <Bot size={15} className="text-brand-accent" /> SPARK PA Daemon
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search */}

@@ -11,6 +11,10 @@ interface MessageListProps {
   aiCards: { label: string; body: string }[];
   aiLoading: string | null;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  onLoadEarlier?: () => void;
+  hasMore?: boolean;
+  loadingEarlier?: boolean;
+  searchQuery?: string;
 }
 
 const SKELETON_WIDTHS = ["w-3/4", "w-2/3", "w-1/2", "w-2/3", "w-3/4", "w-1/2"];
@@ -28,7 +32,11 @@ function formatTime(ts: string) {
 function isSameDay(a: string, b: string) {
   const da = new Date(a);
   const db = new Date(b);
-  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }
 
 function isGrouped(prev: Message, curr: Message) {
@@ -37,7 +45,17 @@ function isGrouped(prev: Message, curr: Message) {
   return diff < 2 * 60 * 1000;
 }
 
-export function MessageList({ messages, loading, aiCards, aiLoading, messagesEndRef }: MessageListProps) {
+export function MessageList({
+  messages,
+  loading,
+  aiCards,
+  aiLoading,
+  messagesEndRef,
+  onLoadEarlier,
+  hasMore,
+  loadingEarlier,
+  searchQuery,
+}: MessageListProps) {
   if (loading) {
     return (
       <div className="flex flex-col gap-3 p-4">
@@ -60,7 +78,7 @@ export function MessageList({ messages, loading, aiCards, aiLoading, messagesEnd
   }
 
   // Find if there is any message sent by the main user (Prudhvi) in this message list
-  const hasUser = messages.some(msg => {
+  const hasUser = messages.some((msg) => {
     const s = msg.sender.toLowerCase();
     return s.includes("prudhvi") || s.includes("2520030286");
   });
@@ -70,6 +88,27 @@ export function MessageList({ messages, loading, aiCards, aiLoading, messagesEnd
 
   return (
     <div className="flex flex-col gap-0.5 p-4">
+      {hasMore && onLoadEarlier && (
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={onLoadEarlier}
+            disabled={loadingEarlier}
+            className="px-4 py-1.5 rounded-full border border-brand-border bg-brand-card hover:bg-white/5 text-[0.75rem] text-brand-text-dim hover:text-brand-text transition-colors flex items-center gap-2 disabled:opacity-50 spring-click"
+          >
+            {loadingEarlier && (
+              <div className="w-3 h-3 border-2 border-brand-accent border-t-transparent rounded-full animate-spin-custom" />
+            )}
+            Load Earlier Messages
+          </button>
+        </div>
+      )}
+
+      {messages.length === 0 && (
+        <div className="text-center py-16 text-brand-text-dim text-sm">
+          {searchQuery ? `No messages matching "${searchQuery}".` : "No messages in this chat."}
+        </div>
+      )}
+
       {messages.map((msg, i) => {
         const prev = i > 0 ? messages[i - 1] : null;
         const showDate = !prev || !isSameDay(prev.timestamp, msg.timestamp);

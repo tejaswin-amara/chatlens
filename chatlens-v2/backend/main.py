@@ -1,11 +1,12 @@
 import os
+import sqlite3
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
 from analyzer import ChatAnalyzer
-from celery_worker import parse_file_task, save_messages
+from celery_worker import celery_app, parse_and_save_sync, parse_file_task, save_messages
 from database import engine, get_db
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +14,7 @@ from fastapi.responses import JSONResponse
 from models import Base, Message
 from parsers.telegram_live import _fetch, check_status, send_code, verify_code
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import RetryError
 
@@ -25,17 +26,20 @@ async def lifespan(app: FastAPI):
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
-        # Apply migrations
-        migration_file = os.path.join(
-            os.path.dirname(__file__), "migrations", "001_content_hash.sql"
-        )
-        if os.path.exists(migration_file):
-            with open(migration_file) as mf:
-                sql = mf.read()
-                for statement in sql.split(";"):
-                    stmt = statement.strip()
-                    if stmt:
-                        await conn.execute(text(stmt))
+        # Apply migrations dynamically
+        migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
+        if os.path.exists(migrations_dir):
+            for fname in sorted(os.listdir(migrations_dir)):
+                if fname.endswith(".sql"):
+                    with open(os.path.join(migrations_dir, fname)) as mf:
+                        sql = mf.read()
+                        for statement in sql.split(";"):
+                            stmt = statement.strip()
+                            if stmt:
+                                try:
+                                    await conn.execute(text(stmt))
+                                except Exception:
+                                    pass
     yield
     # Shutdown
     await engine.dispose()
@@ -106,9 +110,9 @@ async def upload_telegram(file: UploadFile = File(...)):
 
 
 async def handle_upload(file: UploadFile, platform: str):
-    MAX_SIZE = 50 * 1024 * 1024  # 50 MB
+    max_size = 50 * 1024 * 1024  # 50 MB
     content = await file.read()
-    if len(content) > MAX_SIZE:
+    if len(content) > max_size:
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 50 MB.")
     os.makedirs("uploads", exist_ok=True)
     file_name = Path(file.filename or "upload").name
@@ -116,9 +120,38 @@ async def handle_upload(file: UploadFile, platform: str):
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # Send task to celery
-    parse_file_task.delay(os.path.abspath(file_path), platform)
-    return {"status": "processing", "platform": platform}
+    abs_path = os.path.abspath(file_path)
+    # Try Celery task dispatch; fall back to synchronous if Redis/Celery unavailable
+    try:
+        task = parse_file_task.delay(abs_path, platform)
+        return {"status": "processing", "task_id": task.id, "platform": platform}
+    except Exception:
+        # Fallback to synchronous in-process parsing
+        res = parse_and_save_sync(abs_path, platform)
+        if res.get("status") == "error":
+            raise HTTPException(status_code=400, detail=res.get("error", "Parsing failed"))
+        return {"status": "done", "count": res.get("count", 0), "platform": platform}
+
+
+@app.get("/api/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """Poll Celery task status for background imports."""
+    try:
+        from celery.result import AsyncResult
+
+        res = AsyncResult(task_id, app=celery_app)
+        if res.ready():
+            val = res.result
+            if isinstance(val, dict):
+                return {
+                    "status": "SUCCESS" if val.get("status") == "done" else "FAILURE",
+                    "count": val.get("count", 0),
+                    "error": val.get("error"),
+                }
+            return {"status": res.status, "result": str(val)}
+        return {"status": res.status, "info": res.info}
+    except Exception as e:
+        return {"status": "UNKNOWN", "error": str(e)}
 
 
 @app.get("/api/chats")
@@ -135,6 +168,18 @@ async def get_chats(db: AsyncSession = Depends(get_db)):
     ]
 
 
+@app.delete("/api/chats/{chat_name}")
+async def delete_chat(chat_name: str, db: AsyncSession = Depends(get_db)):
+    """Delete all messages associated with a chat."""
+    result = await db.execute(select(func.count(Message.id)).where(Message.chat_name == chat_name))
+    count = result.scalar() or 0
+    if count == 0:
+        raise HTTPException(status_code=404, detail=f"Chat '{chat_name}' not found.")
+    await db.execute(delete(Message).where(Message.chat_name == chat_name))
+    await db.commit()
+    return {"success": True, "deleted_count": count}
+
+
 @app.get("/api/messages")
 async def get_messages(
     chat_name: str, skip: int = 0, limit: int = 50, db: AsyncSession = Depends(get_db)
@@ -147,6 +192,27 @@ async def get_messages(
         .offset(skip)
         .limit(limit)
     )
+    return [message_to_dict(msg) for msg in result.scalars().all()]
+
+
+@app.get("/api/messages/search")
+async def search_messages(
+    chat_name: str | None = None,
+    query: str | None = None,
+    sender: str | None = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+):
+    """Filter messages across text query, sender name, and chat."""
+    stmt = select(Message)
+    if chat_name:
+        stmt = stmt.where(Message.chat_name == chat_name)
+    if sender:
+        stmt = stmt.where(Message.sender.ilike(f"%{sender}%"))
+    if query:
+        stmt = stmt.where(Message.text.ilike(f"%{query}%"))
+    stmt = stmt.order_by(Message.timestamp.desc()).limit(min(limit, 200))
+    result = await db.execute(stmt)
     return [message_to_dict(msg) for msg in result.scalars().all()]
 
 
@@ -207,8 +273,8 @@ async def get_chat_stats(chat_name: str, db: AsyncSession = Depends(get_db)):
     last_sender = None
 
     for r in rows:
-        sender, ts_str, text = r[0], r[1], r[2] or ""
-        words = len(text.split())
+        sender, ts_str, text_val = r[0], r[1], r[2] or ""
+        words = len(text_val.split())
         stats["total_words"] += words
 
         if sender not in sender_stats:
@@ -223,7 +289,7 @@ async def get_chat_stats(chat_name: str, db: AsyncSession = Depends(get_db)):
         sender_stats[sender]["messages"] += 1
         sender_stats[sender]["words"] += words
         sender_stats[sender]["monologue_max_length"] = max(
-            sender_stats[sender]["monologue_max_length"], len(text)
+            sender_stats[sender]["monologue_max_length"], len(text_val)
         )
 
         try:
@@ -309,19 +375,45 @@ async def api_analyze(req: ChatRequest, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/ask")
 async def api_ask(req: AskRequest, db: AsyncSession = Depends(get_db)):
-    # ponytail lazy: fallback to recent messages context instead of pgvector FTS, to minimize code.
-    # We load last 1000 messages from the chat, or global if not specified.
-    query = select(Message)
-    if req.chat_name:
-        query = query.where(Message.chat_name == req.chat_name)
-    query = query.order_by(Message.timestamp.desc()).limit(1000)
+    """Answer questions using vector semantic retrieval with fallback to recency."""
+    context_messages = []
+    gemini_key = os.getenv("GEMINI_API_KEY")
 
-    result = await db.execute(query)
-    messages = [message_to_dict(msg) for msg in reversed(result.scalars().all())]
-    if not messages:
+    if gemini_key:
+        try:
+            from google import genai
+
+            client = genai.Client(api_key=gemini_key)
+            embed_res = client.models.embed_content(
+                model="text-embedding-004",
+                contents=req.question,
+            )
+            if hasattr(embed_res, "embeddings") and embed_res.embeddings:
+                q_vec = embed_res.embeddings[0].values
+                v_query = select(Message).where(Message.embedding.isnot(None))
+                if req.chat_name:
+                    v_query = v_query.where(Message.chat_name == req.chat_name)
+                v_query = v_query.order_by(Message.embedding.cosine_distance(q_vec)).limit(30)
+                v_result = await db.execute(v_query)
+                found = v_result.scalars().all()
+                if found:
+                    found_sorted = sorted(found, key=lambda m: m.timestamp or "")
+                    context_messages = [message_to_dict(msg) for msg in found_sorted]
+        except Exception:
+            pass
+
+    if not context_messages:
+        query = select(Message)
+        if req.chat_name:
+            query = query.where(Message.chat_name == req.chat_name)
+        query = query.order_by(Message.timestamp.desc()).limit(500)
+        result = await db.execute(query)
+        context_messages = [message_to_dict(msg) for msg in reversed(result.scalars().all())]
+
+    if not context_messages:
         return {"answer": "No relevant messages found for that question."}
 
-    answer = await get_analyzer().ask(req.question, messages)
+    answer = await get_analyzer().ask(req.question, context_messages)
     return {"answer": answer}
 
 
@@ -344,6 +436,71 @@ async def api_chat_insights(
         return {"insight": insight}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/spark/status")
+async def get_spark_status():
+    """Read-only status bridge inspecting SPARK PA SQLite database (spark.db)."""
+    db_path = os.getenv("SPARK_DB", "spark.db")
+    if not os.path.isabs(db_path):
+        candidate = os.path.join(os.getcwd(), db_path)
+        if not os.path.exists(candidate):
+            candidate = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), db_path
+            )
+        db_path = candidate
+
+    if not os.path.exists(db_path):
+        return {
+            "status": "offline",
+            "message": "SPARK PA database not found. Daemon has not been started yet.",
+            "mode": os.getenv("SPARK_MODE", "dry"),
+            "seen_messages": 0,
+            "pending": [],
+            "writes": [],
+        }
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        cur = conn.cursor()
+
+        pending_rows = []
+        try:
+            cur.execute("SELECT id, ts, status, event_json FROM pending ORDER BY id DESC LIMIT 10;")
+            for r in cur.fetchall():
+                pending_rows.append({"id": r[0], "ts": r[1], "status": r[2], "event": r[3]})
+        except sqlite3.OperationalError:
+            pass
+
+        writes_rows = []
+        try:
+            cur.execute(
+                "SELECT id, ts, kind, event_id, undone FROM writes ORDER BY id DESC LIMIT 10;"
+            )
+            for r in cur.fetchall():
+                writes_rows.append(
+                    {"id": r[0], "ts": r[1], "kind": r[2], "event_id": r[3], "undone": bool(r[4])}
+                )
+        except sqlite3.OperationalError:
+            pass
+
+        seen_count = 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM seen;")
+            seen_count = cur.fetchone()[0]
+        except sqlite3.OperationalError:
+            pass
+
+        conn.close()
+        return {
+            "status": "online",
+            "mode": os.getenv("SPARK_MODE", "dry"),
+            "seen_messages": seen_count,
+            "pending": pending_rows,
+            "writes": writes_rows,
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 class SendCodeRequest(BaseModel):
