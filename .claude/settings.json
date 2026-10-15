@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "approvedCommands": [
+    "uv *",
+    "python *",
+    "pytest *",
+    "ruff *",
+    "mypy *",
+    "npm *",
+    "npx *",
+    "git status*",
+    "git diff*",
+    "git log*",
+    "git add*",
+    "git commit*",
+    "git branch*",
+    "git checkout*"
+  ],
+  "readOnlyPaths": [
+    "data/calendar_2026_27.toml",
+    ".env",
+    ".env.*"
+  ],
+  "denyPaths": [
+    "*.key",
+    "*.pem",
+    "*.p12",
+    "credentials.json",
+    "client_secret*.json"
+  ]
+}
