@@ -7,15 +7,21 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class BotRateLimited(Exception):
+class BotRateLimitedError(Exception):
     def __init__(self, retry_after: int):
         self.retry_after = retry_after
         super().__init__(f"429:{retry_after}")
 
 
-class BotConflict(Exception):
+BotRateLimited = BotRateLimitedError
+
+
+class BotConflictError(Exception):
     def __init__(self):
         super().__init__("409:Conflict")
+
+
+BotConflict = BotConflictError
 
 
 class BotError(Exception):
@@ -35,30 +41,42 @@ class BotClient:
             raise ValueError("BOT_TOKEN is not set")
 
         url = f"{self.base_url}/{endpoint}"
-        import urllib.error
+        if not url.startswith("https://api.telegram.org/"):
+            raise ValueError("Invalid URL scheme")
 
-        req = urllib.request.Request(url)
+        import urllib.error
+        import urllib.request
+
+        req = urllib.request.Request(url)  # noqa: S310
         req.add_header("Content-Type", "application/json")
 
         payload = json.dumps(data).encode("utf-8") if data else None
 
         try:
-            with urllib.request.urlopen(req, data=payload, timeout=timeout) as response:
+            with urllib.request.urlopen(req, data=payload, timeout=timeout) as response:  # noqa: S310
                 return json.loads(response.read().decode())
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 err_data = json.loads(e.read().decode())
                 retry_after = min(err_data.get("parameters", {}).get("retry_after", 1), 60)
-                raise BotRateLimited(retry_after)
+                raise BotRateLimitedError(retry_after) from e
             if e.code == 409:
-                raise BotConflict()
-            raise BotError(f"Telegram Bot HTTPError {e.code}: {e.read().decode()}")
+                raise BotConflictError() from e
+            err_msg = e.read().decode()
+            if self.token:
+                err_msg = err_msg.replace(self.token, "***")
+            raise BotError(f"Telegram Bot HTTPError {e.code}: {err_msg}") from e
+        except urllib.error.URLError as e:
+            err_msg = str(e)
+            if self.token:
+                err_msg = err_msg.replace(self.token, "***")
+            raise BotError(f"Telegram Bot URLError: {err_msg}") from e
 
     def _retry(self, endpoint: str, data: dict, timeout: int = 30):
         for attempt in range(2):
             try:
                 return self._request(endpoint, data, timeout)
-            except BotRateLimited as e:
+            except BotRateLimitedError as e:
                 import time
 
                 time.sleep(e.retry_after)
@@ -107,7 +125,7 @@ class BotClient:
         }
         try:
             return self._retry("getUpdates", data, timeout=timeout + 5)
-        except BotConflict:
+        except BotConflictError:
             logger.warning("Bot 409 Conflict. Another instance is running.")
             time.sleep(5)
             return {"ok": True, "result": []}

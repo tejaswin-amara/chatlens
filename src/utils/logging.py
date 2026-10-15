@@ -1,28 +1,71 @@
 """Structured JSON logging configuration and Sentry initialization."""
 
 import logging
+import re
 import sys
+from typing import Any
 
 import sentry_sdk
 import structlog
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.types import Event, Hint
+from structlog.types import EventDict, WrappedLogger
 
 from src.config import settings
 
+_SECRET_PATTERNS = [
+    re.compile(r"bot\d+:[\w-]+"),
+    re.compile(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}"),
+    re.compile(r"ghp_[\w]+"),
+    re.compile(r"github_pat_[\w]+"),
+    re.compile(r"sk-[\w-]+"),
+]
 
-def _scrub_secrets(logger, method_name, event_dict):
-    import re
 
-    if "error" in event_dict:
-        msg = str(event_dict["error"])
-        msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-        msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
-        event_dict["error"] = msg
-    msg = str(event_dict.get("event", ""))
-    msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-    msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
-    event_dict["event"] = msg
+def _redact_str(val: str) -> str:
+    res = val
+    for pattern in _SECRET_PATTERNS:
+        res = pattern.sub("***", res)
+    return res
+
+
+def _scrub_value(val: Any) -> Any:
+    if isinstance(val, str):
+        return _redact_str(val)
+    if isinstance(val, dict):
+        return {k: _scrub_value(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_scrub_value(item) for item in val]
+    return val
+
+
+def _scrub_secrets(
+    logger: WrappedLogger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    for k, v in list(event_dict.items()):
+        event_dict[k] = _scrub_value(v)
     return event_dict
+
+
+def _sentry_before_send(event: Event, hint: Hint) -> Event | None:
+    if "logentry" in event and event["logentry"]:
+        logentry = dict(event["logentry"])
+        if "message" in logentry:
+            logentry["message"] = _redact_str(str(logentry["message"]))
+        event["logentry"] = logentry  # type: ignore[typeddict-item]
+
+    if "exception" in event and "values" in event["exception"] and event["exception"]["values"]:
+        for exc in event["exception"]["values"]:
+            if "value" in exc:
+                exc["value"] = _redact_str(str(exc["value"]))
+
+    if "extra" in event and isinstance(event["extra"], dict):
+        event["extra"].pop("msg_text", None)
+        event["extra"].pop("message_text", None)
+        event["extra"].pop("sender_name", None)
+        event["extra"].pop("chat_title", None)
+
+    return event
 
 
 def configure_logging() -> None:
@@ -41,31 +84,6 @@ def configure_logging() -> None:
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,
     )
-
-
-def _sentry_before_send(event, hint):
-    import re
-    # Sentry scrubber for bot\d+:[\w-]+ and [AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}
-
-    if "logentry" in event and "message" in event["logentry"]:
-        msg = event["logentry"]["message"]
-        msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-        msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
-        event["logentry"]["message"] = msg
-
-    if "exception" in event and "values" in event["exception"]:
-        for exc in event["exception"]["values"]:
-            if "value" in exc:
-                msg = exc["value"]
-                msg = re.sub(r"bot\d+:[\w-]+", "***", msg)
-                msg = re.sub(r"[AF]Iza[\w-]{35}|FxxxFAKE[\w-]{31}", "***", msg)
-                exc["value"] = msg
-
-    if "extra" in event:
-        event["extra"].pop("msg_text", None)
-        event["extra"].pop("message_text", None)
-
-    return event
 
     if settings.sentry_dsn:
         sentry_sdk.init(

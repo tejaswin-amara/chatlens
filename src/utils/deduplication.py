@@ -33,6 +33,14 @@ class MessageDeduplicator:
                     status TEXT,
                     created REAL
                 );
+                CREATE TABLE IF NOT EXISTS writes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts REAL,
+                    kind TEXT,
+                    event_id TEXT,
+                    prior_json TEXT,
+                    undone INTEGER DEFAULT 0
+                );
                 CREATE TABLE IF NOT EXISTS meta (
                     key TEXT PRIMARY KEY,
                     value TEXT
@@ -48,21 +56,67 @@ class MessageDeduplicator:
         raw_key = f"{chat_id}:{message_id}:{content.strip()}"
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
-    def add_pending(self, event_json: str) -> int:
+    def add_pending(self, event_json: str, chat_id: int = 0, msg_id: int = 0) -> int:
         with self._get_conn() as conn:
             cur = conn.execute(
                 "INSERT INTO pending (event_json, status, created) VALUES (?, 'PENDING', ?)",
-                (event_json, __import__("time").time()),
+                (event_json, time.time()),
             )
             return cur.lastrowid or 0
 
-    def is_duplicate(self, chat_id: int | str, message_id: int | str, content: str = "") -> bool:
+    def get_pending(self, pid: int) -> tuple[str, str, float] | None:
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "SELECT event_json, status, created FROM pending WHERE id = ?", (pid,)
+            )
+            row = cur.fetchone()
+            return (row[0], row[1], float(row[2])) if row else None
+
+    def claim_pending(self, pid: int) -> bool:
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "UPDATE pending SET status = 'CLAIMED' WHERE id = ? AND status = 'PENDING'", (pid,)
+            )
+            return cur.rowcount == 1
+
+    def finish_pending(self, pid: int, status: str) -> None:
+        with self._get_conn() as conn:
+            conn.execute("UPDATE pending SET status = ? WHERE id = ?", (status, pid))
+
+    def record_write(self, kind: str, event_id: str, prior_json: str) -> None:
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
+                (time.time(), kind, event_id, prior_json),
+            )
+
+    def last_write(self) -> tuple[int, str, str, str] | None:
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "SELECT id, kind, event_id, prior_json FROM writes "
+                "WHERE undone = 0 ORDER BY ts DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+            return (int(row[0]), str(row[1]), str(row[2]), str(row[3])) if row else None
+
+    def mark_undone(self, write_id: int) -> None:
+        with self._get_conn() as conn:
+            conn.execute("UPDATE writes SET undone = 1 WHERE id = ?", (write_id,))
+
+    def is_duplicate(
+        self,
+        chat_id: int | str,
+        message_id: int | str,
+        content: str = "",
+        ttl_seconds: float | None = None,
+    ) -> bool:
+        ttl = self.ttl_seconds if ttl_seconds is None else ttl_seconds
         msg_hash = self._compute_hash(chat_id, message_id, content)
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT ts FROM seen WHERE key = ?", (msg_hash,))
             row = cursor.fetchone()
             if row:
-                if time.time() - row[0] < self.ttl_seconds:
+                if time.time() - row[0] < ttl:
                     return True
                 else:
                     conn.execute("DELETE FROM seen WHERE key = ?", (msg_hash,))

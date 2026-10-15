@@ -84,3 +84,39 @@ def test_regex_parser_real_circulars() -> None:
                 assert result.room == sample["expected_room"]
             if sample["expected_date"]:
                 assert result.target_date == sample["expected_date"]
+
+
+def test_regex_parser_holiday_summary_truncation() -> None:
+    long_notice = "Holiday announced by university: " + "A" * 150
+    res = RegexParser.parse(long_notice)
+    assert res is not None
+    assert res.intent == "HOLIDAY"
+    assert len(res.summary) <= 100
+    assert res.summary == long_notice[:100]
+
+
+def test_regex_parser_course_mapping_table() -> None:
+    expected_mappings = {
+        "DSA": ("25CS2103E", ["DSA", "DATA STRUCTURES", "DSA3", "DSA-3"]),
+        "OSSP": ("25CS2104E", ["OSSP", "OPERATING SYSTEMS"]),
+        "ML": ("25SC2107E", ["ML", "MLNG", "MACHINE LEARNING"]),
+        "ESD": ("25EC2206E", ["ESD", "EBSD", "IOT", "EMBEDDED SYSTEM"]),
+        "DBSE": ("25CS1302E", ["DBSE", "DATABASE SYSTEMS"]),
+        "JAPANESE": ("25FL2112E", ["JAPANESE", "JPN", "FLP-2"]),
+    }
+    for canonical_name, (expected_code, aliases) in expected_mappings.items():
+        c_name, c_code = RegexParser.canonical_course(canonical_name, None)
+        assert c_name == canonical_name
+        assert c_code == expected_code
+
+        c_name2, c_code2 = RegexParser.canonical_course(None, expected_code)
+        assert c_name2 == canonical_name
+        assert c_code2 == expected_code
+
+        for alias in aliases:
+            text = f"Notice: {alias} class is moved to H-005"
+            detected_name, detected_code = RegexParser.detect_course(text.upper())
+            assert (
+                detected_name == canonical_name
+            ), f"Alias '{alias}' did not resolve to {canonical_name}"
+            assert detected_code == expected_code

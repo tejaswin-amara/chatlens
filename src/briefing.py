@@ -14,8 +14,9 @@ def classes_needed(a: int, h: int, floor: int) -> int:
 
 
 def next_run(now: datetime) -> datetime:
-    # return the next 07:00 occurrence
-    run_today = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    if now.tzinfo is None:
+        raise ValueError("now must be a timezone-aware datetime")
+    run_today = now.replace(hour=7, minute=15, second=0, microsecond=0)
     if now >= run_today:
         return run_today + timedelta(days=1)
     return run_today
@@ -44,7 +45,7 @@ def build_briefing(
                 try:
                     dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
                     time_str = dt.strftime("%I:%M %p")
-                except Exception:
+                except (ValueError, TypeError):
                     pass
 
             override_marker = ""
@@ -67,7 +68,7 @@ def build_briefing(
                     due_dt = datetime.fromisoformat(due_str.replace("Z", "+00:00")).date()
                     if (due_dt - now.date()).days <= 3:
                         urgent_marker = " [URGENT]"
-                except Exception:
+                except (ValueError, TypeError):
                     pass
             lines.append(f"  • {title}{urgent_marker}")
 
@@ -128,6 +129,7 @@ def build_briefing(
 
 async def fetch_briefing_inputs():
     import asyncio
+    from datetime import timedelta
 
     from src.academic_calendar import load_calendar
     from src.utils import clock
@@ -136,6 +138,8 @@ async def fetch_briefing_inputs():
     from src.workspace.tasks_sync import tasks_sync
 
     now = clock.now_ist()
+    start_str = now.strftime("%Y-%m-%d")
+    end_str = (now + timedelta(days=3)).strftime("%Y-%m-%d")
     time_min = now.replace(hour=0, minute=0, second=0).isoformat()
     time_max = now.replace(hour=23, minute=59, second=59).isoformat()
 
@@ -148,15 +152,11 @@ async def fetch_briefing_inputs():
             timeMax=time_max,
             singleEvents=True,
             orderBy="startTime",
+            timeZone="Asia/Kolkata",
         )
         .execute
     )
-    tasks_task = asyncio.to_thread(
-        tasks_sync.auth.get_tasks_service()
-        .tasks()
-        .list(tasklist="@default", showCompleted=False, showHidden=False)
-        .execute
-    )
+    tasks_task = asyncio.to_thread(tasks_sync.list_open_tasks, start_str, end_str)
     sheets_task = asyncio.to_thread(sheets_logger.get_attendance)
 
     cal_res, tasks_res, att_res = await asyncio.gather(
@@ -164,10 +164,19 @@ async def fetch_briefing_inputs():
     )
 
     calendar_events = cal_res.get("items", []) if not isinstance(cal_res, Exception) else []
-    tasks = tasks_res.get("items", []) if not isinstance(tasks_res, Exception) else []
+    tasks = tasks_res if not isinstance(tasks_res, Exception) else []
     attendance_rows = att_res if not isinstance(att_res, Exception) else []
 
     cal = load_calendar()
-    milestones = cal.milestones if cal else {}
+    milestones = (
+        {
+            f"{term} {name}": d
+            for term, dates in cal.terms.items()
+            for name, d in dates.items()
+        }
+        if cal
+        else {}
+    )
 
     return calendar_events, tasks, attendance_rows, milestones
+

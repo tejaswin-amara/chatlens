@@ -52,8 +52,7 @@ class AIExtractor:
             """)
 
     def _check_budget(self) -> bool:
-        ist = clock.IST
-        today = datetime.now(ist).strftime("%Y-%m-%d")
+        today = clock.today_ist().strftime("%Y-%m-%d")
         from src.utils.db import get_connection
 
         with get_connection() as conn:

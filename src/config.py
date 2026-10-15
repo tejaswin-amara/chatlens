@@ -1,5 +1,7 @@
 """Configuration settings loaded from environment variables using Pydantic Settings."""
 
+from typing import Literal
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,14 +28,16 @@ class Settings(BaseSettings):
 
     google_calendar_id: str = Field(default="primary", alias="GOOGLE_CALENDAR_ID")
     google_sheet_id: str | None = Field(default=None, alias="GOOGLE_SHEET_ID")
-    spark_mode: str = "dry"
-    spark_chat_ids: str = ""
-    spark_db: str = "spark.db"
+    spark_mode: Literal["dry", "confirm", "live"] = Field(default="dry", alias="SPARK_MODE")
+    spark_chat_ids: str = Field(default="", alias="SPARK_CHAT_IDS")
+    spark_db: str = Field(default="spark.db", alias="SPARK_DB")
     bot_token: SecretStr | None = Field(default=None, alias="BOT_TOKEN")
     owner_chat_id: int | None = Field(default=None, alias="OWNER_CHAT_ID")
     gemini_daily_budget: int = Field(default=50, alias="GEMINI_DAILY_BUDGET")
     spark_media: bool = Field(default=False, alias="SPARK_MEDIA")
     spark_timetable: str = Field(default="data/timetable_T04.toml", alias="SPARK_TIMETABLE")
+    sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     @property
     def allowed_chat_ids(self) -> list[int]:
@@ -41,12 +45,13 @@ class Settings(BaseSettings):
             return []
         ids = []
         for x in self.spark_chat_ids.replace(";", ",").split(","):
-            if x.strip():
-                ids.append(int(x.strip()))
+            token = x.strip()
+            if token:
+                try:
+                    ids.append(int(token))
+                except ValueError as err:
+                    raise ValueError(f"Invalid non-integer chat id: {token}") from err
         return ids
-
-    sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
-    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     def validate_required(self) -> None:
         missing: list[str] = []

@@ -24,6 +24,11 @@ class Meta(NamedTuple):
 class Timetable(NamedTuple):
     meta: Meta
     slots: list[Slot]
+    path: str | None = None
+
+    @property
+    def sample(self) -> bool:
+        return self.meta.sample
 
 
 def load(path: str | None = None) -> Timetable | None:
@@ -31,18 +36,17 @@ def load(path: str | None = None) -> Timetable | None:
     try:
         with open(path, "rb") as f:
             data = tomllib.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         return None
 
     meta_dict = data.get("meta", {})
-    if meta_dict.get("sample", False):
-        return None
+    is_sample = bool(meta_dict.get("sample", False))
 
     meta = Meta(
         term=meta_dict.get("term", ""),
         valid_from=meta_dict.get("valid_from", clock.today_ist()),
         valid_to=meta_dict.get("valid_to", clock.today_ist()),
-        sample=meta_dict.get("sample", False),
+        sample=is_sample,
     )
 
     slots = []
@@ -57,7 +61,7 @@ def load(path: str | None = None) -> Timetable | None:
             )
         )
 
-    return Timetable(meta=meta, slots=slots)
+    return Timetable(meta=meta, slots=slots, path=path)
 
 
 def parse_periods(text: str) -> list[int]:

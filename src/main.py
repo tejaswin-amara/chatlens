@@ -6,6 +6,7 @@ import sys
 
 from telethon.errors import (
     AuthKeyUnregisteredError,
+    FloodWaitError,
     SessionExpiredError,
     SessionRevokedError,
     UserDeactivatedBanError,
@@ -21,6 +22,9 @@ logger = get_logger(__name__)
 
 
 async def bot_callback_poll() -> None:
+    if settings.spark_mode == "dry" or not settings.bot_token or not settings.owner_chat_id:
+        return
+
     import asyncio
 
     from src.ingestion.handlers import handle_bot_callback, handle_undo_command
@@ -37,8 +41,12 @@ async def bot_callback_poll() -> None:
 
                     if "callback_query" in up:
                         await handle_bot_callback(up["callback_query"])
-                    elif "message" in up and up["message"].get("text") == "/undo":
-                        await handle_undo_command(up["message"])
+                    elif "message" in up:
+                        m = up["message"]
+                        text = m.get("text", "")
+                        sender_id = m.get("from", {}).get("id") or m.get("chat", {}).get("id")
+                        if text.startswith("/undo") and sender_id == settings.owner_chat_id:
+                            await handle_undo_command(m)
             await asyncio.sleep(2)
         except asyncio.CancelledError:
             raise
@@ -194,50 +202,89 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
     if settings.spark_mode != "dry":
         jobs.append(asyncio.create_task(supervise("bot_poll", bot_callback_poll, stop_event)))
 
+    startup_sent = False
     backoff = BACKOFF_START
-    while not stop_event.is_set():
-        try:
-            logger.info("Connecting Telethon StringSession client...")
-            await client.connect()
+    try:
+        while not stop_event.is_set():
+            try:
+                logger.info("Connecting Telethon StringSession client...")
+                await client.connect()
 
-            if not await client.is_user_authorized():
-                logger.critical("Telethon session is unauthorized.")
+                if not await client.is_user_authorized():
+                    logger.critical("Telethon session is unauthorized.")
+                    return 2
+
+                if not startup_sent:
+                    from src.timetable import load as load_timetable
+
+                    loaded_tt = load_timetable()
+                    tt_status = (
+                        "loaded"
+                        if (
+                            getattr(loaded_tt, "path", None)
+                            and not getattr(loaded_tt, "sample", True)
+                        )
+                        else "missing/sample"
+                    )
+                    msg = (
+                        f"🚀 SPARK started: mode={settings.spark_mode}, "
+                        f"{len(settings.allowed_chat_ids)} chats, timetable {tt_status}"
+                    )
+                    if settings.bot_token and settings.owner_chat_id:
+                        from src.notify.bot import bot
+
+                        try:
+                            await asyncio.to_thread(bot.send, msg)
+                        except Exception as err:
+                            logger.warning("Failed to send startup notification", error=str(err))
+                    startup_sent = True
+
+                await catch_up_chats(client)
+                logger.info("ChatLens PA Bot is live and listening for events")
+
+                await _listen(client, stop_event)
+
+                if not stop_event.is_set():
+                    logger.warning("Telegram client disconnected cleanly. Reconnecting...")
+                    await _sleep_or_stop(stop_event, backoff)
+                    backoff = min(backoff * 2, BACKOFF_MAX)
+            except FloodWaitError as e:
+                logger.warning("FloodWait encountered during connect", seconds=e.seconds)
+                await _sleep_or_stop(stop_event, e.seconds)
+            except AuthKeyUnregisteredError:
+                logger.critical("Unrecoverable AuthKeyUnregisteredError")
                 return 2
-
-            await catch_up_chats(client)
-            logger.info("ChatLens PA Bot is live and listening for events")
-
-            await _listen(client, stop_event)
-
-            if not stop_event.is_set():
-                logger.warning("Telegram client disconnected cleanly. Reconnecting...")
+            except SessionRevokedError:
+                logger.critical("Unrecoverable SessionRevokedError")
+                return 2
+            except SessionExpiredError:
+                logger.critical("Unrecoverable SessionExpiredError")
+                return 2
+            except UserDeactivatedError:
+                logger.critical("Unrecoverable UserDeactivatedError")
+                return 2
+            except UserDeactivatedBanError:
+                logger.critical("Unrecoverable UserDeactivatedBanError")
+                return 2
+            except Exception as e:
+                logger.error("Transient error in connection loop", error=str(e))
                 await _sleep_or_stop(stop_event, backoff)
                 backoff = min(backoff * 2, BACKOFF_MAX)
-        except AuthKeyUnregisteredError:
-            logger.critical("Unrecoverable AuthKeyUnregisteredError")
-            return 2
-        except SessionRevokedError:
-            logger.critical("Unrecoverable SessionRevokedError")
-            return 2
-        except SessionExpiredError:
-            logger.critical("Unrecoverable SessionExpiredError")
-            return 2
-        except UserDeactivatedError:
-            logger.critical("Unrecoverable UserDeactivatedError")
-            return 2
-        except UserDeactivatedBanError:
-            logger.critical("Unrecoverable UserDeactivatedBanError")
-            return 2
-        except Exception as e:
-            logger.error("Transient error in connection loop", error=str(e))
-            await _sleep_or_stop(stop_event, backoff)
-            backoff = min(backoff * 2, BACKOFF_MAX)
 
-    stop_event.set()
-    for j in jobs:
-        j.cancel()
-    await asyncio.gather(*jobs, return_exceptions=True)
-    return 0
+        return 0
+    finally:
+        stop_event.set()
+        for j in jobs:
+            j.cancel()
+        await asyncio.gather(*jobs, return_exceptions=True)
+        if client and hasattr(client, "is_connected"):
+            is_conn = (
+                client.is_connected() if callable(client.is_connected) else client.is_connected
+            )
+            if is_conn and hasattr(client, "disconnect"):
+                res = client.disconnect()
+                if asyncio.iscoroutine(res):
+                    await res
 
 
 def main() -> None:

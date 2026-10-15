@@ -51,7 +51,6 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
 
     if msg.voice or (msg.document and "audio" in getattr(msg.document, "mime_type", "")):
         source = "gemini"
-        source = "gemini"
         if msg.file and msg.file.size and msg.file.size > 5_000_000:
             logger.warning("Voice message exceeds 5MB limit", size=msg.file.size)
         else:
@@ -65,7 +64,6 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
                 logger.error("Failed voice extraction", error=str(e))
 
     elif msg.photo or (msg.document and "pdf" in getattr(msg.document, "mime_type", "")):
-        source = "gemini"
         source = "gemini"
         if msg.file and msg.file.size and msg.file.size > 5_000_000:
             logger.warning("Media message exceeds 5MB limit", size=msg.file.size)
@@ -100,7 +98,20 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
     return parsed_event, source
 
 
-async def apply_event(parsed_event: ExtractedAcademicEvent) -> tuple[str, list[str]]:
+def _get_sender_name(sender: object) -> str:
+    if not sender:
+        return "Unknown"
+    first = getattr(sender, "first_name", "") or ""
+    last = getattr(sender, "last_name", "") or ""
+    name = f"{first} {last}".strip()
+    return name or getattr(sender, "title", "") or getattr(sender, "username", "") or "Unknown"
+
+
+async def apply_event(
+    parsed_event: ExtractedAcademicEvent,
+    source_sender: str = "callback",
+    message_text: str = "",
+) -> tuple[str, list[str]]:
     details_list = []
     execution_status = "SUCCESS"
     try:
@@ -171,10 +182,13 @@ async def apply_event(parsed_event: ExtractedAcademicEvent) -> tuple[str, list[s
                                 )
                                 from src.notify.bot import bot
 
-                                await asyncio.to_thread(
-                                    bot.send,
-                                    f"⚠️ **Calendar Conflict**\nFound conflict for {milestone_match}.\nMessage date: {msg_dt}\nCalendar date: {cal_date}",
+                                conflict_msg = (
+                                    f"⚠️ **Calendar Conflict**\n"
+                                    f"Found conflict for {milestone_match}.\n"
+                                    f"Message date: {msg_dt}\n"
+                                    f"Calendar date: {cal_date}"
                                 )
+                                await asyncio.to_thread(bot.send, conflict_msg)
                     else:
                         logger.warning("Calendar file missing, skipping guard")
 
@@ -192,21 +206,19 @@ async def apply_event(parsed_event: ExtractedAcademicEvent) -> tuple[str, list[s
         execution_status = f"FAILED: {e}"
         logger.error("Workspace sync error", error=str(e))
 
-    # Write audit log for the operation
-
     from src.workspace.sheets_logger import sheets_logger
 
     try:
         await asyncio.to_thread(
             sheets_logger.append_audit_log,
-            "callback",
-            "",
+            source_sender,
+            message_text or parsed_event.summary,
             parsed_event.intent,
             execution_status,
-            parsed_event.course_name or "",
+            ", ".join(details_list) or (parsed_event.course_name or ""),
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to append audit log in apply_event", error=str(e))
 
     return execution_status, details_list
 
@@ -215,7 +227,33 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     if not msg:
         return
 
+    import hashlib
+    import json
+    import time
+
+    import src.timetable as tt
+    from src.notify.bot import bot
+    from src.parsing.regex_parser import RegexParser
+    from src.workspace.sheets_logger import sheets_logger
+
+    start_time = time.time()
     msg_text = msg.text or ""
+
+    chat_name = "Unknown"
+    sender_name = "Unknown"
+    try:
+        chat = await msg.get_chat() if hasattr(msg, "get_chat") else getattr(msg, "chat", None)
+        chat_name = getattr(chat, "title", None) or getattr(chat, "username", None) or str(chat_id)
+    except Exception:
+        chat_name = str(chat_id)
+
+    try:
+        sender = (
+            await msg.get_sender() if hasattr(msg, "get_sender") else getattr(msg, "sender", None)
+        )
+        sender_name = _get_sender_name(sender)
+    except Exception:
+        sender_name = "Unknown"
 
     if deduplicator.is_duplicate(chat_id, msg.id, msg_text):
         logger.debug("Skipping duplicate message", chat_id=chat_id, msg_id=msg.id)
@@ -224,10 +262,41 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     parsed_event, source = await extract(client, msg)
 
     if not parsed_event or parsed_event.intent == "UNKNOWN":
-        deduplicator.mark_processed(chat_id, msg.id, msg_text)
+        if settings.spark_mode != "dry":
+            deduplicator.mark_processed(chat_id, msg.id, msg_text)
         return
 
-    import src.timetable as tt
+    # Canonicalize course
+    c_name, c_code = RegexParser.canonical_course(
+        parsed_event.course_name, parsed_event.course_code
+    )
+    parsed_event.course_name = c_name
+    parsed_event.course_code = c_code
+
+    # Event Fingerprint Deduplication (24h TTL)
+    evt_key = (
+        f"{parsed_event.intent}:{parsed_event.course_code}:{parsed_event.room}:"
+        f"{parsed_event.target_date}:{parsed_event.period}"
+    )
+    if parsed_event.intent in ("TASK", "EXAM_DEADLINE"):
+        evt_key += f":{parsed_event.summary}"
+
+    evt_hash = hashlib.sha256(evt_key.encode("utf-8")).hexdigest()
+    evt_dedupe_key = f"evt:{evt_hash}"
+
+    if deduplicator.is_duplicate("system", "evt", evt_dedupe_key, ttl_seconds=86400):
+        try:
+            await asyncio.to_thread(
+                sheets_logger.append_audit_log,
+                f"{chat_name} ({sender_name})",
+                msg_text or "[Multimodal Media]",
+                parsed_event.intent,
+                "DUPLICATE_EVENT",
+                f"Fingerprint: {evt_hash[:8]}",
+            )
+        except Exception as e:
+            logger.debug("Audit log failed for duplicate event", error=str(e))
+        return
 
     timetable = tt.load()
     timetable_ready = timetable is not None and not timetable.meta.sample
@@ -237,41 +306,106 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         settings.spark_mode, source or "unknown", parsed_event.intent, verdict.ok, timetable_ready
     )
 
-    deduplicator.mark_processed(chat_id, msg.id, msg_text)
-
     if decision == Decision.DRY_RUN:
         execution_status = "DRY_RUN"
         details_list = ["Would execute"]
+        try:
+            await asyncio.to_thread(
+                sheets_logger.append_audit_log,
+                f"{chat_name} ({sender_name})",
+                msg_text or "[Multimodal Media]",
+                parsed_event.intent,
+                execution_status,
+                ", ".join(details_list),
+            )
+        except Exception as e:
+            logger.debug("Audit log failed for dry run", error=str(e))
+
+        receipt = (
+            f"🔍 **[DRY RUN] Event Processed:** `{parsed_event.intent}`\n"
+            f"• **Course:** {parsed_event.course_name} ({parsed_event.course_code or 'N/A'})\n"
+            f"• **Room:** {parsed_event.room or 'N/A'}\n"
+            f"• **Target Date:** {parsed_event.target_date or 'N/A'}\n"
+            f"• **Summary:** {parsed_event.summary}\n"
+            f"• **Status:** DRY_RUN (Would execute)\n"
+        )
+        if settings.bot_token and settings.owner_chat_id:
+            try:
+                await asyncio.to_thread(bot.send, receipt)
+            except Exception as e:
+                logger.debug("Failed to send bot receipt", error=str(e))
+        elif hasattr(client, "send_message"):
+            try:
+                await client.send_message("me", receipt)
+            except Exception as e:
+                logger.debug("Failed to send client receipt", error=str(e))
+
     elif decision == Decision.REVIEW:
         execution_status = "NEEDS_REVIEW"
-        details_list = ["Awaiting owner"]
+        details_list = [f"Validation failed: {verdict.reason}"]
+        text = (
+            f"Review needed for {parsed_event.intent}\n"
+            f"{parsed_event.summary}\n"
+            f"Reason: {verdict.reason}"
+        )
+        if settings.bot_token and settings.owner_chat_id:
+            await asyncio.to_thread(bot.send, text, buttons=None)
+
+        deduplicator.mark_processed(chat_id, msg.id, msg_text)
+        try:
+            await asyncio.to_thread(
+                sheets_logger.append_audit_log,
+                f"{chat_name} ({sender_name})",
+                msg_text or "[Multimodal Media]",
+                parsed_event.intent,
+                execution_status,
+                verdict.reason or "",
+            )
+        except Exception as e:
+            logger.debug("Audit log failed for review", error=str(e))
+
     elif decision == Decision.CONFIRM:
         execution_status = "PENDING_CONFIRMATION"
         details_list = ["Awaiting owner"]
-    else:
-        execution_status, details_list = await apply_event(parsed_event)
-
-    if decision in (Decision.REVIEW, Decision.CONFIRM) and settings.spark_mode != "dry":
-        import json
-
         wrapper = {"event": parsed_event.model_dump(), "source": source}
         pid = deduplicator.add_pending(json.dumps(wrapper))
 
-        text = f"Review needed for {parsed_event.intent}\n{parsed_event.summary}\nReason: {verdict.reason}"
-        if decision == Decision.CONFIRM:
-            buttons = [
-                {"text": "✅ Apply", "callback_data": f"ok:{pid}"},
-                {"text": "❌ Ignore", "callback_data": f"no:{pid}"},
-            ]
-        else:
-            buttons = []
+        text = (
+            f"Review needed for {parsed_event.intent}\n"
+            f"{parsed_event.summary}\n"
+            f"Reason: {verdict.reason}"
+        )
+        buttons = [
+            {"text": "✅ Apply", "callback_data": f"ok:{pid}"},
+            {"text": "❌ Ignore", "callback_data": f"no:{pid}"},
+        ]
+        if settings.bot_token and settings.owner_chat_id:
+            await asyncio.to_thread(bot.send, text, buttons=buttons)
 
-        from src.notify.bot import bot
+        deduplicator.mark_processed(chat_id, msg.id, msg_text)
+        deduplicator.mark_processed("system", "evt", evt_dedupe_key)
+        try:
+            await asyncio.to_thread(
+                sheets_logger.append_audit_log,
+                f"{chat_name} ({sender_name})",
+                msg_text or "[Multimodal Media]",
+                parsed_event.intent,
+                "PENDING_CONFIRMATION",
+                f"Pending PID {pid}",
+            )
+        except Exception as e:
+            logger.debug("Audit log failed for pending confirmation", error=str(e))
 
-        await asyncio.to_thread(bot.send, text, buttons)
-        return
+    else:  # Decision.AUTO
+        execution_status, details_list = await apply_event(
+            parsed_event,
+            source_sender=f"{chat_name} ({sender_name})",
+            message_text=msg_text or "[Multimodal Media]",
+        )
+        if not execution_status.startswith("FAILED"):
+            deduplicator.mark_processed(chat_id, msg.id, msg_text)
+            deduplicator.mark_processed("system", "evt", evt_dedupe_key)
 
-    if decision == Decision.AUTO:
         receipt = (
             f"✅ **Action applied:** `{parsed_event.intent}`\n"
             f"• **Course:** {parsed_event.course_name} ({parsed_event.course_code or 'N/A'})\n"
@@ -280,26 +414,43 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             f"• **Summary:** {parsed_event.summary}\n"
             f"• **Status:** {execution_status} ({', '.join(details_list) or 'Logged'})\n"
         )
-        from src.notify.bot import bot
+        if settings.bot_token and settings.owner_chat_id:
+            try:
+                await asyncio.to_thread(bot.send, receipt)
+            except Exception as e:
+                logger.debug("Failed to send bot receipt", error=str(e))
+        elif hasattr(client, "send_message"):
+            try:
+                await client.send_message("me", receipt)
+            except Exception as e:
+                logger.debug("Failed to send client receipt", error=str(e))
 
-        await asyncio.to_thread(bot.send, receipt)
+    latency_ms = int((time.time() - start_time) * 1000)
+    logger.info(
+        "Processed message event",
+        chat_id=chat_id,
+        msg_id=msg.id,
+        intent=parsed_event.intent,
+        status=execution_status,
+        latency_ms=latency_ms,
+    )
+    logger.debug(
+        "Processed message details",
+        chat_title=chat_name,
+        sender_name=sender_name,
+        text=msg_text,
+    )
 
 
 async def handle_bot_callback(query: dict) -> None:
     import json
+    import time
 
     from src.config import settings
     from src.notify.bot import bot
-    from src.utils.db import get_connection  # type: ignore
 
     sender_id = query.get("from", {}).get("id")
-    if sender_id and sender_id != settings.owner_chat_id:
-        return
-
-    sender_id = query.get("from", {}).get("id")
-    from src.config import settings
-
-    if sender_id and settings.owner_chat_id and sender_id != settings.owner_chat_id:
+    if settings.owner_chat_id and sender_id != settings.owner_chat_id:
         return
 
     cb_id = query.get("id")
@@ -308,8 +459,8 @@ async def handle_bot_callback(query: dict) -> None:
 
     try:
         await asyncio.to_thread(bot.answer_callback, cb_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to answer callback query", error=str(e))
 
     if not data.startswith("ok:") and not data.startswith("no:"):
         return
@@ -317,114 +468,130 @@ async def handle_bot_callback(query: dict) -> None:
     action, pid_str = data.split(":")
     pid = int(pid_str)
 
-    with get_connection() as conn:
-        cursor = conn.execute(
-            "SELECT event_json, status, created FROM pending WHERE id = ?", (pid,)
-        )
-        row = cursor.fetchone()
+    row = deduplicator.get_pending(pid)
+    if not row:
+        if msg_id:
+            await asyncio.to_thread(
+                bot.edit, int(msg_id), "⚠️ This request has expired or was not found."
+            )
+        return
 
-        if not row:
-            if msg_id:
-                await asyncio.to_thread(
-                    bot.edit, int(msg_id), "⚠️ This request has expired or was not found."
-                )
-            return
+    event_json, status, created = row
+    if time.time() - created > 86400:
+        if msg_id:
+            await asyncio.to_thread(bot.edit, int(msg_id), "⚠️ This request has expired.")
+        return
 
-        event_json, status, created = row
-        import time
+    if status != "PENDING":
+        if msg_id:
+            await asyncio.to_thread(
+                bot.edit, int(msg_id), f"⚠️ This request was already handled ({status})."
+            )
+        return
 
-        if time.time() - created > 86400:
-            if msg_id:
-                await asyncio.to_thread(bot.edit, int(msg_id), "⚠️ This request has expired.")
-            return
+    if action == "no":
+        deduplicator.finish_pending(pid, "IGNORED")
+        if msg_id:
+            await asyncio.to_thread(bot.edit, int(msg_id), "❌ Action ignored.")
+        return
 
-        if status != "PENDING":
-            if msg_id:
-                await asyncio.to_thread(
-                    bot.edit, int(msg_id), f"⚠️ This request was already handled ({status})."
-                )
-            return
-
-        if action == "no":
-            conn.execute("UPDATE pending SET status = 'IGNORED' WHERE id = ?", (pid,))
-            if msg_id:
-                await asyncio.to_thread(bot.edit, int(msg_id), "❌ Action ignored.")
-            return
-
-        cursor = conn.execute(
-            "UPDATE pending SET status = 'APPROVED' WHERE id = ? AND status = 'PENDING'", (pid,)
-        )
-        if cursor.rowcount != 1:
-            return
+    if not deduplicator.claim_pending(pid):
+        if msg_id:
+            await asyncio.to_thread(bot.edit, int(msg_id), "⚠️ This request was already handled.")
+        return
 
     wrapper = json.loads(event_json)
     event_dict = wrapper["event"]
     parsed_event = ExtractedAcademicEvent(**event_dict)
 
-    execution_status, details_list = await apply_event(parsed_event)
+    execution_status, details_list = await apply_event(
+        parsed_event,
+        source_sender="Owner (Bot Callback)",
+        message_text=parsed_event.summary,
+    )
 
-    if msg_id:
-        result_text = (
-            f"✅ Action applied: {parsed_event.intent}\n"
-            f"Status: {execution_status}\nDetails: {', '.join(details_list)}"
-        )
-        await asyncio.to_thread(bot.edit, int(msg_id), result_text)
+    if execution_status.startswith("FAILED"):
+        deduplicator.finish_pending(pid, "FAILED")
+        if msg_id:
+            result_text = (
+                f"❌ Action failed: {parsed_event.intent}\n"
+                f"Status: {execution_status}"
+            )
+            await asyncio.to_thread(bot.edit, int(msg_id), result_text)
+    else:
+        deduplicator.finish_pending(pid, "APPROVED")
+        if msg_id:
+            result_text = (
+                f"✅ Action applied: {parsed_event.intent}\n"
+                f"Status: {execution_status}\nDetails: {', '.join(details_list)}"
+            )
+            await asyncio.to_thread(bot.edit, int(msg_id), result_text)
 
 
 async def handle_undo_command(msg: dict) -> None:
     import json
+    from typing import Any
 
+    from src.config import settings
     from src.notify.bot import bot
-    from src.utils.db import get_connection  # type: ignore
     from src.workspace.calendar_sync import calendar_sync
     from src.workspace.tasks_sync import tasks_sync
 
-    with get_connection() as conn:
-        cursor = conn.execute(
-            "SELECT id, kind, event_id, prior_json FROM writes "
-            "WHERE undone = 0 ORDER BY ts DESC LIMIT 1"
-        )
-        row = cursor.fetchone()
-        if not row:
-            await asyncio.to_thread(bot.send, "⚠️ Nothing to undo.")
-            return
+    chat_id = msg.get("chat", {}).get("id") or msg.get("from", {}).get("id")
+    if settings.owner_chat_id and chat_id and chat_id != settings.owner_chat_id:
+        return
 
-        w_id, kind, event_id, prior_json_str = row
-        prior = json.loads(prior_json_str)
+    last = deduplicator.last_write()
+    if not last:
+        await asyncio.to_thread(bot.send, "⚠️ Nothing to undo.")
+        return
 
-        try:
-            if kind == "patch":
-                # Restore previous location and reminders
-                patch_body = {
-                    "location": prior.get("location") or None,
-                    "reminders": prior.get("reminders") or {"useDefault": True},
-                    "extendedProperties": prior.get("extendedProperties") or None,
-                }
-                # Also restore summary if it was cancelled
-                if "summary" in prior:
-                    patch_body["summary"] = prior["summary"]
+    w_id, kind, event_id, prior_json_str = last
+    prior = json.loads(prior_json_str)
 
+    try:
+        if kind == "patch":
+            ext_props = prior.get("extendedProperties")
+            if ext_props is None:
+                ext_props = {"private": {"spark_override": None}}
+            patch_body: dict[str, Any] = {
+                "location": prior.get("location") or None,
+                "reminders": prior.get("reminders") or {"useDefault": True},
+                "extendedProperties": ext_props,
+            }
+            if "summary" in prior:
+                patch_body["summary"] = prior["summary"]
+
+            service = calendar_sync.auth.get_calendar_service()
+            await asyncio.to_thread(
+                service.events()
+                .patch(calendarId=calendar_sync.calendar_id, eventId=event_id, body=patch_body)
+                .execute
+            )
+            deduplicator.mark_undone(w_id)
+            await asyncio.to_thread(bot.send, f"✅ Undid patch on event `{event_id}`.")
+
+        elif kind == "insert":
+            if prior.get("source") == "calendar":
                 service = calendar_sync.auth.get_calendar_service()
-                service.events().patch(
-                    calendarId=calendar_sync.calendar_id, eventId=event_id, body=patch_body
-                ).execute()
-                await asyncio.to_thread(bot.send, f"✅ Undid patch on event `{event_id}`.")
-
-            elif kind == "insert":
-                if prior.get("source") == "calendar":
-                    service = calendar_sync.auth.get_calendar_service()
-                    service.events().delete(
-                        calendarId=calendar_sync.calendar_id, eventId=event_id
-                    ).execute()
-                    await asyncio.to_thread(bot.send, "✅ Deleted created calendar event.")
-                elif prior.get("source") == "tasks":
-                    service = tasks_sync.auth.get_tasks_service()
-                    service.tasks().delete(tasklist="@default", task=event_id).execute()
-                    await asyncio.to_thread(bot.send, "✅ Deleted created task.")
-
-            conn.execute("UPDATE writes SET undone = 1 WHERE id = ?", (w_id,))
-        except Exception as e:
-            await asyncio.to_thread(bot.send, f"❌ Undo failed: {e}")
+                await asyncio.to_thread(
+                    service.events()
+                    .delete(calendarId=calendar_sync.calendar_id, eventId=event_id)
+                    .execute
+                )
+                deduplicator.mark_undone(w_id)
+                await asyncio.to_thread(bot.send, "✅ Deleted created calendar event.")
+            elif prior.get("source") == "tasks":
+                service = tasks_sync.auth.get_tasks_service()
+                await asyncio.to_thread(
+                    service.tasks().delete(tasklist="@default", task=event_id).execute
+                )
+                deduplicator.mark_undone(w_id)
+                await asyncio.to_thread(bot.send, "✅ Deleted created task.")
+            else:
+                deduplicator.mark_undone(w_id)
+    except Exception as e:
+        await asyncio.to_thread(bot.send, f"❌ Undo failed: {e}")
 
 
 async def catch_up_chats(client: TelegramClient) -> None:

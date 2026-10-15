@@ -65,9 +65,11 @@ def test_ai_extractor_retry_counts_toward_budget(clean_db):
     with patch("src.parsing.ai_extractor.AIExtractor._get_client") as mock_get_client:
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
-        mock_client.models.generate_content.side_effect = Exception("Transient Error")
+        from tenacity import RetryError
 
-        with pytest.raises(Exception):
+        mock_client.models.generate_content.side_effect = RuntimeError("Transient Error")
+
+        with pytest.raises(RetryError):
             extractor.extract_from_text("Test", None)
 
         from src.utils.db import get_connection

@@ -82,6 +82,36 @@ class SheetsLogger:
         logger.info("Appended audit log to Google Sheets", intent=intent, status=execution_status)
         return result
 
+    def get_attendance(self) -> list[dict[str, str]]:
+        if not self.sheet_id:
+            return []
+        try:
+            service = self.auth.get_sheets_service()
+            res = (
+                service.spreadsheets()
+                .values()
+                .get(spreadsheetId=self.sheet_id, range="Attendance!A:C")
+                .execute()
+            )
+            rows = res.get("values", [])
+            if not rows or len(rows) < 2:
+                return []
+            headers = [str(col).strip().lower() for col in rows[0]]
+            attendance = []
+            for row in rows[1:]:
+                if not row:
+                    continue
+                row_dict = {}
+                for i, val in enumerate(row):
+                    if i < len(headers):
+                        row_dict[headers[i]] = str(val).strip()
+                if row_dict:
+                    attendance.append(row_dict)
+            return attendance
+        except Exception as e:
+            logger.warning("Could not fetch attendance from sheets", error=str(e))
+            return []
+
     def log_heartbeat(self) -> None:
         from src.utils import clock
 
@@ -109,3 +139,4 @@ class SheetsLogger:
 
 
 sheets_logger = SheetsLogger()
+

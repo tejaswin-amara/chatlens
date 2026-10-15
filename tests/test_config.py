@@ -46,17 +46,30 @@ def test_settings_invalid_chat_ids():
 
 
 def test_settings_invalid_mode():
+    with pytest.raises(ValueError):
+        Settings(
+            TELEGRAM_API_ID=123,
+            TELEGRAM_API_HASH="hash",
+            TELEGRAM_SESSION_STRING="session",
+            GOOGLE_CREDENTIALS_BASE64="b64",
+            GEMINI_API_KEY="gemini",
+            SPARK_MODE="invalid",  # type: ignore[arg-type]
+            SPARK_CHAT_IDS="1",
+        )
+
+
+def test_settings_invalid_chat_ids_non_integer():
     s = Settings(
         TELEGRAM_API_ID=123,
         TELEGRAM_API_HASH="hash",
         TELEGRAM_SESSION_STRING="session",
         GOOGLE_CREDENTIALS_BASE64="b64",
         GEMINI_API_KEY="gemini",
-        SPARK_MODE="invalid",
-        SPARK_CHAT_IDS="1",
+        SPARK_MODE="dry",
+        SPARK_CHAT_IDS="123, abc, 456",
     )
-    with pytest.raises(ValueError, match="SPARK_MODE must be dry, confirm, or live"):
-        s.validate_required()
+    with pytest.raises(ValueError, match="Invalid non-integer chat id"):
+        _ = s.allowed_chat_ids
 
 
 def test_settings_missing_live_confirm():

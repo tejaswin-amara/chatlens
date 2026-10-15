@@ -1,5 +1,7 @@
 from datetime import date, datetime
 
+import pytest
+
 from src.briefing import build_briefing, classes_can_skip, classes_needed
 
 
@@ -69,3 +71,81 @@ def test_classes_needed_exhaustive():
         assert new_a / new_h >= 0.85
         if needed > 0:
             assert (new_a - 1) / (new_h - 1) < 0.85
+
+
+async def guard(coro, seconds: float = 5.0):
+    import asyncio
+
+    return await asyncio.wait_for(coro, timeout=seconds)
+
+
+@pytest.mark.asyncio
+async def test_fetch_briefing_inputs_empty_attendance():
+    from unittest.mock import MagicMock, patch
+
+    from src.briefing import fetch_briefing_inputs
+
+    with (
+        patch("src.workspace.calendar_sync.calendar_sync.auth.get_calendar_service") as mock_cal,
+        patch("src.workspace.tasks_sync.tasks_sync.list_open_tasks", return_value=[]) as mock_tasks,
+        patch(
+            "src.workspace.sheets_logger.sheets_logger.get_attendance", return_value=[]
+        ) as mock_att,
+        patch("src.academic_calendar.load_calendar", return_value=None),
+    ):
+        mock_events = MagicMock()
+        mock_events.list.return_value.execute.return_value = {"items": []}
+        mock_cal.return_value.events.return_value = mock_events
+
+        events, tasks, att, milestones = await guard(fetch_briefing_inputs())
+        assert events == []
+        assert tasks == []
+        assert att == []
+        assert milestones == {}
+        mock_tasks.assert_called_once()
+        mock_att.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_briefing_inputs_calendar_timezone():
+    from unittest.mock import MagicMock, patch
+
+    from src.briefing import fetch_briefing_inputs
+
+    with (
+        patch("src.workspace.calendar_sync.calendar_sync.auth.get_calendar_service") as mock_cal,
+        patch("src.workspace.tasks_sync.tasks_sync.list_open_tasks", return_value=[]),
+        patch("src.workspace.sheets_logger.sheets_logger.get_attendance", return_value=[]),
+        patch("src.academic_calendar.load_calendar", return_value=None),
+    ):
+        mock_events = MagicMock()
+        mock_events.list.return_value.execute.return_value = {"items": [{"summary": "Test Class"}]}
+        mock_cal.return_value.events.return_value = mock_events
+
+        events, _, _, _ = await guard(fetch_briefing_inputs())
+        assert len(events) == 1
+        call_kwargs = mock_events.list.call_args[1]
+        assert call_kwargs.get("timeZone") == "Asia/Kolkata"
+
+
+@pytest.mark.asyncio
+async def test_fetch_briefing_inputs_uses_list_open_tasks():
+    from unittest.mock import MagicMock, patch
+
+    from src.briefing import fetch_briefing_inputs
+
+    with (
+        patch("src.workspace.calendar_sync.calendar_sync.auth.get_calendar_service") as mock_cal,
+        patch("src.workspace.tasks_sync.tasks_sync.list_open_tasks") as mock_tasks,
+        patch("src.workspace.sheets_logger.sheets_logger.get_attendance", return_value=[]),
+        patch("src.academic_calendar.load_calendar", return_value=None),
+    ):
+        mock_events = MagicMock()
+        mock_events.list.return_value.execute.return_value = {"items": []}
+        mock_cal.return_value.events.return_value = mock_events
+        mock_tasks.return_value = [{"title": "Submit assignment", "id": "t1"}]
+
+        _, tasks, _, _ = await guard(fetch_briefing_inputs())
+        assert len(tasks) == 1
+        assert tasks[0]["title"] == "Submit assignment"
+        mock_tasks.assert_called_once()

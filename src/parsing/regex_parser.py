@@ -294,7 +294,7 @@ class RegexParser:
         elif message_date:
             ref_date = message_date.replace(tzinfo=IST)
         else:
-            ref_date = datetime.now(IST)
+            ref_date = clock.now_ist()
 
         resolved_date = RegexParser._resolve_date(clean_text, upper_text, ref_date)
 
@@ -328,7 +328,7 @@ class RegexParser:
                 room=None,
                 target_date=resolved_date or ref_date.strftime("%Y-%m-%d"),
                 period=None,
-                summary=f"University Holiday Notice: {clean_text[:100]}",
+                summary=clean_text[:100],
                 action_required=False,
             )
 
