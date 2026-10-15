@@ -1,64 +1,299 @@
-# ChatLens: SPARK PA Daemon
+# ChatLens & SPARK PA Assistant
 
-A headless Telegram to Google Workspace assistant ("SPARK PA daemon") designed for one KLEF student.
+[![Awesome Dev Pipeline v2.0.0](https://img.shields.io/badge/standard-Awesome%20Dev%20Pipeline%20v2.0.0-blue.svg)](adr/0001-awesome-dev-pipeline-adoption.md)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+[![Next.js 16](https://img.shields.io/badge/next.js-16%20App%20Router-black.svg)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.141+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Timezone](https://img.shields.io/badge/timezone-Asia%2FKolkata%20(IST)-orange.svg)]()
 
-## Architecture
-
-A Telethon user-account listener reads an allowlist of chats, classifies each message (regex first, Gemini only for the residual), then writes to Google Calendar, Tasks, and Sheets, and sends receipts to Saved Messages.
-
-## Environment Variables
-See `.env.example` for details.
-
-| Variable | Description |
-| -------- | ----------- |
-| `TELEGRAM_API_ID` | Telegram API ID |
-| `TELEGRAM_API_HASH` | Telegram API Hash |
-| `TELEGRAM_SESSION_STRING` | Telegram Session String |
-| `GOOGLE_CREDENTIALS_BASE64` | Base64-encoded Google Credentials JSON |
-| `GOOGLE_CALENDAR_ID` | Google Calendar ID (default: primary) |
-| `GOOGLE_SHEET_ID` | Google Sheet ID for audit logging |
-| `GEMINI_API_KEY` | Gemini API Key |
-| `GEMINI_MODEL` | Gemini Model (default: `gemini-3.5-flash-lite`) |
-| `GEMINI_DAILY_BUDGET` | Daily limit for API calls (default: 50) |
-| `SPARK_MODE` | Operating mode: `dry`, `confirm`, or `live` |
-| `SPARK_CHAT_IDS` | Comma-separated list of allowed chat IDs |
-| `SPARK_DB` | Path to SQLite DB (default: `spark.db`) |
-| `SPARK_MEDIA` | Enable media processing (default: `false`) |
-| `SPARK_TIMETABLE` | Path to timetable TOML file |
-| `LOG_LEVEL` | Logging level (default: `INFO`) |
-| `SENTRY_DSN` | Sentry DSN for error tracking (optional) |
-| `BOT_TOKEN` | Telegram Bot token for notifications |
-| `OWNER_CHAT_ID` | Chat ID of the owner for notifications |
-
-## Setup
-
-1. **Telegram Session**: Run `python scripts/generate_session.py` to get your `TELEGRAM_SESSION_STRING`.
-2. **List Chats**: Run `python scripts/list_chats.py` to get IDs for `SPARK_CHAT_IDS`.
-3. **Google Token**: Run `python scripts/google_token.py` to get your `GOOGLE_CREDENTIALS_BASE64`.
-
-## Modes and Invariants
-
-- `dry` (default): Classifies, validates, and audits, but makes no Calendar or Tasks writes.
-- `confirm`: Requires the owner's ✅ for every write.
-- `live`: Auto-writes only `ROOM_OVERRIDE` (regex-sourced & timetable-validated) and `TASK`/`EXAM_DEADLINE` (regex-sourced). Gemini-derived events and holidays always need confirmation.
-
-*Free-tier note: Free Gemini API prompts may be used by Google to improve its products.*
-
-## Academic Terms
-For the T04 to T05 switch, replace `data/timetable_T04.toml` with the new timetable, and update `SPARK_TIMETABLE` in `.env`.
-
-## Troubleshooting
-Check the application logs for any errors. If a session expires, regenerate it.
+Headless Telegram-to-Google Workspace personal assistant and chat analysis platform for a KLEF student (`Asia/Kolkata`, IST).
 
 ---
 
-## Legacy web app
+## 1. System Architecture
 
-The web app is a Flask/FastAPI based chat analyzer.
+The repository contains two operational stacks:
+1. **SPARK PA Daemon (`src/`)**: Autonomous headless assistant watching university Telegram groups, parsing notices, validating timetable constraints, and synchronizing with Google Calendar, Tasks, and Sheets.
+2. **ChatLens Platform (`chatlens-v2/`)**: Full-stack multi-channel chat analysis application with a Next.js 16 App Router frontend, a FastAPI/SQLAlchemy (`pgvector`) backend, and asynchronous Celery workers.
 
-### Setup (Legacy)
-Start via Docker:
-```bash
-docker compose -f chatlens-v2/docker-compose.yml up -d
+```mermaid
+graph TD
+    subgraph Telegram["Telegram Network"]
+        TG_Groups["University Groups / Channels<br/>(SPARK_CHAT_IDS)"]
+        TG_Bot["Owner Telegram Bot<br/>(BOT_TOKEN)"]
+        TG_Me["Saved Messages<br/>(entity='me')"]
+    end
+
+    subgraph Daemon["SPARK PA Daemon (src/)"]
+        Listener["Telethon Listener<br/>(Strictly Read-Only)"]
+        Dedupe["SHA-256 Deduplicator<br/>(SQLite WAL spark.db)"]
+        Regex["Tier-1 Deterministic<br/>Regex Parser"]
+        Gemini["Tier-2 Residual Extractor<br/>(gemini-3.5-flash-lite)"]
+        Timetable["Timetable Validator<br/>(data/calendar_2026_27.toml)"]
+        Decision["Decision Engine<br/>(dry / confirm / live)"]
+        Scheduler["Daily Briefing & Heartbeat<br/>(07:15 IST & periodic)"]
+    end
+
+    subgraph Workspace["Google Workspace & Storage"]
+        GCal["Google Calendar<br/>(Room Overrides, Schedule)"]
+        GTasks["Google Tasks<br/>(Deadlines, Action Items)"]
+        GSheets["Google Sheets<br/>(Audit Log, Attendance)"]
+    end
+
+    TG_Groups -->|Read-only MTProto| Listener
+    Listener --> Dedupe
+    Dedupe --> Regex
+    Regex -->|Residual only| Gemini
+    Regex --> Timetable
+    Gemini --> Timetable
+    Timetable --> Decision
+    Decision -->|Auto-write (live)| GCal
+    Decision -->|Auto-write (live)| GTasks
+    Decision -->|Audit record| GSheets
+    Decision -->|Confirmation / Review| TG_Bot
+    Decision -->|Fallback| TG_Me
+    TG_Bot -->|Inline Callback /undo| Decision
 ```
-The root `requirements.txt` is the legacy v1 list (the daemon installs with `pip install -e .`).
+
+---
+
+## 2. Ingestion & Decision Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor TG as University Chat
+    participant L as Telethon Listener
+    participant P as Regex / Gemini Parser
+    participant T as Timetable Validator
+    participant D as Decision Engine
+    participant DB as SQLite (spark.db)
+    actor O as Owner Bot
+    participant W as Google Workspace
+
+    TG->>L: Incoming Message
+    L->>DB: Check & record message hash in `seen`
+    alt Message seen within 24h
+        L-->>TG: Drop duplicate
+    else New message
+        L->>P: Extract event
+        alt Regex match found
+            P-->>D: ExtractedEvent (source: regex)
+        else Residual message
+            P->>P: Scrub PII ([EMAIL], [URL], [PHONE])
+            P-->>D: ExtractedEvent (source: gemini)
+        end
+        D->>T: Validate course & period against timetable
+        T-->>D: TimetableVerdict (ok, reason)
+        D->>DB: Record in `pending` table
+        alt Decision == LIVE_AUTO
+            D->>W: Apply patch to Calendar / Task
+            D->>DB: Record prior state in `writes`
+            D->>O: Notify applied with /undo option
+        else Decision == CONFIRM
+            D->>O: Send alert with [✅ Apply] inline button
+            O->>D: Owner clicks [✅ Apply]
+            D->>DB: Claim pending atomically
+            D->>W: Execute write
+            D->>DB: Record in `writes`
+        else Decision == REVIEW
+            D->>O: Send review notification (no apply button)
+        end
+    end
+```
+
+---
+
+## 3. SPARK_MODE State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ingested
+
+    Ingested --> Parsing
+    Parsing --> RegexMatched: Matches regex pattern
+    Parsing --> GeminiMatched: Residual (budget & rate checked)
+
+    RegexMatched --> ValidateTimetable
+    GeminiMatched --> ValidateTimetable
+
+    ValidateTimetable --> VerdictOK: Class & Period match
+    ValidateTimetable --> VerdictFailed: Class or Period mismatch
+
+    state ModeFork <<choice>>
+    VerdictOK --> ModeFork
+
+    ModeFork --> DryMode: SPARK_MODE == 'dry'
+    ModeFork --> ConfirmMode: SPARK_MODE == 'confirm'
+    ModeFork --> LiveMode: SPARK_MODE == 'live'
+
+    DryMode --> AuditOnly: Audit to Sheets; zero writes
+    ConfirmMode --> PendingOwner: Require [✅ Apply] callback
+
+    LiveMode --> AutoWrite: ROOM_OVERRIDE (regex) OR TASK/DEADLINE (regex)
+    LiveMode --> PendingOwner: HOLIDAY, CLASS_CANCELLED, or Gemini-derived
+
+    VerdictFailed --> ReviewOnly: Notify Owner with reason (no apply button)
+
+    PendingOwner --> Executed: Owner approves
+    PendingOwner --> Dismissed: Owner ignores / rejects
+
+    AutoWrite --> Executed: Write to Calendar / Tasks
+    Executed --> CanUndo: State saved to `writes`
+    CanUndo --> Undone: /undo within retention window
+```
+
+---
+
+## 4. Domain Constants & Invariants
+
+### 4.1 Canonical Courses & Aliases
+| Key | Course Name | Official Code | Recognized Aliases |
+|---|---|---|---|
+| `DSA` | Data Structures & Algorithms-3 | `25CS2103E` | `DSA`, `DATA STRUCTURES`, `DSA3`, `DSA-3` |
+| `OSSP` | Operating Systems & Systems Programming | `25CS2104E` | `OSSP`, `OPERATING SYSTEMS` |
+| `ML` | Machine Learning | `25SC2107E` | `ML`, `MLNG`, `MACHINE LEARNING` |
+| `ESD` | Embedded System Design & IoT | `25EC2206E` | `ESD`, `EBSD`, `IOT`, `EMBEDDED SYSTEM` |
+| `DBSE` | Database Systems Engineering | `25CS1302E` | `DBSE`, `DATABASE SYSTEMS` |
+| `JAPANESE` | Japanese Language Proficiency-2 | `25FL2112E` | `JAPANESE`, `JPN`, `FLP-2` |
+
+### 4.2 Standard Academic Periods (IST)
+> [!NOTE]
+> All periods are strictly Indian Standard Time (`Asia/Kolkata`, UTC+05:30). **There is no P6 period.**
+
+| Period | Start Time | End Time |
+|---|---|---|
+| **P1** | 08:10 | 09:00 |
+| **P2** | 09:00 | 09:50 |
+| **P3** | 10:00 | 10:50 |
+| **P4** | 10:50 | 11:40 |
+| **P5** | 11:50 | 12:40 |
+| **P7** | 13:20 | 14:10 |
+| **P8** | 14:20 | 15:10 |
+| **P9** | 15:10 | 16:00 |
+
+### 4.3 SPARK_MODE Decision Matrix
+| Extracted Intent | Extraction Source | Timetable Verdict | `dry` | `confirm` | `live` |
+|---|---|---|---|---|---|
+| `ROOM_OVERRIDE` | Regex | OK | No write (audit) | Owner ✅ required | **Auto-write** |
+| `ROOM_OVERRIDE` | Regex | Failed | Review alert | Review alert | Review alert |
+| `ROOM_OVERRIDE` | Gemini | Any | No write (audit) | Owner ✅ required | Owner ✅ required |
+| `TASK` / `EXAM_DEADLINE` | Regex | N/A | No write (audit) | Owner ✅ required | **Auto-write** |
+| `TASK` / `EXAM_DEADLINE` | Gemini | N/A | No write (audit) | Owner ✅ required | Owner ✅ required |
+| `HOLIDAY` | Regex / Gemini | N/A | No write (audit) | Owner ✅ required | Owner ✅ required |
+| `CLASS_CANCELLED` | Regex / Gemini | Any | No write (audit) | Owner ✅ required | Owner ✅ required |
+
+---
+
+## 5. Configuration & Environment Variables
+
+Create a `.env` file in the repository root based on `.env.example`:
+
+| Environment Variable | Type | Default | Description |
+|---|---|---|---|
+| `TELEGRAM_API_ID` | `int` | *Required* | Telegram API application ID |
+| `TELEGRAM_API_HASH` | `SecretStr` | *Required* | Telegram API application hash |
+| `TELEGRAM_SESSION_STRING` | `SecretStr` | `""` | Telethon StringSession credentials |
+| `BOT_TOKEN` | `SecretStr` | `""` | Telegram Bot API token for private owner interaction |
+| `OWNER_CHAT_ID` | `int` | `0` | Owner's private Telegram chat ID |
+| `GOOGLE_CREDENTIALS_BASE64` | `SecretStr` | `""` | Base64-encoded Google service account JSON |
+| `GOOGLE_CALENDAR_ID` | `str` | `"primary"` | Google Calendar ID for events |
+| `GOOGLE_SHEET_ID` | `str` | `""` | Google Sheet ID for audit logs and attendance |
+| `GEMINI_API_KEY` | `SecretStr` | `""` | Google Gemini API key |
+| `GEMINI_MODEL` | `str` | `"gemini-3.5-flash-lite"` | Active Gemini model |
+| `GEMINI_DAILY_BUDGET` | `int` | `50` | Maximum Gemini API calls permitted per day |
+| `SPARK_MODE` | `str` | `"dry"` | Operating mode: `dry`, `confirm`, or `live` |
+| `SPARK_CHAT_IDS` | `str` | *Required* | Comma-separated list of allowed chat/channel IDs |
+| `SPARK_DB` | `Path` | `"spark.db"` | SQLite database file path (WAL mode) |
+| `SPARK_MEDIA` | `bool` | `False` | Enable multimodal Gemini processing (voice/photos) |
+| `SPARK_TIMETABLE` | `Path` | `None` | Path to canonical timetable TOML file |
+| `LOG_LEVEL` | `str` | `"INFO"` | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `SENTRY_DSN` | `str` | `None` | Sentry DSN for exception tracking |
+
+---
+
+## 6. Setup & Development
+
+### 6.1 Prerequisites
+- Python 3.12 or newer
+- `uv` (Astral Python package manager)
+- Node.js 20+ and `npm`
+- Docker & Docker Compose (optional for full platform orchestration)
+
+### 6.2 Local Installation
+```bash
+# Clone the repository
+git clone https://github.com/tejaswin-amara/chatlens.git
+cd chatlens
+
+# Install Python virtual environment and dependencies
+uv sync --all-extras --dev
+
+# Install Frontend dependencies
+cd chatlens-v2/frontend && npm ci && cd ../..
+```
+
+### 6.3 Helper Setup Scripts
+```bash
+# Generate Telethon session string
+uv run python scripts/generate_session.py
+
+# List accessible Telegram chats to find IDs for SPARK_CHAT_IDS
+uv run python scripts/list_chats.py
+
+# Encode Google Service Account credentials to base64
+uv run python scripts/google_token.py
+```
+
+### 6.4 Running the SPARK PA Daemon
+```bash
+uv run python -m src.main
+```
+
+### 6.5 Running Full Stack via Docker Compose
+```bash
+docker compose up -d
+```
+Services exposed:
+- `chatlens-daemon`: Headless assistant background container
+- `chatlens-backend`: FastAPI REST API on `http://localhost:8000`
+- `chatlens-frontend`: Next.js Web UI on `http://localhost:3000`
+- `postgres`: PostgreSQL + `pgvector` on `localhost:5432`
+- `redis`: Redis task broker on `localhost:6379`
+- `chatlens-celery`: Asynchronous task execution worker
+
+---
+
+## 7. Verification & Quality Gates
+
+Run the complete local verification suite:
+
+```bash
+# 1. Lint Python codebase
+uv run ruff check src tests scripts chatlens chatlens-v2/backend
+
+# 2. Check Python formatting
+uv run ruff format --check src tests scripts chatlens chatlens-v2/backend
+
+# 3. Static type checking
+uv run mypy src
+
+# 4. Run test suite with strict runtime warning elevation
+uv run pytest -q -W error::RuntimeWarning
+
+# 5. Verify prompt drift between code and evaluation fixtures
+uv run pytest -q tests/test_prompt_drift.py
+
+# 6. Run frontend checks
+cd chatlens-v2/frontend && npm run lint && npx tsc --noEmit && npm run build && cd ../..
+
+# 7. Secret scanning
+gitleaks git --redact --no-banner
+```
+
+---
+
+## 8. License & Governance
+* Built under **Awesome Dev Pipeline v2.0.0**.
+* Architectural decisions documented in [`adr/`](adr/).
+* Threat model documented in [`adr/threat-model.md`](adr/threat-model.md).

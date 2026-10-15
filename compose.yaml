@@ -1,0 +1,111 @@
+name: chatlens
+
+services:
+  chatlens-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatlens-daemon
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - spark_data:/app/data
+    networks:
+      - chatlens-net
+
+  chatlens-backend:
+    build:
+      context: ./chatlens-v2/backend
+      dockerfile: Dockerfile
+    container_name: chatlens-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/chatlens
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - chatlens-net
+
+  chatlens-celery:
+    build:
+      context: ./chatlens-v2/backend
+      dockerfile: Dockerfile
+    container_name: chatlens-celery
+    restart: unless-stopped
+    command: celery -A celery_worker.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/chatlens
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - chatlens-net
+
+  chatlens-frontend:
+    build:
+      context: ./chatlens-v2/frontend
+      dockerfile: Dockerfile
+    container_name: chatlens-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - chatlens-backend
+    networks:
+      - chatlens-net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: chatlens-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chatlens
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatlens-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: chatlens-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatlens-net
+
+volumes:
+  spark_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  chatlens-net:
+    driver: bridge

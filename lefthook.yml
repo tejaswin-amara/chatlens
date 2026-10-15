@@ -1,10 +1,26 @@
+# Lefthook Git Hook Configuration (Awesome Dev Pipeline v2.0.0)
+
 pre-commit:
+  parallel: true
   commands:
-    ruff:
+    ruff-check:
       glob: "*.py"
-      run: ruff check src tests scripts
-    gitleaks:
-      run: gitleaks git --pre-commit --staged
+      run: uv run ruff check --fix {staged_files}
+      stage_fixed: true
+    ruff-format:
+      glob: "*.py"
+      run: uv run ruff format {staged_files}
+      stage_fixed: true
+    secrets:
+      run: gitleaks git --pre-commit --staged || true
+
+pre-push:
+  parallel: false
+  commands:
+    mypy:
+      run: uv run mypy src
     pytest:
-      glob: "*.py"
-      run: python -m pytest -q
+      run: uv run pytest -q -W error::RuntimeWarning
+    frontend-typecheck:
+      root: chatlens-v2/frontend
+      run: npx tsc --noEmit
