@@ -53,6 +53,9 @@ ignore = ["S608"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: marks integration tests requiring docker",
+]
 
 [tool.mypy]
 python_version = "3.12"
@@ -62,6 +65,8 @@ module = [
     "telethon",
     "telethon.*",
     "googleapiclient",
-    "googleapiclient.*"
+    "googleapiclient.*",
+    "google_auth_oauthlib",
+    "google_auth_oauthlib.*",
 ]
 ignore_missing_imports = true

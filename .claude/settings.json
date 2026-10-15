@@ -8,14 +8,12 @@
     "mypy *",
     "npm *",
     "npx *",
-    "git status*",
-    "git diff*",
-    "git log*",
-    "git add*",
-    "git commit*",
-    "git branch*",
-    "git checkout*"
+    "git *",
+    "docker *"
   ],
+  "hooks": {
+    "PostToolUse": "python scripts/hooks/post_tool_lint.py"
+  },
   "readOnlyPaths": [
     "data/calendar_2026_27.toml",
     ".env",
