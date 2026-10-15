@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os
 
 from celery import Celery
@@ -6,6 +7,7 @@ from database import AsyncSessionLocal
 from models import Message
 from parsers.telegram import parse_telegram_export
 from parsers.whatsapp import parse_whatsapp_export
+from sqlalchemy.dialects.postgresql import insert
 
 redis_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 celery_app = Celery("chatlens", broker=redis_url)
@@ -15,10 +17,6 @@ async def save_messages(messages: list[dict]):
     if not messages:
         return
     async with AsyncSessionLocal() as session:
-        import hashlib
-
-        from sqlalchemy.dialects.postgresql import insert
-
         for msg in messages:
             msg_str = f"{msg.get('platform', '')}|{msg.get('chat_name', '')}|{msg.get('sender', '')}|{msg.get('timestamp', '')}|{msg.get('text', '')}"
             msg["content_hash"] = hashlib.sha256(msg_str.encode("utf-8")).hexdigest()

@@ -1,7 +1,7 @@
 "use client";
 
-import type { ChatStats } from "../types";
-import { cleanSenderName } from "../types";
+import type { ChatStats } from "@/types";
+import { cleanSenderName } from "@/types";
 import {
   Chart as ChartJS,
   CategoryScale,

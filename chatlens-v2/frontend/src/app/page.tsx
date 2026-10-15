@@ -3,17 +3,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 
-import type { Chat, Message, ChatStats, GlobalStats, AiCardData, ToastData } from "./types";
-import { useApi } from "./hooks/useApi";
+import type { Chat, Message, ChatStats, GlobalStats, AiCardData, ToastData } from "@/types";
+import { useApi } from "@/hooks/useApi";
 
-import Sidebar from "./components/Sidebar";
-import ChatHeader from "./components/ChatHeader";
-import { MessageList } from "./components/MessageList";
-import { Dashboard } from "./components/Dashboard";
-import ImportModal from "./components/ImportModal";
-import AskBar from "./components/AskBar";
-import { WelcomePage } from "./components/WelcomePage";
-import Toast from "./components/Toast";
+import Sidebar from "@/components/Sidebar";
+import ChatHeader from "@/components/ChatHeader";
+import { MessageList } from "@/components/MessageList";
+import { Dashboard } from "@/components/Dashboard";
+import ImportModal from "@/components/ImportModal";
+import AskBar from "@/components/AskBar";
+import { WelcomePage } from "@/components/WelcomePage";
+import Toast from "@/components/Toast";
 
 export default function Home() {
   // ── Global state ──

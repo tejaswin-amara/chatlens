@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search, Plus, MessageSquare } from "lucide-react";
 import clsx from "clsx";
-import type { Chat } from "../types";
+import type { Chat } from "@/types";
 
 interface SidebarProps {
   chats: Chat[];

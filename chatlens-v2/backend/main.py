@@ -2,6 +2,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 
 from analyzer import ChatAnalyzer
 from celery_worker import parse_file_task, save_messages
@@ -25,15 +26,16 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
 
         # Apply migrations
-        import os
-
         migration_file = os.path.join(
             os.path.dirname(__file__), "migrations", "001_content_hash.sql"
         )
         if os.path.exists(migration_file):
             with open(migration_file) as mf:
                 sql = mf.read()
-                await conn.execute(text(sql))
+                for statement in sql.split(";"):
+                    stmt = statement.strip()
+                    if stmt:
+                        await conn.execute(text(stmt))
     yield
     # Shutdown
     await engine.dispose()
@@ -109,8 +111,6 @@ async def handle_upload(file: UploadFile, platform: str):
     if len(content) > MAX_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Maximum size is 50 MB.")
     os.makedirs("uploads", exist_ok=True)
-    from pathlib import Path
-
     file_name = Path(file.filename or "upload").name
     file_path = f"uploads/{uuid.uuid4()}_{file_name}"
     with open(file_path, "wb") as f:

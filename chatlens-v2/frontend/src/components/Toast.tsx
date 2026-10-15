@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { CheckCircle, XCircle, Info, X } from "lucide-react";
 import clsx from "clsx";
-import type { ToastData } from "../types";
+import type { ToastData } from "@/types";
 
 interface ToastProps {
   toasts: ToastData[];

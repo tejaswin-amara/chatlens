@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { Chat, Message, ChatStats, GlobalStats } from "../types";
+import type { Chat, Message, ChatStats, GlobalStats } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 

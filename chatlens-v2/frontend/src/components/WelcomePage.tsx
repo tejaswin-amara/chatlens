@@ -1,7 +1,7 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { FormatAi } from "./FormatAi";
+import { FormatAi } from "@/components/FormatAi";
 
 interface WelcomePageProps {
   globalSummary: string | null;

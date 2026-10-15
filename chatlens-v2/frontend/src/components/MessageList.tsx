@@ -1,9 +1,9 @@
 "use client";
 
 import clsx from "clsx";
-import type { Message } from "../types";
-import { cleanSenderName } from "../types";
-import { AiCard } from "./AiCard";
+import type { Message } from "@/types";
+import { cleanSenderName } from "@/types";
+import { AiCard } from "@/components/AiCard";
 
 interface MessageListProps {
   messages: Message[];

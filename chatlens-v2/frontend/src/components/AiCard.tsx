@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { FormatAi } from "./FormatAi";
+import { FormatAi } from "@/components/FormatAi";
 
 interface AiCardProps {
   label: string;
