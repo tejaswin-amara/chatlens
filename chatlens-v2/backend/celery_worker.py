@@ -3,6 +3,11 @@ import hashlib
 import os
 
 try:
+    from google import genai
+except ImportError:
+    genai = None  # type: ignore
+
+try:
     from celery import Celery
 
     redis_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
@@ -23,11 +28,9 @@ except ImportError:
 def generate_embeddings_batch(texts: list[str]) -> list[list[float] | None]:
     """Generate 768-dim embeddings via Google GenAI for a list of texts."""
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+    if not api_key or genai is None:
         return [None] * len(texts)
     try:
-        from google import genai
-
         client = genai.Client(api_key=api_key)
         res = client.models.embed_content(
             model="text-embedding-004",

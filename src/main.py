@@ -240,6 +240,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                     startup_sent = True
 
                 await catch_up_chats(client)
+                backoff = BACKOFF_START
                 logger.info("ChatLens PA Bot is live and listening for events")
 
                 await _listen(client, stop_event)

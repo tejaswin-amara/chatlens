@@ -18,6 +18,16 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import RetryError
 
+try:
+    import celery.result
+except ImportError:
+    celery = None  # type: ignore
+
+try:
+    from google import genai
+except ImportError:
+    genai = None  # type: ignore
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -137,9 +147,10 @@ async def handle_upload(file: UploadFile, platform: str):
 async def get_task_status(task_id: str):
     """Poll Celery task status for background imports."""
     try:
-        from celery.result import AsyncResult
+        if celery is None or not hasattr(celery, "result"):
+            return {"status": "FAILURE", "error": "Celery not available"}
 
-        res = AsyncResult(task_id, app=celery_app)
+        res = celery.result.AsyncResult(task_id, app=celery_app)
         if res.ready():
             val = res.result
             if isinstance(val, dict):
@@ -379,10 +390,8 @@ async def api_ask(req: AskRequest, db: AsyncSession = Depends(get_db)):
     context_messages = []
     gemini_key = os.getenv("GEMINI_API_KEY")
 
-    if gemini_key:
+    if gemini_key and genai is not None:
         try:
-            from google import genai
-
             client = genai.Client(api_key=gemini_key)
             embed_res = client.models.embed_content(
                 model="text-embedding-004",

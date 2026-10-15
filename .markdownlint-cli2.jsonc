@@ -1,0 +1,21 @@
+{
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD024": { "siblings_only": true },
+    "MD033": false
+  },
+  "globs": [
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "adr/**/*.md"
+  ],
+  "ignores": [
+    "node_modules/**",
+    ".venv/**",
+    "chatlens-v2/frontend/.next/**"
+  ]
+}
