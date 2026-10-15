@@ -1,42 +1,55 @@
+# Environments & Environment Files
 .env
 .env.*
-*.session
+!.env.example
+.venv/
+venv/
 
+# Python Caches & Build Artifacts
 __pycache__/
-*.pyc
-*.db
+*.py[cod]
+*$py.class
 *.egg-info/
 dist/
 build/
-.venv/
-venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node & Next.js Build Artifacts
 node_modules/
 .next/
-uploads/
-error_output.txt
-*.log
-.idea/
-.vscode/
+out/
 
+# Databases & State
+*.db
 *.db-shm
 *.db-wal
 spark.db*
+
+# IDE & Editor Folders
+.idea/
+.vscode/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Secrets & Sessions
+*.session
 token.json
 client_secret*.json
 chatlens_session*
 data/private/
-!.env.example
 
-# Pytest and Python cache
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.venv/
-
-# Temp scripts
+# Logs & Scratch
+*.log
+scratch/
+uploads/
+error_output.txt
 fix_*.py
 update_*.py
 debug_*.py
 fix_*.sh
+awesome-dev-pipeline-v2.0.0.md

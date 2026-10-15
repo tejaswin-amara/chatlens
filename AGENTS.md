@@ -12,10 +12,10 @@ root `requirements.txt` (v1 only), `_next/`, `docs/`, `index.html`, `.nojekyll`,
 `data/calendar_2026_27.toml` is verified against the official PDF: read it, never edit it.
 
 ## Commands
-- Setup: `pip install -e ".[dev]"` (Python 3.12 or newer)
-- Test: `python -m pytest -q`
-- Lint: `ruff check src tests scripts`
-- Types: `mypy src`
+- Setup: `uv sync --all-extras --dev` (Python 3.12 or newer)
+- Test: `uv run pytest -q`
+- Lint: `uv run ruff check src tests scripts`
+- Types: `uv run mypy src`
 
 ## Invariants (target behavior; each task prompt says which parts already exist)
 1. Telegram is read-only. Never send into groups or channels. Output goes only to Saved Messages
