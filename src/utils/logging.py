@@ -39,9 +39,7 @@ def _scrub_value(val: Any) -> Any:
     return val
 
 
-def _scrub_secrets(
-    logger: WrappedLogger, method_name: str, event_dict: EventDict
-) -> EventDict:
+def _scrub_secrets(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     for k, v in list(event_dict.items()):
         event_dict[k] = _scrub_value(v)
     return event_dict

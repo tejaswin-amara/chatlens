@@ -139,4 +139,3 @@ class SheetsLogger:
 
 
 sheets_logger = SheetsLogger()
-

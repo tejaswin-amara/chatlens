@@ -169,14 +169,9 @@ async def fetch_briefing_inputs():
 
     cal = load_calendar()
     milestones = (
-        {
-            f"{term} {name}": d
-            for term, dates in cal.terms.items()
-            for name, d in dates.items()
-        }
+        {f"{term} {name}": d for term, dates in cal.terms.items() for name, d in dates.items()}
         if cal
         else {}
     )
 
     return calendar_events, tasks, attendance_rows, milestones
-

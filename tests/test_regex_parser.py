@@ -116,7 +116,7 @@ def test_regex_parser_course_mapping_table() -> None:
         for alias in aliases:
             text = f"Notice: {alias} class is moved to H-005"
             detected_name, detected_code = RegexParser.detect_course(text.upper())
-            assert (
-                detected_name == canonical_name
-            ), f"Alias '{alias}' did not resolve to {canonical_name}"
+            assert detected_name == canonical_name, (
+                f"Alias '{alias}' did not resolve to {canonical_name}"
+            )
             assert detected_code == expected_code

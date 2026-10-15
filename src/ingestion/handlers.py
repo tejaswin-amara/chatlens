@@ -513,10 +513,7 @@ async def handle_bot_callback(query: dict) -> None:
     if execution_status.startswith("FAILED"):
         deduplicator.finish_pending(pid, "FAILED")
         if msg_id:
-            result_text = (
-                f"❌ Action failed: {parsed_event.intent}\n"
-                f"Status: {execution_status}"
-            )
+            result_text = f"❌ Action failed: {parsed_event.intent}\nStatus: {execution_status}"
             await asyncio.to_thread(bot.edit, int(msg_id), result_text)
     else:
         deduplicator.finish_pending(pid, "APPROVED")
