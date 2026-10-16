@@ -26,7 +26,7 @@ _SYSTEM_MARKERS = {
     "missed video call",
 }
 
-# ponytail: brute-force tries multiple date formats instead of locale detection
+# Supported WhatsApp date/time formats across international locales
 _DATE_FORMATS = [
     "%d/%m/%Y, %I:%M %p",
     "%m/%d/%Y, %I:%M %p",
@@ -59,7 +59,12 @@ def _parse_datetime(date_str: str, time_str: str) -> str:
 def parse_whatsapp_export(file_path: str) -> list[dict]:
     """Parse a WhatsApp exported .txt chat file."""
     path = Path(file_path)
-    chat_name = path.stem
+    raw_stem = path.stem
+    chat_name = re.sub(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_",
+        "",
+        raw_stem,
+    )
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
 
     results: list[dict] = []

@@ -58,7 +58,13 @@ def parse_telegram_export(file_path: str) -> list[dict]:
                     results.append(parsed)
     elif "messages" in data:
         # Single-chat export
-        chat_name = data.get("name", Path(file_path).stem)
+        raw_stem = Path(file_path).stem
+        clean_stem = (
+            raw_stem.split("_", 1)[-1]
+            if len(raw_stem.split("_", 1)[0]) == 36 and "-" in raw_stem.split("_", 1)[0]
+            else raw_stem
+        )
+        chat_name = data.get("name", clean_stem)
         for msg in data["messages"]:
             parsed = _parse_message(msg, str(chat_name))
             if parsed:

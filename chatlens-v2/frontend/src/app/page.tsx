@@ -29,10 +29,11 @@ export default function Home() {
   const [currentChat, setCurrentChat] = useState<string | null>(null);
   const [view, setView] = useState<"messages" | "dashboard">("messages");
 
-  // ── In-Chat Search ──
+  // ── In-Chat Search & Filtering ──
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Message[] | null>(null);
+  const [senderFilter, setSenderFilter] = useState<string | null>(null);
 
   // ── Per-chat data & pagination ──
   const [messages, setMessages] = useState<Message[]>([]);
@@ -243,7 +244,13 @@ export default function Home() {
     setIsSearching(false);
     setSearchQuery("");
     setSearchResults(null);
+    setSenderFilter(null);
     setHasMore(true);
+  };
+
+  const handleFilterSender = (sender: string) => {
+    setSenderFilter((prev) => (prev === sender ? null : sender));
+    setView("messages");
   };
 
   const handleImportComplete = () => {
@@ -253,7 +260,12 @@ export default function Home() {
     });
   };
 
-  const displayedMessages = searchResults ?? messages;
+  let displayedMessages = searchResults ?? messages;
+  if (senderFilter) {
+    displayedMessages = displayedMessages.filter(
+      (m) => m.sender.toLowerCase() === senderFilter.toLowerCase()
+    );
+  }
 
   return (
     <div className="flex w-full h-full text-[15px]">
@@ -305,6 +317,8 @@ export default function Home() {
               isSearching={isSearching}
               onExport={handleExport}
               onDeleteChat={handleDeleteChat}
+              senderFilter={senderFilter}
+              onClearSenderFilter={() => setSenderFilter(null)}
             />
 
             {/* In-chat search banner */}
@@ -348,7 +362,11 @@ export default function Home() {
                   searchQuery={searchResults ? searchQuery : undefined}
                 />
               ) : (
-                <Dashboard chatStats={chatStats} loading={loadingView} />
+                <Dashboard
+                  chatStats={chatStats}
+                  loading={loadingView}
+                  onFilterSender={handleFilterSender}
+                />
               )}
             </div>
 

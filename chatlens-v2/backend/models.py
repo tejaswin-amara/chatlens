@@ -1,8 +1,10 @@
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Index, Integer, String, Text
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
 class Message(Base):

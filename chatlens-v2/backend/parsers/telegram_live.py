@@ -83,7 +83,7 @@ async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
             name_set = {n.lower() for n in chat_names}
             targets = [d for d in dialogs if d.name.lower() in name_set]
         else:
-            # ponytail: cap to 5 most recent dialogs to avoid hanging during sync
+            # Cap to 5 most recent dialogs to avoid hanging during initial unconstrained sync
             targets = targets[:5]
 
         for dialog in targets:
@@ -125,10 +125,18 @@ async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
 def fetch_telegram_chats(chat_names: list[str] | None = None, limit: int = 1000) -> list[dict]:
     """Fetch messages from Telegram chats via live API.
 
-    Sync wrapper around the async Telethon client.
+    Sync wrapper around the async Telethon client. Runs safely within existing event loops.
     """
-    # ponytail: uses asyncio.run; breaks if called inside an existing event loop.
-    # Upgrade path: accept an optional loop param or use nest_asyncio.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, _fetch(chat_names, limit)).result()
     return asyncio.run(_fetch(chat_names, limit))
 
 

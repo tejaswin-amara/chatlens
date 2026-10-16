@@ -12,7 +12,7 @@ format:
 	uv run ruff format src tests scripts chatlens-v2/backend
 
 typecheck:
-	uv run mypy src
+	uv run mypy src scripts benchmarks chatlens-v2/backend
 
 test:
 	uv run pytest -q -W error::RuntimeWarning

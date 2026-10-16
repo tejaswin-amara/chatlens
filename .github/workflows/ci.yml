@@ -32,13 +32,13 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Check code linting with ruff
-        run: uv run ruff check src tests scripts chatlens chatlens-v2/backend
+        run: uv run ruff check src tests scripts chatlens-v2/backend
 
       - name: Check code formatting with ruff
-        run: uv run ruff format --check src tests scripts chatlens chatlens-v2/backend
+        run: uv run ruff format --check src tests scripts chatlens-v2/backend
 
       - name: Static type checking with mypy
-        run: uv run mypy src
+        run: uv run mypy src scripts benchmarks chatlens-v2/backend
 
       - name: Negative Invariant - Verify zero raw datetime.now() in src/ outside clock.py
         run: |

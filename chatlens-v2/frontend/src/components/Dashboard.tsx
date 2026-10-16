@@ -18,6 +18,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 interface DashboardProps {
   chatStats: ChatStats | null;
   loading: boolean;
+  onFilterSender?: (sender: string) => void;
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -81,7 +82,7 @@ function SkeletonChart() {
   );
 }
 
-export function Dashboard({ chatStats, loading }: DashboardProps) {
+export function Dashboard({ chatStats, loading, onFilterSender }: DashboardProps) {
   if (loading || !chatStats) {
     return (
       <div className="p-6 space-y-6 animate-fade-in">
@@ -180,13 +181,16 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
       {chatStats.top_senders.length > 0 && (
         <div className="bg-brand-card border border-brand-border rounded-brand p-5">
           <h3 className="text-[0.75rem] uppercase tracking-wider text-brand-text-dim mb-3">
-            Top Contributors
+            Top Contributors (Click to filter messages)
           </h3>
           <div className="space-y-1.5">
             {chatStats.top_senders.map((s, i) => (
-              <div
+              <button
                 key={s.name}
-                className="flex items-center justify-between rounded-brand-sm px-3 py-2 bg-white/5"
+                type="button"
+                onClick={() => onFilterSender?.(s.name)}
+                className="w-full flex items-center justify-between rounded-brand-sm px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-left spring-click"
+                title={`Filter messages by ${cleanSenderName(s.name)}`}
               >
                 <span className="text-sm text-brand-text">
                   <span className="text-brand-text-dim mr-2 text-xs">{i + 1}.</span>
@@ -195,7 +199,7 @@ export function Dashboard({ chatStats, loading }: DashboardProps) {
                 <span className="text-sm text-brand-accent font-medium">
                   {s.count.toLocaleString()}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>

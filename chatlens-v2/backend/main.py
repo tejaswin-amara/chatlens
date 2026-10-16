@@ -1,13 +1,16 @@
+import inspect
 import os
 import sqlite3
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from analyzer import ChatAnalyzer
 from celery_worker import celery_app, parse_and_save_sync, parse_file_task, save_messages
 from database import engine, get_db
+from embeddings import generate_embedding
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -32,27 +35,33 @@ except ImportError:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(Base.metadata.create_all)
 
-        # Apply migrations dynamically
-        migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
-        if os.path.exists(migrations_dir):
-            for fname in sorted(os.listdir(migrations_dir)):
-                if fname.endswith(".sql"):
-                    with open(os.path.join(migrations_dir, fname)) as mf:
-                        sql = mf.read()
-                        for statement in sql.split(";"):
-                            stmt = statement.strip()
-                            if stmt:
-                                try:
-                                    await conn.execute(text(stmt))
-                                except Exception:
-                                    pass
+            # Apply migrations dynamically
+            migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
+            if os.path.exists(migrations_dir):
+                for fname in sorted(os.listdir(migrations_dir)):
+                    if fname.endswith(".sql"):
+                        with open(os.path.join(migrations_dir, fname)) as mf:
+                            sql = mf.read()
+                            for statement in sql.split(";"):
+                                stmt = statement.strip()
+                                if stmt:
+                                    try:
+                                        await conn.execute(text(stmt))
+                                    except Exception:
+                                        pass
+    except Exception:
+        pass
     yield
     # Shutdown
-    await engine.dispose()
+    try:
+        await engine.dispose()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="ChatLens v2.0 Backend", lifespan=lifespan)
@@ -167,7 +176,7 @@ async def get_task_status(task_id: str):
 
 @app.get("/api/chats")
 async def get_chats(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
+    result: Any = await db.execute(
         select(Message.chat_name, Message.platform, func.count(Message.id))
         .group_by(Message.chat_name, Message.platform)
         .order_by(func.count(Message.id).desc())
@@ -252,7 +261,7 @@ async def get_chat_stats(chat_name: str, db: AsyncSession = Depends(get_db)):
     total_msgs = (
         await db.scalar(select(func.count(Message.id)).where(Message.chat_name == chat_name)) or 0
     )
-    top_senders_res = await db.execute(
+    top_senders_res: Any = await db.execute(
         select(Message.sender, func.count(Message.id))
         .where(Message.chat_name == chat_name)
         .group_by(Message.sender)
@@ -261,7 +270,7 @@ async def get_chat_stats(chat_name: str, db: AsyncSession = Depends(get_db)):
     )
     top_senders = [{"name": r[0], "count": r[1]} for r in top_senders_res.all()]
 
-    result = await db.execute(
+    result: Any = await db.execute(
         select(Message.sender, Message.timestamp, Message.text)
         .where(Message.chat_name == chat_name)
         .order_by(Message.timestamp.asc())
@@ -384,46 +393,87 @@ async def api_analyze(req: ChatRequest, db: AsyncSession = Depends(get_db)):
     return analysis
 
 
+async def _retrieve_relevant_messages(
+    db: Any,
+    chat_name: str | None = None,
+    query_embedding: list[float] | None = None,
+    limit: int = 100,
+) -> list[Message]:
+    """Retrieve relevant messages using vector semantic search when on PostgreSQL,
+
+    or recency order under SQLite / when no query embedding is provided.
+    """
+    bind = getattr(db, "bind", None)
+    if bind is None and hasattr(db, "get_bind"):
+        try:
+            bind = db.get_bind()
+        except Exception:
+            bind = None
+    is_postgres = False
+    if bind is not None and hasattr(bind, "dialect"):
+        is_postgres = getattr(bind.dialect, "name", "") == "postgresql"
+
+    # Try vector query if on PostgreSQL and embedding is provided
+    if query_embedding is not None and is_postgres:
+        try:
+            v_query = select(Message).where(Message.embedding.isnot(None))
+            if chat_name:
+                v_query = v_query.where(Message.chat_name == chat_name)
+            v_query = v_query.order_by(
+                Message.embedding.cosine_distance(query_embedding).asc()
+            ).limit(limit)
+            exec_v = db.execute(v_query)
+            v_result = await exec_v if inspect.isawaitable(exec_v) else exec_v
+            found = list(v_result.scalars().all())
+            if found:
+                return sorted(found, key=lambda m: m.timestamp or "")
+        except Exception:
+            pass
+
+    # Fallback to recency / chronological order
+    query = select(Message)
+    if chat_name:
+        query = query.where(Message.chat_name == chat_name)
+    query = query.order_by(Message.timestamp.asc()).limit(limit)
+    exec_res = db.execute(query)
+    result = await exec_res if inspect.isawaitable(exec_res) else exec_res
+    return list(result.scalars().all())
+
+
 @app.post("/api/ask")
 async def api_ask(req: AskRequest, db: AsyncSession = Depends(get_db)):
     """Answer questions using vector semantic retrieval with fallback to recency."""
-    context_messages = []
     gemini_key = os.getenv("GEMINI_API_KEY")
+    query_embedding: list[float] | None = None
 
     if gemini_key and genai is not None:
         try:
             client = genai.Client(api_key=gemini_key)
-            embed_res = client.models.embed_content(
+            query_embedding = generate_embedding(
+                client,
+                req.question,
+                task_type="RETRIEVAL_QUERY",
                 model="text-embedding-004",
-                contents=req.question,
             )
-            if hasattr(embed_res, "embeddings") and embed_res.embeddings:
-                q_vec = embed_res.embeddings[0].values
-                v_query = select(Message).where(Message.embedding.isnot(None))
-                if req.chat_name:
-                    v_query = v_query.where(Message.chat_name == req.chat_name)
-                v_query = v_query.order_by(Message.embedding.cosine_distance(q_vec)).limit(30)
-                v_result = await db.execute(v_query)
-                found = v_result.scalars().all()
-                if found:
-                    found_sorted = sorted(found, key=lambda m: m.timestamp or "")
-                    context_messages = [message_to_dict(msg) for msg in found_sorted]
         except Exception:
-            pass
+            query_embedding = None
 
-    if not context_messages:
-        query = select(Message)
-        if req.chat_name:
-            query = query.where(Message.chat_name == req.chat_name)
-        query = query.order_by(Message.timestamp.desc()).limit(500)
-        result = await db.execute(query)
-        context_messages = [message_to_dict(msg) for msg in reversed(result.scalars().all())]
+    messages = await _retrieve_relevant_messages(
+        db,
+        chat_name=req.chat_name,
+        query_embedding=query_embedding,
+        limit=100,
+    )
 
-    if not context_messages:
+    if not messages:
         return {"answer": "No relevant messages found for that question."}
 
+    context_messages = [message_to_dict(msg) for msg in messages]
     answer = await get_analyzer().ask(req.question, context_messages)
     return {"answer": answer}
+
+
+ask_question = api_ask
 
 
 @app.post("/api/chats/{chat_name}/insights")
