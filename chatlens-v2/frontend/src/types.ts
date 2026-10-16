@@ -65,9 +65,9 @@ export interface SparkStatus {
 }
 
 export function cleanSenderName(sender: string): string {
-  const cleaned = sender.replace(/^\d+[\s_-]*/, "").trim();
+  const cleaned = sender.replace(/^(\+?\d+[\d\s_-]*)/, "").trim();
   if (cleaned.toLowerCase().replace(/\s+/g, " ") === "prudhvi sai kari") {
     return "Prudhvi Sai Kari";
   }
-  return cleaned;
+  return cleaned || sender;
 }
