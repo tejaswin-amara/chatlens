@@ -14,6 +14,8 @@ interface ChatHeaderProps {
   onToggleSearch?: () => void;
   isSearching?: boolean;
   onExport?: () => void;
+  onExportJson?: () => void;
+  onExportCsv?: () => void;
   onDeleteChat?: () => void;
   senderFilter?: string | null;
   onClearSenderFilter?: () => void;
@@ -36,6 +38,8 @@ export default function ChatHeader({
   onToggleSearch,
   isSearching,
   onExport,
+  onExportJson,
+  onExportCsv,
   onDeleteChat,
   senderFilter,
   onClearSenderFilter,
@@ -100,9 +104,34 @@ export default function ChatHeader({
           <button
             onClick={onExport}
             className="p-2 rounded-brand-sm border border-brand-border bg-brand-card text-brand-text-dim hover:text-brand-text text-[0.75rem] transition-colors spring-click"
-            title="Export chat transcript"
+            title="Export chat transcript (Markdown)"
+            aria-label="Export chat transcript (Markdown)"
           >
             <Download size={15} />
+          </button>
+        )}
+
+        {onExportJson && (
+          <button
+            onClick={onExportJson}
+            className="px-2.5 py-1.5 rounded-brand-sm border border-brand-border bg-brand-card text-brand-text-dim hover:text-brand-text text-[0.75rem] font-medium transition-colors spring-click flex items-center gap-1"
+            title="Export chat as JSON"
+            aria-label="Export chat as JSON"
+          >
+            <Download size={13} />
+            <span>JSON</span>
+          </button>
+        )}
+
+        {onExportCsv && (
+          <button
+            onClick={onExportCsv}
+            className="px-2.5 py-1.5 rounded-brand-sm border border-brand-border bg-brand-card text-brand-text-dim hover:text-brand-text text-[0.75rem] font-medium transition-colors spring-click flex items-center gap-1"
+            title="Export chat as CSV"
+            aria-label="Export chat as CSV"
+          >
+            <Download size={13} />
+            <span>CSV</span>
           </button>
         )}
 

@@ -1,9 +1,13 @@
+import csv
 import inspect
+import io
+import json
 import os
+import re
 import sqlite3
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +17,7 @@ from database import engine, get_db
 from embeddings import generate_embedding
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from models import Base, Message
 from parsers.telegram_live import _fetch, check_status, send_code, verify_code
 from pydantic import BaseModel
@@ -73,6 +77,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/healthz")
+async def healthz() -> dict[str, str]:
+    """Health and readiness probe."""
+    return {"status": "ok", "version": "2.0.0"}
 
 
 @app.exception_handler(RetryError)
@@ -198,6 +208,68 @@ async def delete_chat(chat_name: str, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(Message).where(Message.chat_name == chat_name))
     await db.commit()
     return {"success": True, "deleted_count": count}
+
+
+@app.get("/api/chats/{chat_id}/export")
+async def export_chat(
+    chat_id: str,
+    format: str = "json",
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Export all messages and analytics summary for a chat as JSON or CSV stream."""
+    if format not in ("json", "csv"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format '{format}'. Supported formats: 'json', 'csv'.",
+        )
+
+    exec_res = db.execute(
+        select(Message).where(Message.chat_name == chat_id).order_by(Message.timestamp.asc())
+    )
+    result = await exec_res if inspect.isawaitable(exec_res) else exec_res
+    messages = list(result.scalars().all())
+    if not messages:
+        raise HTTPException(status_code=404, detail=f"Chat '{chat_id}' not found.")
+
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", chat_id)
+
+    if format == "json":
+        data = {
+            "chat_name": chat_id,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "total_messages": len(messages),
+            "messages": [message_to_dict(m) for m in messages],
+        }
+        content = json.dumps(data, indent=2, ensure_ascii=False)
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}_export.json"'},
+        )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        ["id", "platform", "chat_name", "sender", "timestamp", "text", "reply_to", "forwarded_from"]
+    )
+    for m in messages:
+        writer.writerow(
+            [
+                m.id,
+                m.platform or "",
+                m.chat_name or "",
+                m.sender or "",
+                m.timestamp or "",
+                m.text or "",
+                m.reply_to or "",
+                m.forwarded_from or "",
+            ]
+        )
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_export.csv"'},
+    )
 
 
 @app.get("/api/messages")

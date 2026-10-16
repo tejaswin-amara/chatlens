@@ -490,3 +490,73 @@ def test_upload_deduplication_lifecycle(in_memory_db):
     with Session(engine) as s:
         count_after = s.scalar(select(func.count(Message.id)))
         assert count_after == 2
+
+
+def test_healthz_endpoint(in_memory_db):
+    client, _ = in_memory_db
+    res = client.get("/api/healthz")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ok", "version": "2.0.0"}
+
+
+def test_chat_export_json_and_csv(in_memory_db):
+    client, engine = in_memory_db
+
+    with Session(engine) as s:
+        s.add(
+            Message(
+                platform="whatsapp",
+                chat_name="Project-Delta",
+                sender="Alice",
+                timestamp="2026-10-15T10:00:00",
+                text="Meeting in H-005 tomorrow",
+                content_hash="hash-1",
+            )
+        )
+        s.add(
+            Message(
+                platform="whatsapp",
+                chat_name="Project-Delta",
+                sender="Bob",
+                timestamp="2026-10-15T10:05:00",
+                text="Understood, will be there",
+                reply_to="Meeting in H-005 tomorrow",
+                content_hash="hash-2",
+            )
+        )
+        s.commit()
+
+    # 1. JSON Export
+    res_json = client.get("/api/chats/Project-Delta/export?format=json")
+    assert res_json.status_code == 200
+    assert res_json.headers["content-type"].startswith("application/json")
+    disp_json = res_json.headers["content-disposition"]
+    assert 'attachment; filename="Project-Delta_export.json"' in disp_json
+    data = res_json.json()
+    assert data["chat_name"] == "Project-Delta"
+    assert data["total_messages"] == 2
+    assert len(data["messages"]) == 2
+    assert data["messages"][0]["sender"] == "Alice"
+    assert data["messages"][1]["sender"] == "Bob"
+
+    # 2. CSV Export
+    res_csv = client.get("/api/chats/Project-Delta/export?format=csv")
+    assert res_csv.status_code == 200
+    assert res_csv.headers["content-type"].startswith("text/csv")
+    disp_csv = res_csv.headers["content-disposition"]
+    assert 'attachment; filename="Project-Delta_export.csv"' in disp_csv
+    csv_text = res_csv.text
+    assert "id,platform,chat_name,sender,timestamp,text,reply_to,forwarded_from" in csv_text
+    assert "Alice" in csv_text
+    assert "Bob" in csv_text
+    assert "Meeting in H-005 tomorrow" in csv_text
+
+    # 3. Invalid format -> 400
+    res_invalid = client.get("/api/chats/Project-Delta/export?format=xml")
+    assert res_invalid.status_code == 400
+    assert "Invalid format" in res_invalid.json()["detail"]
+
+    # 4. Unknown chat -> 404
+    res_404 = client.get("/api/chats/NonExistentChat/export?format=json")
+    assert res_404.status_code == 404
+    assert "not found" in res_404.json()["detail"]

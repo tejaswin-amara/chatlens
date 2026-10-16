@@ -179,6 +179,23 @@ export default function Home() {
     showToast("Transcript exported to Markdown", "success");
   };
 
+  // ── Export Chat as JSON / CSV via Backend API ──
+  const handleExportFormat = (format: "json" | "csv") => {
+    if (!currentChat) {
+      showToast("No chat selected to export", "info");
+      return;
+    }
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const url = `${apiBase}/api/chats/${encodeURIComponent(currentChat)}/export?format=${format}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", `${currentChat.replace(/[^a-zA-Z0-9_-]/g, "_")}_export.${format}`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast(`Exporting chat as ${format.toUpperCase()}...`, "success");
+  };
+
   // ── AI actions ──
   const handleInsight = async (type: string) => {
     if (!currentChat) return;
@@ -316,6 +333,8 @@ export default function Home() {
               }}
               isSearching={isSearching}
               onExport={handleExport}
+              onExportJson={() => handleExportFormat("json")}
+              onExportCsv={() => handleExportFormat("csv")}
               onDeleteChat={handleDeleteChat}
               senderFilter={senderFilter}
               onClearSenderFilter={() => setSenderFilter(null)}
