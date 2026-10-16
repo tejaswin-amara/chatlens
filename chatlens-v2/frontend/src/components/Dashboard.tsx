@@ -191,6 +191,7 @@ export function Dashboard({ chatStats, loading, onFilterSender }: DashboardProps
                 onClick={() => onFilterSender?.(s.name)}
                 className="w-full flex items-center justify-between rounded-brand-sm px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-left spring-click"
                 title={`Filter messages by ${cleanSenderName(s.name)}`}
+                aria-label={`Filter messages by ${cleanSenderName(s.name)}`}
               >
                 <span className="text-sm text-brand-text">
                   <span className="text-brand-text-dim mr-2 text-xs">{i + 1}.</span>

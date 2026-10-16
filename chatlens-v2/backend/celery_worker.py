@@ -113,7 +113,34 @@ def parse_and_save_sync(file_path: str, platform: str) -> dict[str, Any]:
     """Synchronous parsing and DB commit fallback when Celery/Redis is not running."""
     try:
         messages: list[dict[str, Any]] = []
-        if platform == "whatsapp":
+        import tempfile
+        import zipfile
+        from pathlib import Path
+
+        if zipfile.is_zipfile(file_path):
+            with zipfile.ZipFile(file_path, "r") as z:
+                # Security check: verify no path traversal
+                for info in z.infolist():
+                    if os.path.isabs(info.filename) or ".." in Path(info.filename).parts:
+                        return {"status": "error", "error": "Zip contains unsafe path traversal"}
+
+                namelist = [
+                    n
+                    for n in z.namelist()
+                    if not n.startswith("__MACOSX")
+                    and (n.lower().endswith(".txt") or n.lower().endswith(".json"))
+                ]
+                if not namelist:
+                    return {"status": "done", "count": 0}
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    for n in namelist:
+                        extracted = z.extract(n, path=tmpdir)
+                        if n.lower().endswith(".json"):
+                            messages.extend(parse_telegram_export(extracted))
+                        else:
+                            messages.extend(parse_whatsapp_export(extracted))
+        elif platform == "whatsapp":
             messages = parse_whatsapp_export(file_path)
         elif platform == "telegram":
             messages = parse_telegram_export(file_path)

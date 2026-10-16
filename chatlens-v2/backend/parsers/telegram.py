@@ -29,7 +29,7 @@ def _parse_message(msg: dict, chat_name: str) -> dict | None:
     return {
         "platform": "telegram",
         "chat_name": chat_name,
-        "sender": msg.get("from", msg.get("actor", "Unknown")),
+        "sender": msg.get("from") or msg.get("actor") or "Unknown",
         "timestamp": msg.get("date", ""),
         "text": text,
         "reply_to": str(msg.get("reply_to_message_id"))

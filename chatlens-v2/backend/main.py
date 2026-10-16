@@ -13,6 +13,7 @@ from typing import Any
 
 from analyzer import ChatAnalyzer
 from celery_worker import celery_app, parse_and_save_sync, parse_file_task, save_messages
+from config import MAX_UPLOAD_BYTES
 from database import engine, get_db
 from embeddings import generate_embedding
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -138,11 +139,21 @@ async def upload_telegram(file: UploadFile = File(...)):
     return await handle_upload(file, "telegram")
 
 
+@app.post("/api/chats/import")
+async def import_chat(file: UploadFile = File(...), platform: str | None = None):
+    """Universal chat import endpoint supporting WhatsApp (.txt, .zip) and Telegram (.json, .zip)."""
+    fname = (file.filename or "").lower()
+    inferred = platform or ("telegram" if fname.endswith(".json") else "whatsapp")
+    return await handle_upload(file, inferred)
+
+
 async def handle_upload(file: UploadFile, platform: str):
-    max_size = 50 * 1024 * 1024  # 50 MB
     content = await file.read()
-    if len(content) > max_size:
-        raise HTTPException(status_code=413, detail="File too large. Maximum size is 50 MB.")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {MAX_UPLOAD_BYTES} bytes.",
+        )
     os.makedirs("uploads", exist_ok=True)
     file_name = Path(file.filename or "upload").name
     file_path = f"uploads/{uuid.uuid4()}_{file_name}"
@@ -214,6 +225,10 @@ async def delete_chat(chat_name: str, db: AsyncSession = Depends(get_db)):
 async def export_chat(
     chat_id: str,
     format: str = "json",
+    limit: int | None = None,
+    offset: int = 0,
+    skip: int = 0,
+    sender: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Export all messages and analytics summary for a chat as JSON or CSV stream."""
@@ -223,9 +238,17 @@ async def export_chat(
             detail=f"Invalid format '{format}'. Supported formats: 'json', 'csv'.",
         )
 
-    exec_res = db.execute(
-        select(Message).where(Message.chat_name == chat_id).order_by(Message.timestamp.asc())
-    )
+    stmt = select(Message).where(Message.chat_name == chat_id)
+    if sender:
+        stmt = stmt.where(Message.sender == sender)
+    stmt = stmt.order_by(Message.timestamp.asc())
+    effective_skip = offset if offset != 0 else skip
+    if effective_skip:
+        stmt = stmt.offset(effective_skip)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+
+    exec_res = db.execute(stmt)
     result = await exec_res if inspect.isawaitable(exec_res) else exec_res
     messages = list(result.scalars().all())
     if not messages:
@@ -274,16 +297,20 @@ async def export_chat(
 
 @app.get("/api/messages")
 async def get_messages(
-    chat_name: str, skip: int = 0, limit: int = 50, db: AsyncSession = Depends(get_db)
+    chat_name: str,
+    skip: int = 0,
+    offset: int = 0,
+    limit: int = 50,
+    sender: str | None = None,
+    db: AsyncSession = Depends(get_db),
 ):
+    effective_skip = offset if offset != 0 else skip
     limit = min(limit, 500)
-    result = await db.execute(
-        select(Message)
-        .where(Message.chat_name == chat_name)
-        .order_by(Message.timestamp.asc())
-        .offset(skip)
-        .limit(limit)
-    )
+    stmt = select(Message).where(Message.chat_name == chat_name)
+    if sender:
+        stmt = stmt.where(Message.sender == sender)
+    stmt = stmt.order_by(Message.timestamp.asc()).offset(effective_skip).limit(limit)
+    result = await db.execute(stmt)
     return [message_to_dict(msg) for msg in result.scalars().all()]
 
 
@@ -291,21 +318,50 @@ async def get_messages(
 async def search_messages(
     chat_name: str | None = None,
     query: str | None = None,
+    q: str | None = None,
     sender: str | None = None,
+    skip: int = 0,
+    offset: int = 0,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
 ):
     """Filter messages across text query, sender name, and chat."""
+    effective_query = q if q is not None else query
+    effective_skip = offset if offset != 0 else skip
     stmt = select(Message)
     if chat_name:
         stmt = stmt.where(Message.chat_name == chat_name)
     if sender:
         stmt = stmt.where(Message.sender.ilike(f"%{sender}%"))
-    if query:
-        stmt = stmt.where(Message.text.ilike(f"%{query}%"))
-    stmt = stmt.order_by(Message.timestamp.desc()).limit(min(limit, 200))
+    if effective_query:
+        stmt = stmt.where(Message.text.ilike(f"%{effective_query}%"))
+    stmt = stmt.order_by(Message.timestamp.desc()).offset(effective_skip).limit(min(limit, 200))
     result = await db.execute(stmt)
     return [message_to_dict(msg) for msg in result.scalars().all()]
+
+
+@app.get("/api/chats/{chat_id}/search")
+async def search_chat_messages(
+    chat_id: str,
+    q: str | None = None,
+    query: str | None = None,
+    sender: str | None = None,
+    skip: int = 0,
+    offset: int = 0,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+):
+    """Filter messages inside a specific chat by query text or sender."""
+    return await search_messages(
+        chat_name=chat_id,
+        query=query,
+        q=q,
+        sender=sender,
+        skip=skip,
+        offset=offset,
+        limit=limit,
+        db=db,
+    )
 
 
 @app.get("/api/stats")

@@ -72,12 +72,14 @@ export default function SparkStatusModal({ open, onClose, onRefresh }: SparkStat
               disabled={loading}
               className="p-1.5 rounded-brand-sm border border-brand-border hover:bg-white/5 text-brand-text-dim hover:text-brand-text transition-colors disabled:opacity-50"
               title="Refresh status"
+              aria-label="Refresh status"
             >
               <RefreshCw size={14} className={clsx(loading && "animate-spin-custom")} />
             </button>
             <button
               onClick={onClose}
               className="p-1.5 rounded-brand-sm border border-brand-border hover:bg-white/5 text-brand-text-dim hover:text-brand-text transition-colors"
+              aria-label="Close dialog"
             >
               <X size={16} />
             </button>

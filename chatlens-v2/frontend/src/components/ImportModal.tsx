@@ -181,7 +181,7 @@ export default function ImportModal({ open, onClose, onImportComplete, onToast, 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Import Data</h2>
-          <button onClick={onClose} className="spring-click text-brand-text-dim hover:text-brand-text">
+          <button onClick={onClose} aria-label="Close dialog" className="spring-click text-brand-text-dim hover:text-brand-text">
             <X size={18} />
           </button>
         </div>
@@ -252,6 +252,7 @@ export default function ImportModal({ open, onClose, onImportComplete, onToast, 
                 <input
                   type="tel"
                   placeholder="Phone number (e.g. +1234567890)"
+                  aria-label="Telegram phone number"
                   value={tgPhone}
                   onChange={(e) => setTgPhone(e.target.value)}
                   disabled={tgLoading}
@@ -266,6 +267,7 @@ export default function ImportModal({ open, onClose, onImportComplete, onToast, 
                 <input
                   type="text"
                   placeholder="Enter verification code"
+                  aria-label="Verification code"
                   value={tgCode}
                   onChange={(e) => setTgCode(e.target.value)}
                   disabled={tgLoading}

@@ -95,6 +95,7 @@ export default function ChatHeader({
                 : "border-brand-border bg-brand-card text-brand-text-dim hover:text-brand-text"
             )}
             title="Search messages"
+            aria-label="Search messages"
           >
             <Search size={15} />
           </button>
@@ -140,6 +141,7 @@ export default function ChatHeader({
             onClick={onDeleteChat}
             className="p-2 rounded-brand-sm border border-brand-border bg-brand-card text-brand-text-dim hover:text-rose-400 text-[0.75rem] transition-colors spring-click"
             title="Delete chat"
+            aria-label="Delete chat"
           >
             <Trash2 size={15} />
           </button>

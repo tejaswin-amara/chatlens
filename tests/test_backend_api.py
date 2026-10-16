@@ -5,10 +5,12 @@ content-hash deduplication, sender filtering, pagination, deletion, and
 prompt-injection fencing without external network calls.
 """
 
+import concurrent.futures
 import io
 import os
 import sqlite3
 import sys
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -560,3 +562,168 @@ def test_chat_export_json_and_csv(in_memory_db):
     res_404 = client.get("/api/chats/NonExistentChat/export?format=json")
     assert res_404.status_code == 404
     assert "not found" in res_404.json()["detail"]
+
+
+def test_chats_import_endpoint_and_payload_limits(in_memory_db):
+    client, engine = in_memory_db
+
+    # 1. Valid WhatsApp import via /api/chats/import
+    chat_content = (
+        "16/10/26, 11:00 AM - Dev1: Deployment succeeded\n"
+        "16/10/26, 11:05 AM - Dev2: Confirmed in production\n"
+    )
+    res_valid = client.post(
+        "/api/chats/import",
+        files={"file": ("infra_chat.txt", io.BytesIO(chat_content.encode("utf-8")), "text/plain")},
+    )
+    assert res_valid.status_code == 200
+    assert res_valid.json()["count"] == 2
+
+    # 2. Corrupt Telegram JSON import -> HTTP 400
+    corrupt_body = b'{"messages": [{"text": "unclosed'
+    res_corrupt = client.post(
+        "/api/chats/import",
+        files={"file": ("broken.json", io.BytesIO(corrupt_body), "application/json")},
+    )
+    assert res_corrupt.status_code == 400
+
+    # 3. Payload exceeding MAX_UPLOAD_BYTES -> HTTP 413
+    with patch("main.MAX_UPLOAD_BYTES", 50):
+        res_large = client.post(
+            "/api/chats/import",
+            files={"file": ("too_large.txt", io.BytesIO(b"A" * 100), "text/plain")},
+        )
+        assert res_large.status_code == 413
+        assert "File too large" in res_large.json()["detail"]
+
+    # 4. Empty zip archive -> HTTP 200 with count: 0
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w"):
+        pass
+    zip_buf.seek(0)
+    res_empty_zip = client.post(
+        "/api/chats/import",
+        files={"file": ("empty.zip", zip_buf, "application/zip")},
+    )
+    assert res_empty_zip.status_code == 200
+    assert res_empty_zip.json()["count"] == 0
+
+
+def test_security_sql_injection_and_xss_fuzzing(in_memory_db):
+    client, engine = in_memory_db
+
+    sqli_chat = "'; DROP TABLE messages; --"
+    xss_sender = "<script>alert('xss')</script>"
+    xss_text = "<img src=x onerror=alert(1)> Urgent update"
+
+    with Session(engine) as s:
+        s.add(
+            Message(
+                platform="whatsapp",
+                chat_name=sqli_chat,
+                sender=xss_sender,
+                timestamp="2026-10-16T12:00:00",
+                text=xss_text,
+                content_hash="sqli-xss-hash-1",
+            )
+        )
+        s.commit()
+
+    # Verify messages table still exists and query succeeds
+    with Session(engine) as s:
+        count = s.scalar(select(func.count(Message.id)))
+        assert count >= 1
+
+    # Search via /api/chats/{chat_id}/search with XSS and SQLi query params
+    res_search = client.get(
+        f"/api/chats/{sqli_chat}/search",
+        params={"q": "<img src=x", "sender": xss_sender},
+    )
+    assert res_search.status_code == 200
+    results = res_search.json()
+    assert len(results) == 1
+    assert results[0]["sender"] == xss_sender
+    assert results[0]["text"] == xss_text
+    assert results[0]["chat_name"] == sqli_chat
+
+    # Search with SQL injection payload in q query
+    res_sqli_q = client.get("/api/messages/search", params={"query": "' OR '1'='1"})
+    assert res_sqli_q.status_code == 200
+    # Parameterized query searches literal string "' OR '1'='1", does not match anything
+    assert len(res_sqli_q.json()) == 0
+
+
+def test_route_coverage_and_pagination_parameters(in_memory_db):
+    client, engine = in_memory_db
+
+    chat_name = "PaginationSuite"
+    with Session(engine) as s:
+        for i in range(10):
+            s.add(
+                Message(
+                    platform="telegram",
+                    chat_name=chat_name,
+                    sender="Alice" if i % 2 == 0 else "Bob",
+                    timestamp=f"2026-10-16T10:{i:02d}:00",
+                    text=f"Indexed message {i}",
+                    content_hash=f"pag-hash-{i}",
+                )
+            )
+        s.commit()
+
+    # 1. /api/messages with skip and limit
+    res1 = client.get(f"/api/messages?chat_name={chat_name}&skip=2&limit=3")
+    assert res1.status_code == 200
+    msgs1 = res1.json()
+    assert len(msgs1) == 3
+    assert msgs1[0]["text"] == "Indexed message 2"
+
+    # 2. /api/messages with offset and sender filter
+    res2 = client.get(f"/api/messages?chat_name={chat_name}&offset=1&limit=2&sender=Alice")
+    assert res2.status_code == 200
+    msgs2 = res2.json()
+    assert len(msgs2) == 2
+    assert all(m["sender"] == "Alice" for m in msgs2)
+
+    # 3. /api/chats/{chat_id}/search with offset and q
+    res3 = client.get(f"/api/chats/{chat_name}/search?q=Indexed&offset=4&limit=3")
+    assert res3.status_code == 200
+    assert len(res3.json()) == 3
+
+    # 4. /api/chats/{chat_id}/export with sender and limit
+    res4 = client.get(f"/api/chats/{chat_name}/export?format=json&sender=Bob&limit=2")
+    assert res4.status_code == 200
+    exp_data = res4.json()
+    assert exp_data["total_messages"] == 2
+    assert all(m["sender"] == "Bob" for m in exp_data["messages"])
+
+
+def test_concurrent_imports_and_duplicate_collision(in_memory_db):
+    client, engine = in_memory_db
+
+    chat_content = (
+        "16/10/26, 09:00 AM - ConcurrentUser: Simultaneous upload item\n"
+        "16/10/26, 09:05 AM - ConcurrentUser: Another identical line\n"
+    )
+
+    def do_import():
+        file_bytes = io.BytesIO(chat_content.encode("utf-8"))
+        return client.post(
+            "/api/chats/import",
+            files={"file": ("concurrent_chat.txt", file_bytes, "text/plain")},
+        )
+
+    # Execute 5 parallel uploads simultaneously using ThreadPoolExecutor
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(do_import) for _ in range(5)]
+        responses = [f.result() for f in futures]
+
+    for r in responses:
+        assert r.status_code == 200
+
+    # Ensure message count in database is exactly 2 (zero duplicates despite 5 concurrent uploads)
+    with Session(engine) as s:
+        count = s.scalar(
+            select(func.count(Message.id)).where(Message.chat_name == "concurrent_chat")
+        )
+        assert count == 2

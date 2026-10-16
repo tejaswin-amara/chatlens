@@ -347,6 +347,7 @@ export default function Home() {
                 <input
                   type="text"
                   placeholder="Filter messages in this chat (press Enter)..."
+                  aria-label="Filter messages in this chat"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearchSubmit()}
@@ -359,6 +360,7 @@ export default function Home() {
                       setSearchResults(null);
                       setSearchQuery("");
                     }}
+                    aria-label="Clear filter results"
                     className="text-[0.7rem] text-brand-text-dim hover:text-brand-text px-2 py-0.5 rounded border border-brand-border"
                   >
                     Clear Filter ({searchResults.length} found)

@@ -82,6 +82,7 @@ export default function Sidebar({
           <input
             type="text"
             placeholder="Search chats..."
+            aria-label="Search chats"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-2 rounded-brand-sm border border-brand-border bg-brand-card text-[0.8rem] text-brand-text outline-none focus:border-brand-border-active transition-colors placeholder-brand-text-dim"

@@ -56,6 +56,14 @@ def _parse_datetime(date_str: str, time_str: str) -> str:
     return raw  # fallback: return as-is
 
 
+_SYSTEM_LINE_RE = re.compile(
+    r"^(\d{1,2}[/\.]\d{1,2}[/\.]\d{2,4}),?\s+"
+    r"(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[APap][Mm])?)"
+    r"\s*[-–]\s*"
+    r"(.*)"
+)
+
+
 def parse_whatsapp_export(file_path: str) -> list[dict]:
     """Parse a WhatsApp exported .txt chat file."""
     path = Path(file_path)
@@ -92,6 +100,13 @@ def parse_whatsapp_export(file_path: str) -> list[dict]:
                 "reply_to": None,
                 "forwarded_from": None,
             }
+        elif _SYSTEM_LINE_RE.match(line) or any(
+            marker in line.lower() for marker in _SYSTEM_MARKERS
+        ):
+            # Timestamped system event without sender or standalone marker
+            if current and current["text"].strip():
+                results.append(current)
+            current = None
         elif current is not None:
             # Continuation of multi-line message
             current["text"] += "\n" + line

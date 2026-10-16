@@ -39,7 +39,11 @@ function ToastItem({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: str
     >
       <Icon size={16} className="shrink-0" />
       <span className="text-[0.84rem] flex-1 text-brand-text">{toast.message}</span>
-      <button onClick={() => onDismiss(toast.id)} className="text-brand-text-dim hover:text-brand-text shrink-0">
+      <button
+        onClick={() => onDismiss(toast.id)}
+        aria-label="Dismiss notification"
+        className="text-brand-text-dim hover:text-brand-text shrink-0"
+      >
         <X size={14} />
       </button>
     </div>
