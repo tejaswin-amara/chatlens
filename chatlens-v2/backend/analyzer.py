@@ -1,6 +1,7 @@
 """Chat analysis powered by Google Gemini."""
 
 import asyncio
+import re
 
 from google import genai
 from google.genai.errors import APIError
@@ -12,13 +13,21 @@ import config
 _CHUNK_SIZE = 800
 
 
+def _redact_forbidden_ids(text: str) -> str:
+    """Strictly redact forbidden IDs (RRN, Aadhaar, MyNumber) to generic placeholders."""
+    text = re.sub(r"\b\d{6}[ -]?[1-8]\d{6}\b", "[RRN Redacted]", text)
+    text = re.sub(r"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b", "[Aadhaar Redacted]", text)
+    text = re.sub(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b", "[MyNumber Redacted]", text)
+    return text
+
+
 def _format_messages(messages: list[dict]) -> str:
-    """Format messages as 'SENDER (TIMESTAMP): TEXT', one per line."""
+    """Format messages as 'SENDER (TIMESTAMP): TEXT', one per line with forbidden ID redaction."""
     lines = []
     for m in messages:
-        sender = m.get("sender", "?")
-        ts = m.get("timestamp", "")
-        text = m.get("text", "")
+        sender = _redact_forbidden_ids(str(m.get("sender", "?")))
+        ts = str(m.get("timestamp", ""))
+        text = _redact_forbidden_ids(str(m.get("text", "")))
         lines.append(f"{sender} ({ts}): {text}")
     return "\n".join(lines)
 
@@ -48,7 +57,8 @@ class ChatAnalyzer:
             transcript = _format_messages(messages)
             return await self._call_gemini(
                 f"Summarize this chat conversation concisely. "
-                f"Highlight key topics, decisions, and action items.\n\n{transcript}"
+                f"Highlight key topics, decisions, and action items.\n\n"
+                f"<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
             )
 
         # Chunk and summarize individually, then meta-summarize
@@ -58,7 +68,8 @@ class ChatAnalyzer:
             transcript = _format_messages(chunk)
             chunk_tasks.append(
                 self._call_gemini(
-                    f"Summarize this segment of a chat conversation concisely:\n\n{transcript}"
+                    f"Summarize this segment of a chat conversation concisely:\n\n"
+                    f"<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
                 )
             )
 
@@ -70,7 +81,7 @@ class ChatAnalyzer:
         return await self._call_gemini(
             f"Below are summaries of consecutive segments of the same conversation. "
             f"Produce a single unified summary covering all key topics, decisions, "
-            f"and action items.\n\n{combined}"
+            f"and action items.\n\n<untrusted_chat_history>\n{combined}\n</untrusted_chat_history>"
         )
 
     async def analyze_sentiment(self, messages: list[dict]) -> str:
@@ -79,7 +90,8 @@ class ChatAnalyzer:
         return await self._call_gemini(
             f"Analyze the sentiment of this chat conversation. "
             f"Describe the overall tone, emotional shifts, and notable emotional moments. "
-            f"Identify per-participant sentiment where possible.\n\n{transcript}"
+            f"Identify per-participant sentiment where possible.\n\n"
+            f"<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
         )
 
     async def extract_topics(self, messages: list[dict]) -> str:
@@ -87,7 +99,8 @@ class ChatAnalyzer:
         transcript = _format_messages(messages[-_CHUNK_SIZE:])
         return await self._call_gemini(
             f"Extract the key topics and themes discussed in this chat conversation. "
-            f"List each topic with a brief description.\n\n{transcript}"
+            f"List each topic with a brief description.\n\n"
+            f"<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
         )
 
     async def map_relationships(self, messages: list[dict]) -> str:
@@ -96,7 +109,8 @@ class ChatAnalyzer:
         return await self._call_gemini(
             f"Analyze the social dynamics in this chat conversation. "
             f"Who talks to whom most? What are the interaction patterns? "
-            f"Who are the most active participants? Describe the group dynamics.\n\n{transcript}"
+            f"Who are the most active participants? Describe the group dynamics.\n\n"
+            f"<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
         )
 
     async def extract_timeline(self, messages: list[dict]) -> str:
@@ -104,7 +118,8 @@ class ChatAnalyzer:
         transcript = _format_messages(messages[-_CHUNK_SIZE:])
         return await self._call_gemini(
             f"Extract a timeline of key events, decisions, and milestones "
-            f"from this chat conversation. Include dates where available.\n\n{transcript}"
+            f"from this chat conversation. Include dates where available.\n\n"
+            f"<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
         )
 
     async def ask(self, question: str, context_messages: list[dict]) -> str:
@@ -180,4 +195,6 @@ class ChatAnalyzer:
         if not prompt:
             raise ValueError(f"Unknown insight type: {insight_type}")
 
-        return await self._call_gemini(f"{prompt}\n\nConversation Transcript:\n{transcript}")
+        return await self._call_gemini(
+            f"{prompt}\n\nConversation Transcript:\n<untrusted_chat_history>\n{transcript}\n</untrusted_chat_history>"
+        )

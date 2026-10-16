@@ -727,3 +727,32 @@ def test_concurrent_imports_and_duplicate_collision(in_memory_db):
             select(func.count(Message.id)).where(Message.chat_name == "concurrent_chat")
         )
         assert count == 2
+
+
+def test_api_status_probe(in_memory_db):
+    client, _ = in_memory_db
+    res = client.get("/api/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["version"] == "2.0.0"
+    assert data["database"] == "healthy"
+
+
+def test_api_status_probe_degraded(in_memory_db):
+    client, _ = in_memory_db
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = RuntimeError("Database unreachable")
+
+    def override_broken_db():
+        yield mock_session
+
+    main.app.dependency_overrides[get_db] = override_broken_db
+    try:
+        res = client.get("/api/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "degraded"
+        assert "unhealthy" in data["database"]
+    finally:
+        main.app.dependency_overrides.clear()

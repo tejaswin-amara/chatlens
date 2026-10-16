@@ -68,6 +68,10 @@ class AIExtractor:
         return True
 
     def _redact_pii(self, text: str) -> str:
+        # Forbidden ID Zero-Disclosure
+        text = re.sub(r"\b\d{6}[ -]?[1-8]\d{6}\b", "[RRN Redacted]", text)
+        text = re.sub(r"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b", "[Aadhaar Redacted]", text)
+        text = re.sub(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b", "[MyNumber Redacted]", text)
         # Redact phone numbers, emails and URLs
         text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", text)
         text = re.sub(r"https?://\S+", "[URL]", text)
@@ -101,7 +105,12 @@ class AIExtractor:
         client = self._get_client()
         ref_date = (message_date or clock.now_ist()).strftime("%Y-%m-%d")
         safe_text = self._redact_pii(text)
-        prompt = f"Reference Today Date: {ref_date}\n\nAnnouncement Text:\n{safe_text}"
+        prompt = (
+            f"Reference Today Date: {ref_date}\n\n"
+            f"Announcement Text:\n<untrusted_telegram_message>\n"
+            f"{safe_text}\n"
+            f"</untrusted_telegram_message>"
+        )
 
         response = client.models.generate_content(
             model=self.model_name,

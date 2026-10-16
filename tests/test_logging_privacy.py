@@ -55,3 +55,33 @@ def test_structlog_no_side_effects_on_clean_logs():
     }
     result = _scrub_secrets(None, None, event_dict)
     assert result["event"] == "Routine operation complete"
+
+
+def test_forbidden_id_scrubbing_and_zero_disclosure():
+    raw_aadhaar_space = "2345 6789 0123"
+    raw_aadhaar_dash = "9876-5432-1098"
+    raw_rrn = "950101-1234567"
+    raw_mynumber = "1234 5678 9012"
+
+    event_dict = {
+        "event": f"Student with Aadhaar {raw_aadhaar_space} and RRN {raw_rrn}",
+        "metadata": {
+            "aadhaar_alt": raw_aadhaar_dash,
+            "jp_id": raw_mynumber,
+        },
+    }
+
+    result = _scrub_secrets(None, None, event_dict)
+
+    # 1. Check placeholders
+    assert "[Aadhaar Redacted]" in result["event"]
+    assert "[RRN Redacted]" in result["event"]
+    assert "[Aadhaar Redacted]" in result["metadata"]["aadhaar_alt"]
+    assert "[MyNumber Redacted]" in result["metadata"]["jp_id"]
+
+    # 2. Strict Zero-Disclosure verification: zero raw digits in output
+    for sensitive_id in [raw_aadhaar_space, raw_aadhaar_dash, raw_rrn, raw_mynumber]:
+        assert sensitive_id not in str(result)
+        # Ensure digits sequence is not present
+        digits_only = "".join(filter(str.isdigit, sensitive_id))
+        assert digits_only not in str(result)

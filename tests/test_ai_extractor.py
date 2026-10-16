@@ -92,17 +92,27 @@ def test_ai_extractor_redaction_cases(clean_db):
         mock_resp.text = '{"intent": "TASK", "summary": "Test", "action_required": false}'
         mock_client.models.generate_content.return_value = mock_resp
 
-        extractor.extract_from_text(
-            "Call 123-456-7890 or 9876543210 and email test@example.com", None
+        raw_msg = (
+            "Call 123-456-7890 or 9876543210 and email test@example.com with "
+            "Aadhaar 4567 8901 2345, RRN 980101-1234567, MyNumber 1234 5678 9012"
         )
+        extractor.extract_from_text(raw_msg, None)
 
         call_args = mock_client.models.generate_content.call_args.kwargs["contents"]
         text_sent = str(call_args)
+        assert "<untrusted_telegram_message>" in text_sent
+        assert "</untrusted_telegram_message>" in text_sent
         assert "123-456-7890" not in text_sent
         assert "9876543210" not in text_sent
         assert "test@example.com" not in text_sent
+        assert "4567 8901 2345" not in text_sent
+        assert "980101-1234567" not in text_sent
+        assert "1234 5678 9012" not in text_sent
         assert "[PHONE]" in text_sent
         assert "[EMAIL]" in text_sent
+        assert "[Aadhaar Redacted]" in text_sent
+        assert "[RRN Redacted]" in text_sent
+        assert "[MyNumber Redacted]" in text_sent
 
 
 def test_ai_extractor_no_sampling_params(clean_db):

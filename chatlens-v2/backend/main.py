@@ -86,6 +86,21 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok", "version": "2.0.0"}
 
 
+@app.get("/api/status")
+async def status(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """Liveness, readiness, and active database connectivity probe."""
+    try:
+        await db.execute(text("SELECT 1"))
+        db_status = "healthy"
+    except Exception as e:
+        db_status = f"unhealthy: {e!s}"
+    return {
+        "status": "ok" if db_status == "healthy" else "degraded",
+        "version": "2.0.0",
+        "database": db_status,
+    }
+
+
 @app.exception_handler(RetryError)
 async def retry_error_handler(request: Request, exc: RetryError):
     return JSONResponse(

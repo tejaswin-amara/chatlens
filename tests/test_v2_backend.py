@@ -235,6 +235,32 @@ def test_analyzer_format_messages():
     assert "Bob (2026-05-01 10:02): Hey Alice!" in formatted
 
 
+def test_analyzer_forbidden_id_redaction():
+    """Test ChatAnalyzer._format_messages strictly redacts Aadhaar, RRN, and MyNumber."""
+    messages = [
+        {
+            "sender": "Alice",
+            "timestamp": "2026-05-01 10:00",
+            "text": "My Aadhaar is 2345 6789 0123 and KR RRN is 900101-1234567",
+        },
+        {
+            "sender": "Bob",
+            "timestamp": "2026-05-01 10:02",
+            "text": "Japanese MyNumber is 1234 5678 9012. Please keep confidential.",
+        },
+    ]
+    formatted = _format_messages(messages)
+    assert "[Aadhaar Redacted]" in formatted
+    assert "[RRN Redacted]" in formatted
+    assert "[MyNumber Redacted]" in formatted
+    # Assert zero raw digits for forbidden IDs
+    assert "2345 6789 0123" not in formatted
+    assert "900101-1234567" not in formatted
+    assert "1234 5678 9012" not in formatted
+    assert "234567890123" not in formatted
+    assert "123456789012" not in formatted
+
+
 def test_chat_statistics_aggregation():
     """Test pure statistical aggregation functions without requiring live database."""
     sample_messages = [
