@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
+!.env*.example
 .venv/
 venv/
 
@@ -53,3 +55,4 @@ update_*.py
 debug_*.py
 fix_*.sh
 awesome-dev-pipeline-v2.0.0.md
+.agents/

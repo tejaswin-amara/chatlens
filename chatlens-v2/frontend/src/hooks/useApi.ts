@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import type { Chat, Message, ChatStats, GlobalStats, SparkStatus } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function fetchJSON<T = unknown>(endpoint: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, opts);

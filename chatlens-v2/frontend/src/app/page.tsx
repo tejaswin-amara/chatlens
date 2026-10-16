@@ -185,7 +185,7 @@ export default function Home() {
       showToast("No chat selected to export", "info");
       return;
     }
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
     const url = `${apiBase}/api/chats/${encodeURIComponent(currentChat)}/export?format=${format}`;
     const a = document.createElement("a");
     a.href = url;

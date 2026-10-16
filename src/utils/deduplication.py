@@ -1,21 +1,23 @@
 """Hash-based deduplication cache to prevent re-processing identical messages."""
 
+import contextlib
 import hashlib
 import sqlite3
 import time
 
 from src.config import settings
-from src.utils.db import get_connection
 
 
 class MessageDeduplicator:
-    def __init__(self, ttl_seconds: int = 86400 * 7) -> None:
+    def __init__(self, ttl_seconds: int = 86400 * 7, db_path: str | None = None) -> None:
         self.ttl_seconds = ttl_seconds
-        self.db_path = settings.spark_db
+        self.db_path = db_path or settings.spark_db
         self._init_db()
 
-    def _get_conn(self) -> sqlite3.Connection:
-        return get_connection()
+    def _get_conn(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+        conn = sqlite3.connect(self.db_path, isolation_level=None)
+        conn.execute("PRAGMA busy_timeout = 5000")
+        return contextlib.closing(conn)
 
     def _init_db(self) -> None:
         with self._get_conn() as conn:

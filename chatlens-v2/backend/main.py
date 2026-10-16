@@ -653,11 +653,20 @@ async def get_spark_status():
 
         pending_rows = []
         try:
-            cur.execute("SELECT id, ts, status, event_json FROM pending ORDER BY id DESC LIMIT 10;")
+            cur.execute(
+                "SELECT id, created, status, event_json FROM pending ORDER BY id DESC LIMIT 10;"
+            )
             for r in cur.fetchall():
                 pending_rows.append({"id": r[0], "ts": r[1], "status": r[2], "event": r[3]})
         except sqlite3.OperationalError:
-            pass
+            try:
+                cur.execute(
+                    "SELECT id, ts, status, event_json FROM pending ORDER BY id DESC LIMIT 10;"
+                )
+                for r in cur.fetchall():
+                    pending_rows.append({"id": r[0], "ts": r[1], "status": r[2], "event": r[3]})
+            except sqlite3.OperationalError:
+                pass
 
         writes_rows = []
         try:

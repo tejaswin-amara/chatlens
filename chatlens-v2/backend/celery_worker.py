@@ -19,8 +19,9 @@ except ImportError:
 try:
     from celery import Celery
 
-    redis_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    celery_app = Celery("chatlens", broker=redis_url)
+    redis_url = os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    backend_url = os.getenv("CELERY_RESULT_BACKEND") or redis_url
+    celery_app = Celery("chatlens", broker=redis_url, backend=backend_url)
 except ImportError:
 
     class DummyCelery:
