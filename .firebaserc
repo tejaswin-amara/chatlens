@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "chatlens-app",
-    "staging": "chatlens-staging",
-    "production": "chatlens-prod"
+    "default": "campusconnect-afd1e",
+    "staging": "campusconnect-afd1e",
+    "production": "campusconnect-afd1e"
   }
 }

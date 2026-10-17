@@ -22,6 +22,8 @@ build/
 node_modules/
 .next/
 out/
+.firebase/
+
 
 # Databases & State
 *.db
