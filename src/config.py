@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     spark_timetable: str = Field(default="data/timetable_T04.toml", alias="SPARK_TIMETABLE")
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    erp_username: str = Field(default="2520090104", alias="ERP_USERNAME")
+    erp_password: SecretStr = Field(default=SecretStr(""), alias="ERP_PASSWORD")
 
     @property
     def allowed_chat_ids(self) -> list[int]:

@@ -51,6 +51,17 @@ class MessageDeduplicator:
                     key TEXT PRIMARY KEY,
                     ts REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS timetable_overrides (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    target_date TEXT NOT NULL,
+                    period INTEGER,
+                    course_code TEXT NOT NULL,
+                    course_name TEXT,
+                    room TEXT,
+                    status TEXT NOT NULL,
+                    summary TEXT,
+                    created REAL
+                );
                 """
             )
 
@@ -159,6 +170,67 @@ class MessageDeduplicator:
         with self._get_conn() as conn:
             row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
             return row[0] if row else None
+
+    def record_override(
+        self,
+        target_date: str,
+        period: int | None,
+        course_code: str,
+        course_name: str | None = None,
+        room: str | None = None,
+        status: str = "OVERRIDE",
+        summary: str = "",
+    ) -> int:
+        now = time.time()
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO timetable_overrides
+                (target_date, period, course_code, course_name, room, status, summary, created)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    target_date,
+                    period,
+                    course_code,
+                    course_name or "",
+                    room or "",
+                    status,
+                    summary,
+                    now,
+                ),
+            )
+            return cur.lastrowid or 0
+
+    def get_overrides(self, target_date: str) -> list[dict]:
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                """
+                SELECT id, target_date, period, course_code, course_name, room, status, summary
+                FROM timetable_overrides
+                WHERE target_date = ?
+                ORDER BY period ASC
+                """,
+                (target_date,),
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "target_date": row[1],
+                    "period": row[2],
+                    "course_code": row[3],
+                    "course_name": row[4],
+                    "room": row[5],
+                    "status": row[6],
+                    "summary": row[7],
+                }
+                for row in rows
+            ]
+
+    def delete_override(self, override_id: int) -> None:
+        with self._get_conn() as conn:
+            conn.execute("DELETE FROM timetable_overrides WHERE id = ?", (override_id,))
 
 
 deduplicator = MessageDeduplicator()

@@ -12,6 +12,7 @@ class Slot(NamedTuple):
     course: str
     room: str
     faculty: str
+    override: str | None = None
 
 
 class Meta(NamedTuple):
@@ -62,6 +63,77 @@ def load(path: str | None = None) -> Timetable | None:
         )
 
     return Timetable(meta=meta, slots=slots, path=path)
+
+
+def get_effective_slots(day_date: date | str, timetable: Timetable | None = None) -> list[Slot]:
+    from datetime import datetime
+
+    from src.utils.deduplication import deduplicator
+
+    if isinstance(day_date, str):
+        target_date_str = day_date
+        dt = datetime.strptime(day_date, "%Y-%m-%d").date()
+    else:
+        target_date_str = day_date.strftime("%Y-%m-%d")
+        dt = day_date
+
+    tt = timetable or load()
+    if not tt:
+        return []
+
+    day_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+    day_abbr = day_map.get(dt.weekday(), "")
+    base_slots = [s for s in tt.slots if s.day == day_abbr]
+
+    overrides = deduplicator.get_overrides(target_date_str)
+    if not overrides:
+        return base_slots
+
+    override_by_period: dict[int, dict] = {}
+    override_by_course: dict[str, dict] = {}
+    for o in overrides:
+        if o.get("period"):
+            override_by_period[int(o["period"])] = o
+        if o.get("course_code") or o.get("course_name"):
+            c_key = (o.get("course_code") or o.get("course_name") or "").upper()
+            override_by_course[c_key] = o
+
+    effective_slots: list[Slot] = []
+    for s in base_slots:
+        ov = override_by_period.get(s.period)
+        if not ov:
+            ov = override_by_course.get(s.course.upper())
+
+        if ov:
+            status = ov.get("status", "OVERRIDE")
+            if status == "CANCELLED":
+                effective_slots.append(
+                    Slot(
+                        day=s.day,
+                        period=s.period,
+                        course=s.course,
+                        room=s.room,
+                        faculty=s.faculty,
+                        override="CANCELLED",
+                    )
+                )
+            elif ov.get("room"):
+                effective_slots.append(
+                    Slot(
+                        day=s.day,
+                        period=s.period,
+                        course=s.course,
+                        room=ov["room"],
+                        faculty=s.faculty,
+                        override=f"ROOM_OVERRIDE (was {s.room})",
+                    )
+                )
+            else:
+                effective_slots.append(s)
+        else:
+            effective_slots.append(s)
+
+    return effective_slots
 
 
 def parse_periods(text: str) -> list[int]:

@@ -51,8 +51,9 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
 
     if msg.voice or (msg.document and "audio" in getattr(msg.document, "mime_type", "")):
         source = "gemini"
-        if msg.file and msg.file.size and msg.file.size > 5_000_000:
-            logger.warning("Voice message exceeds 5MB limit", size=msg.file.size)
+        file_size = getattr(getattr(msg, "file", None), "size", None)
+        if isinstance(file_size, (int, float)) and file_size > 5_000_000:
+            logger.warning("Voice message exceeds 5MB limit", size=file_size)
         else:
             try:
                 media_bytes = await client.download_media(msg, file=bytes)
@@ -65,8 +66,9 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
 
     elif msg.photo or (msg.document and "pdf" in getattr(msg.document, "mime_type", "")):
         source = "gemini"
-        if msg.file and msg.file.size and msg.file.size > 5_000_000:
-            logger.warning("Media message exceeds 5MB limit", size=msg.file.size)
+        file_size = getattr(getattr(msg, "file", None), "size", None)
+        if isinstance(file_size, (int, float)) and file_size > 5_000_000:
+            logger.warning("Media message exceeds 5MB limit", size=file_size)
         else:
             try:
                 is_pdf = msg.document and "pdf" in getattr(msg.document, "mime_type", "")
@@ -116,6 +118,7 @@ async def apply_event(
     execution_status = "SUCCESS"
     try:
         if parsed_event.intent == "ROOM_OVERRIDE" and parsed_event.room:
+            import src.timetable as tt
             from src.utils import clock
 
             target_dt = parsed_event.target_date or str(clock.today_ist())
@@ -129,7 +132,32 @@ async def apply_event(
             )
             details_list.append("Google Calendar Patched")
 
+            periods = tt.parse_periods(parsed_event.period or "")
+            if not periods:
+                deduplicator.record_override(
+                    target_dt,
+                    None,
+                    parsed_event.course_code or "",
+                    parsed_event.course_name or "",
+                    parsed_event.room,
+                    "OVERRIDE",
+                    parsed_event.summary,
+                )
+            else:
+                for p in periods:
+                    deduplicator.record_override(
+                        target_dt,
+                        p,
+                        parsed_event.course_code or "",
+                        parsed_event.course_name or "",
+                        parsed_event.room,
+                        "OVERRIDE",
+                        parsed_event.summary,
+                    )
+            details_list.append("Timetable Override Recorded")
+
         elif parsed_event.intent == "CLASS_CANCELLED":
+            import src.timetable as tt
             from src.utils import clock
 
             target_dt = parsed_event.target_date or str(clock.today_ist())
@@ -141,6 +169,30 @@ async def apply_event(
                 parsed_event.period,
             )
             details_list.append("Google Calendar Class Cancelled")
+
+            periods = tt.parse_periods(parsed_event.period or "")
+            if not periods:
+                deduplicator.record_override(
+                    target_dt,
+                    None,
+                    parsed_event.course_code or "",
+                    parsed_event.course_name or "",
+                    None,
+                    "CANCELLED",
+                    parsed_event.summary,
+                )
+            else:
+                for p in periods:
+                    deduplicator.record_override(
+                        target_dt,
+                        p,
+                        parsed_event.course_code or "",
+                        parsed_event.course_name or "",
+                        None,
+                        "CANCELLED",
+                        parsed_event.summary,
+                    )
+            details_list.append("Class Cancellation Recorded")
 
         elif parsed_event.intent == "HOLIDAY":
             from src.utils import clock
@@ -591,6 +643,9 @@ async def handle_undo_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, f"❌ Undo failed: {e}")
 
 
+_active_client: TelegramClient | None = None
+
+
 async def handle_bot_command(msg: dict) -> None:
     from src.config import settings
     from src.notify.bot import bot
@@ -605,14 +660,18 @@ async def handle_bot_command(msg: dict) -> None:
     if cmd in ("/start", "/help"):
         reply = (
             "👋 **Welcome to ChatLens & SPARK PA!**\n\n"
-            "I monitor your course chats, track timetable changes, "
-            "and answer questions with Google Gemini AI.\n\n"
-            "**Commands**:\n"
-            "• `/today` — Today's classes & timetable\n"
+            "I monitor your course chats, track timetable changes, sync with KL ERP, "
+            "and answer queries using Google Gemini AI.\n\n"
+            "**Academic & Schedule Commands**:\n"
+            "• `/today` — Today's classes & room overrides\n"
+            "• `/attendance` — Live attendance & safe bunk margins\n"
+            "• `/marks` — In-sem internal marks & assessments\n"
+            "• `/fee` — Fee orders & payment receipts\n"
+            "• `/rescan` — Deep-scan course group messages & files (past 7 days)\n"
             "• `/status` — Live status & monitored chats\n"
-            "• `/undo` — Revert the last applied override\n"
-            "• `/help` — Show this guide\n\n"
-            "💬 *Tip: You can also ask me any questions directly!*"
+            "• `/undo` — Revert last applied calendar override\n"
+            "• `/help` — Show this command directory\n\n"
+            "💬 *Tip: Ask me any question directly to search with Gemini!*"
         )
         await asyncio.to_thread(bot.send, reply)
 
@@ -625,6 +684,7 @@ async def handle_bot_command(msg: dict) -> None:
             f"• **SPARK Mode**: `{settings.spark_mode}`\n"
             f"• **Telegram**: Active ({len(settings.allowed_chat_ids)} monitored course chats)\n"
             f"• **Gemini AI**: `{settings.gemini_model}` (Active & Connected)\n"
+            f"• **KL ERP Bridge**: Configured (`{settings.erp_username}`)\n"
             f"• **Google Workspace**: Connected\n"
             f"• **Owner**: `{settings.owner_chat_id}`\n"
             f"• **Status**: 🚀 Live & Listening in Real-Time"
@@ -636,15 +696,14 @@ async def handle_bot_command(msg: dict) -> None:
         from src.utils import clock
 
         today = clock.today_ist()
-        day_abbr = today.strftime("%a")
         timetable = tt.load()
 
         if not timetable:
             await asyncio.to_thread(bot.send, "⚠️ Timetable file not found.")
             return
 
-        matching = [s for s in timetable.slots if s.day == day_abbr]
-        if not matching:
+        effective_slots = tt.get_effective_slots(today, timetable)
+        if not effective_slots:
             await asyncio.to_thread(
                 bot.send,
                 f"📅 **Schedule for {today.strftime('%A, %b %d')}**:\n\n"
@@ -652,9 +711,102 @@ async def handle_bot_command(msg: dict) -> None:
             )
         else:
             lines = [f"📅 **Schedule for {today.strftime('%A, %b %d')}**:"]
-            for s in sorted(matching, key=lambda x: x.period):
-                lines.append(f"• **P{s.period}**: {s.course} in `{s.room}` ({s.faculty})")
+            for s in sorted(effective_slots, key=lambda x: x.period):
+                if s.override == "CANCELLED":
+                    lines.append(f"• ~**P{s.period}**: {s.course}~ ❌ *[CANCELLED]*")
+                elif s.override:
+                    lines.append(f"• **P{s.period}**: {s.course} in `{s.room}` ⚡ *({s.override})*")
+                else:
+                    lines.append(f"• **P{s.period}**: {s.course} in `{s.room}` ({s.faculty})")
             await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd == "/attendance":
+        from src.erp import klu_erp
+
+        await asyncio.to_thread(bot.send, "⏳ Fetching live attendance from KL ERP...")
+        records = await klu_erp.get_attendance()
+        if not records:
+            await asyncio.to_thread(
+                bot.send,
+                "⚠️ Could not retrieve attendance from KL ERP.\n"
+                "Please verify `ERP_USERNAME` and `ERP_PASSWORD` in `.env` or check portal status."
+            )
+        else:
+            lines = ["📊 **Live Attendance Overview (KL ERP)**:\n"]
+            critical = []
+            for r in records:
+                pct = r["percentage"]
+                status_icon = "🟢" if pct >= 85.0 else ("🟡" if pct >= 75.0 else "🔴")
+                name_short = r["course_name"] or r["course_code"]
+                line = (
+                    f"{status_icon} **{name_short}** (`{r['course_code']}`)\n"
+                    f"   • Attended: {r['attended']}/{r['conducted']} ({pct}%)\n"
+                )
+                if r["safe_bunks"] > 0:
+                    line += f"   • Margin: **{r['safe_bunks']} safe bunks** remaining\n"
+                elif r["recovery_needed"] > 0:
+                    line += f"   • ⚠️ Needs **{r['recovery_needed']} classes** to reach 85%\n"
+                    critical.append(name_short)
+                lines.append(line)
+
+            if critical:
+                lines.append(
+                    f"\n⚠️ **Action Required**: {len(critical)} courses below 85% distinction!"
+                )
+
+            await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd == "/marks":
+        from src.erp import klu_erp
+
+        await asyncio.to_thread(bot.send, "⏳ Fetching internal assessment marks from KL ERP...")
+        marks = await klu_erp.get_marks()
+        if not marks:
+            await asyncio.to_thread(
+                bot.send,
+                "⚠️ No internal marks found or ERP unavailable.\n"
+                "Ensure `ERP_USERNAME` and `ERP_PASSWORD` are configured."
+            )
+        else:
+            lines = ["📝 **Internal Assessment Marks (KL ERP)**:\n"]
+            for m in marks[:15]:
+                lines.append(
+                    f"• **{m['course_name'] or m['course_code']}** — {m['component']}: "
+                    f"**{m['secured_marks']} / {m['max_marks']}** ({m['percentage']}%)"
+                )
+            await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd == "/fee":
+        from src.erp import klu_erp
+
+        await asyncio.to_thread(bot.send, "⏳ Fetching fee order details from KL ERP...")
+        fees = await klu_erp.get_fee_orders()
+        if not fees:
+            await asyncio.to_thread(bot.send, "⚠️ No fee records found or ERP unavailable.")
+        else:
+            lines = ["💳 **Fee Orders & Receipts (KL ERP)**:\n"]
+            for f in fees[:10]:
+                lines.append(
+                    f"• **Order {f['order_id']}** ({f['term']}): {f['amount']} "
+                    f"— `{f['status']}` ({f['date']})"
+                )
+            await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd in ("/rescan", "/scan"):
+        if _active_client:
+            await asyncio.to_thread(
+                bot.send, "🔄 Starting deep multimodal rescan of course groups (past 7 days)..."
+            )
+            count = await catch_up_chats(_active_client, days=7, full_rescan=True)
+            await asyncio.to_thread(
+                bot.send,
+                f"✅ **Deep Rescan Complete**\n"
+                f"• Messages & files processed: {count}\n"
+                f"• Monitored chats: {len(settings.allowed_chat_ids)}\n"
+                f"• Type `/today` to review your updated schedule."
+            )
+        else:
+            await asyncio.to_thread(bot.send, "⚠️ Telegram client not available for rescan.")
 
     elif cmd == "/undo":
         await handle_undo_command(msg)
@@ -688,33 +840,51 @@ async def handle_bot_command(msg: dict) -> None:
             )
 
 
-async def catch_up_chats(client: TelegramClient) -> None:
+async def catch_up_chats(client: TelegramClient, days: int = 7, full_rescan: bool = False) -> int:
+    from src.utils import clock
+
+    total_scanned = 0
+    cutoff = clock.now_ist() - timedelta(days=days)
+
     for chat_id in settings.allowed_chat_ids:
         try:
             last_id = deduplicator.get_chat_state(chat_id)
-            if last_id is None:
+            if last_id is None and not full_rescan:
                 messages = await client.get_messages(chat_id, limit=1)
                 if messages:
                     deduplicator.update_chat_state(chat_id, messages[0].id)
                 continue
 
-            from src.utils import clock
+            if last_id is None:
+                messages = await client.get_messages(chat_id, limit=200)
+                msgs_to_process = list(reversed(messages))
+            else:
+                messages = await client.get_messages(
+                    chat_id, min_id=last_id, reverse=True, limit=200
+                )
+                msgs_to_process = list(messages)
 
-            cutoff = clock.now_ist() - timedelta(days=7)
-            messages = await client.get_messages(chat_id, min_id=last_id, reverse=True, limit=200)
             if len(messages) == 200:
                 logger.warning("Catch-up truncated at 200 messages", chat_id=chat_id)
 
-            for msg in messages:
-                if msg.date and msg.date >= cutoff and not msg.out:
+            for msg in msgs_to_process:
+                is_out = getattr(msg, "out", False)
+                if getattr(msg, "date", None) and msg.date >= cutoff and not is_out:
                     await process_message(client, chat_id, msg)
-                deduplicator.update_chat_state(chat_id, msg.id)
+                    total_scanned += 1
+                if hasattr(msg, "id"):
+                    deduplicator.update_chat_state(chat_id, msg.id)
 
         except Exception as e:
             logger.warning("Failed to catch up chat", chat_id=chat_id, error=str(e))
 
+    return total_scanned
+
 
 def register_handlers(client: TelegramClient) -> None:
+    global _active_client
+    _active_client = client
+
     @client.on(events.NewMessage(pattern=r"^(?:/task|todo:)\s+(.+)", chats="me", outgoing=True))
     async def handle_task_command(event: events.NewMessage.Event) -> None:
         task_text = event.pattern_match.group(1)
