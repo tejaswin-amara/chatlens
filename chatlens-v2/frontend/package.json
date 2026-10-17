@@ -1,32 +1,37 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "kl-sync",
+  "version": "2.2.1",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx --no-install vitest run"
+    "typecheck": "tsc --noEmit",
+    "test": "npx --yes tsx --import ./scripts/test-env.mjs --test \"src/**/*.test.ts\" \"tests/**/*.test.ts\"",
+    "test:api": "npx --yes tsx --import ./scripts/test-env.mjs --test src/e2e/tier1-feature-coverage.test.ts src/e2e/tier2-boundary-corner-cases.test.ts src/e2e/tier3-cross-feature-combinations.test.ts src/e2e/tier4-real-world-scenarios.test.ts",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "dependencies": {
-    "chart.js": "^4.5.1",
-    "clsx": "^2.1.1",
-    "firebase": "^13.0.0",
-    "lucide-react": "^1.24.0",
-    "next": "16.2.10",
-    "react": "19.2.4",
-    "react-chartjs-2": "^5.3.1",
-    "react-dom": "19.2.4",
-    "tailwind-merge": "^3.6.0"
+    "@ai-sdk/openai": "^4.0.46",
+    "ai": "^7.0.77",
+    "cap-widget": "^0.1.57",
+    "capjs-core": "^0.1.1",
+    "cheerio": "^1.2.0",
+    "next": "^16.3.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

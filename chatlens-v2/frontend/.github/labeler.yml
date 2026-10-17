@@ -1,0 +1,83 @@
+# Requires: actions/labeler@v5 in a workflow
+
+'core: app':
+  - changed-files:
+      - any-glob-to-any-file: 'src/app/**'
+
+'core: components':
+  - changed-files:
+      - any-glob-to-any-file: 'src/components/**'
+
+'core: scrapers':
+  - changed-files:
+      - any-glob-to-any-file: 'src/lib/scrapers/**'
+
+'core: api':
+  - changed-files:
+      - any-glob-to-any-file: 'src/app/api/**'
+
+'security':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/session.ts'
+          - 'src/app/api/login/**'
+          - 'src/app/api/captcha/**'
+          - 'SECURITY.md'
+
+'accessibility':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/app/globals.css'
+          - 'DESIGN.md'
+
+'ai':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/ai/**'
+          - 'src/components/ai/**'
+          - 'src/app/api/ai/**'
+
+'i18n':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/i18n/**'
+          - 'src/components/ui/LanguageSelector.tsx'
+
+'compliance':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/compliance/**'
+          - 'src/components/compliance/**'
+
+'tests':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.test.ts'
+          - 'scripts/**'
+          - 'e2e/**'
+
+'documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'
+
+'ci':
+  - changed-files:
+      - any-glob-to-any-file: '.github/**'
+
+'dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'
+
+'config':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tsconfig.json'
+          - 'next.config.ts'
+          - 'eslint.config.mjs'
+          - 'postcss.config.mjs'
+          - '.prettierrc'
+          - '.editorconfig'

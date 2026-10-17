@@ -1,0 +1,27 @@
+# Default owner for everything
+* @tejaswin-amara
+
+# Core application
+src/app/** @tejaswin-amara
+src/components/** @tejaswin-amara
+src/lib/** @tejaswin-amara
+src/hooks/** @tejaswin-amara
+src/types/** @tejaswin-amara
+
+# Security-sensitive files (require owner review)
+src/lib/session.ts @tejaswin-amara
+src/lib/scrapers/** @tejaswin-amara
+src/app/api/** @tejaswin-amara
+.env.example @tejaswin-amara
+
+# CI/CD and workflows
+.github/** @tejaswin-amara
+
+# Documentation
+*.md @tejaswin-amara
+docs/** @tejaswin-amara
+
+# Configuration
+package.json @tejaswin-amara
+tsconfig.json @tejaswin-amara
+next.config.ts @tejaswin-amara

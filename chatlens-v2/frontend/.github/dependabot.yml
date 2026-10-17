@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 2
+    reviewers:
+      - 'tejaswin-amara'
+    labels:
+      - 'dependencies'
+    commit-message:
+      prefix: 'chore(deps):'
+    groups:
+      all-npm-dependencies:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+    ignore:
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 1
+    labels:
+      - 'ci'
+    commit-message:
+      prefix: 'chore(ci):'
+    groups:
+      all-github-actions:
+        patterns:
+          - '*'
