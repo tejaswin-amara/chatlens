@@ -1,27 +1,333 @@
-# Please replace this sample with your actual timetable CSV export data.
 [meta]
 term = "T04"
-valid_from = 2026-07-23
-valid_to = 2026-10-08
-sample = true
+valid_from = 2026-07-15
+valid_to = 2026-11-01
+sample = false
 
+# Monday (Mon)
 [[slot]]
 day = "Mon"
 period = 1
-course = "DSA"
+course = "DBSE"
 room = "H-005"
-faculty = "Dr. A"
+faculty = "Divya Priya Degala"
 
 [[slot]]
 day = "Mon"
 period = 2
-course = "DSA"
+course = "DBSE"
 room = "H-005"
-faculty = "Dr. A"
+faculty = "Divya Priya Degala"
+
+[[slot]]
+day = "Mon"
+period = 3
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Mon"
+period = 4
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Mon"
+period = 5
+course = "JAPANESE"
+room = "HC-14D"
+faculty = "I V Sai Lakshmi Haritha"
+
+[[slot]]
+day = "Mon"
+period = 7
+course = "JAPANESE"
+room = "HC-15D"
+faculty = "I V Sai Lakshmi Haritha"
+
+[[slot]]
+day = "Mon"
+period = 8
+course = "ML"
+room = "HC-15C"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Mon"
+period = 9
+course = "ML"
+room = "HC-15C"
+faculty = "Lakshmi Prasanna Yeluri"
+
+# Tuesday (Tue)
+[[slot]]
+day = "Tue"
+period = 1
+course = "DSA"
+room = "HC-15C"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Tue"
+period = 2
+course = "DSA"
+room = "HC-15C"
+faculty = "Chandusha Kanda"
 
 [[slot]]
 day = "Tue"
 period = 3
+course = "DBSE"
+room = "H-005"
+faculty = "Divya Priya Degala"
+
+[[slot]]
+day = "Tue"
+period = 4
+course = "DBSE"
+room = "H-005"
+faculty = "Divya Priya Degala"
+
+[[slot]]
+day = "Tue"
+period = 5
+course = "OSSP"
+room = "H-005"
+faculty = "Raghupathi Manthena"
+
+[[slot]]
+day = "Tue"
+period = 7
+course = "DSA"
+room = "HC-15C"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Tue"
+period = 8
+course = "DSA"
+room = "HC-15C"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Tue"
+period = 9
+course = "JAPANESE"
+room = "H006"
+faculty = "I V Sai Lakshmi Haritha"
+
+# Wednesday (Wed)
+[[slot]]
+day = "Wed"
+period = 1
+course = "OSSP"
+room = "H107A"
+faculty = "Raghupathi Manthena"
+
+[[slot]]
+day = "Wed"
+period = 2
+course = "OSSP"
+room = "H107A"
+faculty = "Raghupathi Manthena"
+
+[[slot]]
+day = "Wed"
+period = 3
+course = "DSA"
+room = "H-005"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Wed"
+period = 4
+course = "DSA"
+room = "H-005"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Wed"
+period = 5
+course = "ML"
+room = "H107D"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Wed"
+period = 7
+course = "ML"
+room = "H-005"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Wed"
+period = 8
+course = "DBSE"
+room = "H-005"
+faculty = "Divya Priya Degala"
+
+[[slot]]
+day = "Wed"
+period = 9
+course = "DBSE"
+room = "H-005"
+faculty = "Divya Priya Degala"
+
+# Thursday (Thu)
+[[slot]]
+day = "Thu"
+period = 1
+course = "ESD"
+room = "H307B"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Thu"
+period = 2
+course = "ESD"
+room = "H307B"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Thu"
+period = 3
 course = "ML"
 room = "HC-15C"
-faculty = "Dr. B"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Thu"
+period = 4
+course = "ML"
+room = "HC-15C"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Thu"
+period = 5
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Thu"
+period = 7
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Thu"
+period = 8
+course = "OSSP"
+room = "H-005"
+faculty = "Raghupathi Manthena"
+
+[[slot]]
+day = "Thu"
+period = 9
+course = "OSSP"
+room = "H-005"
+faculty = "Raghupathi Manthena"
+
+# Friday (Fri)
+[[slot]]
+day = "Fri"
+period = 1
+course = "ML"
+room = "H-005"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Fri"
+period = 2
+course = "ML"
+room = "H-005"
+faculty = "Lakshmi Prasanna Yeluri"
+
+[[slot]]
+day = "Fri"
+period = 3
+course = "DSA"
+room = "HC-15C"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Fri"
+period = 4
+course = "DSA"
+room = "HC-15C"
+faculty = "Chandusha Kanda"
+
+[[slot]]
+day = "Fri"
+period = 5
+course = "DBSE"
+room = "HC-15C"
+faculty = "Divya Priya Degala"
+
+[[slot]]
+day = "Fri"
+period = 7
+course = "DBSE"
+room = "HC-15C"
+faculty = "Divya Priya Degala"
+
+[[slot]]
+day = "Fri"
+period = 8
+course = "OSSP"
+room = "H-005"
+faculty = "Raghupathi Manthena"
+
+# Saturday (Sat)
+[[slot]]
+day = "Sat"
+period = 1
+course = "OSSP"
+room = "HC-15C"
+faculty = "Raghupathi Manthena"
+
+[[slot]]
+day = "Sat"
+period = 2
+course = "OSSP"
+room = "HC-15C"
+faculty = "Raghupathi Manthena"
+
+[[slot]]
+day = "Sat"
+period = 3
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Sat"
+period = 4
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Sat"
+period = 5
+course = "JAPANESE"
+room = "H107A"
+faculty = "I V Sai Lakshmi Haritha"
+
+[[slot]]
+day = "Sat"
+period = 8
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"
+
+[[slot]]
+day = "Sat"
+period = 9
+course = "ESD"
+room = "H301A"
+faculty = "Kurakula Anudeep"

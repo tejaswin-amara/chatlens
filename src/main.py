@@ -27,7 +27,11 @@ async def bot_callback_poll() -> None:
 
     import asyncio
 
-    from src.ingestion.handlers import handle_bot_callback, handle_bot_command
+    from src.ingestion.handlers import (
+        handle_bot_callback,
+        handle_bot_command,
+        handle_undo_command,
+    )
     from src.notify.bot import bot
 
     offset = 0
@@ -43,7 +47,12 @@ async def bot_callback_poll() -> None:
                         await handle_bot_callback(up["callback_query"])
                     elif "message" in up:
                         m = up["message"]
-                        await handle_bot_command(m)
+                        text = (m.get("text") or "").strip()
+                        sender_id = m.get("from", {}).get("id") or m.get("chat", {}).get("id")
+                        if text.startswith("/undo") and sender_id == settings.owner_chat_id:
+                            await handle_undo_command(m)
+                        elif sender_id == settings.owner_chat_id:
+                            await handle_bot_command(m)
             await asyncio.sleep(0.2)
         except asyncio.CancelledError:
             raise
