@@ -10,8 +10,10 @@ import httpx
 from src.config import settings
 from src.erp.scrapers import (
     parse_attendance_records,
+    parse_cgpa_records,
     parse_fee_records,
     parse_marks_records,
+    parse_timetable_records,
 )
 from src.utils.deduplication import deduplicator
 from src.utils.logging import get_logger
@@ -20,13 +22,13 @@ logger = get_logger(__name__)
 
 ERP_BASE_URL = "https://newerp.kluniversity.in"
 LOGIN_URL = f"{ERP_BASE_URL}/index.php?r=site%2Flogin"
+ATTENDANCE_INPUT_URL = (
+    f"{ERP_BASE_URL}/index.php?r=studentattendance%2Fstudentdailyattendance%2Fsearchgetinput"
+)
 ATTENDANCE_URL = (
     f"{ERP_BASE_URL}/index.php?r=studentattendance%2Fstudentdailyattendance%2Fcourselist"
 )
-TIMETABLE_URL = (
-    f"{ERP_BASE_URL}/index.php?r=timetables%2Funiversitymasteracademictimetableview"
-    f"%2Findexstudentindisearch"
-)
+TIMETABLE_URL = f"{ERP_BASE_URL}/index.php"
 MARKS_URL = (
     f"{ERP_BASE_URL}/index.php?r=studentinfo%2Fstudentendexamresult%2Fgetstudentinternalmarks"
 )
@@ -207,26 +209,119 @@ class KLUERPClient:
             return res.text
 
 
-    async def get_attendance(self) -> list[dict[str, Any]]:
+    async def get_attendance(
+        self, academic_year: str = "29", semester_id: str = "1"
+    ) -> list[dict[str, Any]]:
         """Scrapes and returns verified course-wise attendance metrics."""
-        html = await self.fetch_page(ATTENDANCE_URL)
-        if not html:
-            return []
-        return parse_attendance_records(html)
+        try:
+            search_html = await self.fetch_page(ATTENDANCE_INPUT_URL)
+            csrf_m = re.search(r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']', search_html)
+            csrf = csrf_m.group(1) if csrf_m else ""
 
-    async def get_marks(self) -> list[dict[str, Any]]:
+            async with self._get_http_client() as client:
+                res = await client.post(
+                    ATTENDANCE_URL,
+                    data={
+                        "_csrf": csrf,
+                        "DynamicModel[academicyear]": academic_year,
+                        "DynamicModel[semesterid]": semester_id,
+                    },
+                    headers={
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Referer": ATTENDANCE_INPUT_URL,
+                    },
+                )
+                records = parse_attendance_records(res.text)
+                if records:
+                    deduplicator.meta_set("erp_attendance_cache", json.dumps(records))
+                    return records
+        except Exception as e:
+            logger.error("Failed to query ERP attendance", error=str(e))
+
+        cached = deduplicator.meta_get("erp_attendance_cache")
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception as e:
+                logger.debug("Failed to decode cached ERP attendance", error=str(e))
+        return []
+
+    async def get_timetable(
+        self, academic_year: str = "29", semester_id: str = "1"
+    ) -> list[dict[str, Any]]:
+        """Scrapes and returns official weekly timetable matrix from KLU ERP."""
+        try:
+            tt_route = (
+                "timetables/universitymasteracademictimetableview"
+                "/individualstudenttimetableget"
+            )
+            async with self._get_http_client() as client:
+                res = await client.get(
+                    TIMETABLE_URL,
+                    params={
+                        "r": tt_route,
+                        "UniversityMasterAcademicTimetableView[academicyear]": academic_year,
+                        "UniversityMasterAcademicTimetableView[semesterid]": semester_id,
+                    },
+                )
+                records = parse_timetable_records(res.text)
+                if records:
+                    deduplicator.meta_set("erp_timetable_cache", json.dumps(records))
+                    return records
+        except Exception as e:
+            logger.error("Failed to query ERP timetable", error=str(e))
+
+        cached = deduplicator.meta_get("erp_timetable_cache")
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception as e:
+                logger.debug("Failed to decode cached ERP timetable", error=str(e))
+        return []
+
+    async def get_marks(
+        self, academic_year: str = "29", semester_id: str = "1"
+    ) -> list[dict[str, Any]]:
         """Scrapes and returns internal assessment marks."""
-        html = await self.fetch_page(MARKS_URL)
-        if not html:
+        try:
+            marks_page = await self.fetch_page(MARKS_URL)
+            csrf_m = re.search(r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']', marks_page)
+            csrf = csrf_m.group(1) if csrf_m else ""
+
+            async with self._get_http_client() as client:
+                res = await client.post(
+                    MARKS_URL,
+                    data={
+                        "_csrf": csrf,
+                        "DynamicModel[academicyear]": academic_year,
+                        "DynamicModel[semester]": semester_id,
+                    },
+                    headers={"Referer": MARKS_URL},
+                )
+                return parse_marks_records(res.text)
+        except Exception as e:
+            logger.error("Failed to query ERP marks", error=str(e))
             return []
-        return parse_marks_records(html)
+
+    async def get_cgpa(self) -> list[dict[str, Any]]:
+        """Scrapes and returns official academic grades, grade points and CGPA records."""
+        try:
+            html = await self.fetch_page(CGPA_URL)
+            return parse_cgpa_records(html)
+        except Exception as e:
+            logger.error("Failed to query ERP CGPA", error=str(e))
+            return []
 
     async def get_fee_orders(self) -> list[dict[str, Any]]:
         """Scrapes and returns fee order payment records."""
-        html = await self.fetch_page(FEE_URL)
-        if not html:
+        try:
+            html = await self.fetch_page(FEE_URL)
+            if not html:
+                return []
+            return parse_fee_records(html)
+        except Exception as e:
+            logger.error("Failed to query ERP fee orders", error=str(e))
             return []
-        return parse_fee_records(html)
 
 
 klu_erp = KLUERPClient()

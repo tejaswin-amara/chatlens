@@ -666,6 +666,7 @@ async def handle_bot_command(msg: dict) -> None:
             "• `/today` — Today's classes & room overrides\n"
             "• `/attendance` — Live attendance & safe bunk margins\n"
             "• `/marks` — In-sem internal marks & assessments\n"
+            "• `/cgpa` — Official academic grades & transcript\n"
             "• `/fee` — Fee orders & payment receipts\n"
             "• `/rescan` — Deep-scan course group messages & files (past 7 days)\n"
             "• `/status` — Live status & monitored chats\n"
@@ -738,20 +739,21 @@ async def handle_bot_command(msg: dict) -> None:
                 pct = r["percentage"]
                 status_icon = "🟢" if pct >= 85.0 else ("🟡" if pct >= 75.0 else "🔴")
                 name_short = r["course_name"] or r["course_code"]
+                ltps_tag = f" [{r['ltps']}]" if r.get("ltps") else ""
                 line = (
-                    f"{status_icon} **{name_short}** (`{r['course_code']}`)\n"
+                    f"{status_icon} **{name_short}**{ltps_tag} (`{r['course_code']}`)\n"
                     f"   • Attended: {r['attended']}/{r['conducted']} ({pct}%)\n"
                 )
                 if r["safe_bunks"] > 0:
                     line += f"   • Margin: **{r['safe_bunks']} safe bunks** remaining\n"
                 elif r["recovery_needed"] > 0:
                     line += f"   • ⚠️ Needs **{r['recovery_needed']} classes** to reach 85%\n"
-                    critical.append(name_short)
+                    critical.append(f"{name_short}{ltps_tag}")
                 lines.append(line)
 
             if critical:
                 lines.append(
-                    f"\n⚠️ **Action Required**: {len(critical)} courses below 85% distinction!"
+                    f"\n⚠️ **Action Required**: {len(critical)} components below 85% distinction!"
                 )
 
             await asyncio.to_thread(bot.send, "\n".join(lines))
@@ -765,7 +767,7 @@ async def handle_bot_command(msg: dict) -> None:
             await asyncio.to_thread(
                 bot.send,
                 "⚠️ No internal marks found or ERP unavailable.\n"
-                "Ensure `ERP_USERNAME` and `ERP_PASSWORD` are configured."
+                "Ensure `ERP_USERNAME` and `ERP_PASSWORD` are configured.",
             )
         else:
             lines = ["📝 **Internal Assessment Marks (KL ERP)**:\n"]
@@ -773,6 +775,29 @@ async def handle_bot_command(msg: dict) -> None:
                 lines.append(
                     f"• **{m['course_name'] or m['course_code']}** — {m['component']}: "
                     f"**{m['secured_marks']} / {m['max_marks']}** ({m['percentage']}%)"
+                )
+            await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd == "/cgpa":
+        from src.erp import klu_erp
+
+        await asyncio.to_thread(
+            bot.send, "⏳ Fetching official academic transcript & CGPA from KL ERP..."
+        )
+        records = await klu_erp.get_cgpa()
+        if not records:
+            await asyncio.to_thread(
+                bot.send,
+                "⚠️ No CGPA transcript found or ERP unavailable.\n"
+                "Ensure `ERP_USERNAME` and `ERP_PASSWORD` are configured.",
+            )
+        else:
+            lines = ["🎓 **Academic Grades & Transcript (KL ERP)**:\n"]
+            for r in records[:18]:
+                gp = r["grade_point"]
+                lines.append(
+                    f"• **{r['course_code']}** ({r['grade']}): {r['course_name']}\n"
+                    f"   Grade Point: **{gp}** | Credits: {r['credits']} | Term: {r['semester']}"
                 )
             await asyncio.to_thread(bot.send, "\n".join(lines))
 

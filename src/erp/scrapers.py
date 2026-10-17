@@ -74,39 +74,60 @@ def parse_attendance_records(html: str) -> list[dict[str, Any]]:
 
     for table in tables:
         for row in table:
-            # Find relevant columns by fuzzy header match
             code = ""
             name = ""
+            ltps = ""
+            section = ""
             conducted = 0
             attended = 0
+            absent = 0
             percentage = 0.0
 
             for k, v in row.items():
                 k_lower = k.lower()
-                if "code" in k_lower or "course id" in k_lower or "subject code" in k_lower:
+                is_code = (
+                    "coursecode" in k_lower
+                    or "course id" in k_lower
+                    or "subject code" in k_lower
+                    or ("code" in k_lower and "course" in k_lower)
+                )
+                is_name = (
+                    "coursedesc" in k_lower
+                    or "subject name" in k_lower
+                    or ("course" in k_lower and "name" in k_lower)
+                    or "title" in k_lower
+                )
+                if is_code:
                     code = v
-                elif "title" in k_lower or "name" in k_lower or "course" in k_lower:
+                elif is_name:
                     name = v
-                elif (
-                    "conducted" in k_lower
-                    or "total" in k_lower
-                    or "held" in k_lower
-                    or "classes" in k_lower
-                ):
-                    try:
-                        conducted = int(float(re.sub(r"[^\d.]", "", v) or "0"))
-                    except ValueError:
-                        conducted = 0
+                elif "ltps" in k_lower or "type" in k_lower:
+                    ltps = v
+                elif "section" in k_lower:
+                    section = v
                 elif "attended" in k_lower or "present" in k_lower:
                     try:
                         attended = int(float(re.sub(r"[^\d.]", "", v) or "0"))
                     except ValueError:
                         attended = 0
+                elif "absent" in k_lower:
+                    try:
+                        absent = int(float(re.sub(r"[^\d.]", "", v) or "0"))
+                    except ValueError:
+                        absent = 0
+                elif "conducted" in k_lower or "held" in k_lower:
+                    try:
+                        conducted = int(float(re.sub(r"[^\d.]", "", v) or "0"))
+                    except ValueError:
+                        conducted = 0
                 elif "%" in k_lower or "percent" in k_lower:
                     try:
                         percentage = float(re.sub(r"[^\d.]", "", v) or "0.0")
                     except ValueError:
                         percentage = 0.0
+
+            if not code and "code" in [k.lower() for k in row.keys()]:
+                code = row.get("Code", row.get("code", ""))
 
             # If percentage is missing or 0 but conducted > 0, compute it
             if percentage == 0.0 and conducted > 0:
@@ -133,8 +154,11 @@ def parse_attendance_records(html: str) -> list[dict[str, Any]]:
                     {
                         "course_code": code,
                         "course_name": name,
+                        "ltps": ltps,
+                        "section": section,
                         "conducted": conducted,
                         "attended": attended,
+                        "absent": absent,
                         "percentage": percentage,
                         "safe_bunks": safe_bunks,
                         "recovery_needed": recovery_needed,
@@ -231,3 +255,97 @@ def parse_fee_records(html: str) -> list[dict[str, Any]]:
                 )
 
     return records
+
+
+def parse_cgpa_records(html: str) -> list[dict[str, Any]]:
+    """Extracts official grade points, credits and semester results from CGPA portal."""
+    tables = parse_generic_tables(html)
+    records: list[dict[str, Any]] = []
+
+    for table in tables:
+        for row in table:
+            c_code = ""
+            c_name = ""
+            grade = ""
+            grade_point = ""
+            credits = ""
+            sem = ""
+            acad_year = ""
+            promotion = ""
+
+            for k, v in row.items():
+                k_lower = k.lower()
+                if "course code" in k_lower or "code" in k_lower:
+                    c_code = v
+                elif "course name" in k_lower or "name" in k_lower:
+                    c_name = v
+                elif "grade point" in k_lower:
+                    grade_point = v
+                elif "grade" in k_lower:
+                    grade = v
+                elif "credit" in k_lower:
+                    credits = v
+                elif "promotion" in k_lower:
+                    promotion = v
+                elif "reg sem" in k_lower or "semester" in k_lower:
+                    sem = v
+                elif "academic year" in k_lower or "year" in k_lower:
+                    acad_year = v
+
+            if c_code and grade:
+                records.append(
+                    {
+                        "course_code": c_code,
+                        "course_name": c_name,
+                        "grade": grade,
+                        "grade_point": grade_point,
+                        "credits": credits,
+                        "promotion": promotion,
+                        "semester": sem,
+                        "academic_year": acad_year,
+                    }
+                )
+
+    return records
+
+
+def parse_timetable_records(html: str) -> list[dict[str, Any]]:
+    """Extracts timetable slots from official KLU ERP weekly matrix."""
+    tables = parse_generic_tables(html)
+    records: list[dict[str, Any]] = []
+
+    for table in tables:
+        for row in table:
+            day = row.get("Oday") or row.get("Day") or row.get("day", "")
+            if not day:
+                continue
+            for col, val in row.items():
+                if col.isdigit() and val and val != "-":
+                    period_num = int(col)
+                    match = re.match(
+                        r"^([A-Z0-9]+)(?:-([A-Za-z]))?\s*-\s*(.*?)\s*-RoomNo-(.*)$", val
+                    )
+                    if match:
+                        c_code, comp, sec, room = match.groups()
+                        records.append(
+                            {
+                                "day": day,
+                                "period": period_num,
+                                "course_code": c_code,
+                                "component": comp or "",
+                                "section": sec.strip(),
+                                "room": room.strip(),
+                                "raw": val,
+                            }
+                        )
+                    else:
+                        records.append(
+                            {
+                                "day": day,
+                                "period": period_num,
+                                "raw": val,
+                            }
+                        )
+
+    return records
+
