@@ -81,6 +81,7 @@ def test_settings_missing_live_confirm():
         GEMINI_API_KEY="gemini",
         SPARK_MODE="live",
         SPARK_CHAT_IDS="1",
+        BOT_TOKEN=None,
     )
     with pytest.raises(ValueError, match="BOT_TOKEN"):
         s.validate_required()

@@ -47,7 +47,7 @@ def generate_embeddings_batch(texts: list[str]) -> list[list[float] | None]:
                 client,
                 t,
                 task_type="RETRIEVAL_DOCUMENT",
-                model="text-embedding-004",
+                model="gemini-embedding-001",
             )
             for t in texts
         ]
@@ -78,7 +78,7 @@ async def save_messages(messages: list[dict[str, Any]]) -> None:
                         client,
                         m["text"][:500],
                         task_type="RETRIEVAL_DOCUMENT",
-                        model="text-embedding-004",
+                        model="gemini-embedding-001",
                     )
                     if emb is not None:
                         m["embedding"] = emb

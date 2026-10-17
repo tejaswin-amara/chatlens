@@ -596,7 +596,7 @@ async def api_ask(req: AskRequest, db: AsyncSession = Depends(get_db)):
                 client,
                 req.question,
                 task_type="RETRIEVAL_QUERY",
-                model="text-embedding-004",
+                model="gemini-embedding-001",
             )
         except Exception:
             query_embedding = None

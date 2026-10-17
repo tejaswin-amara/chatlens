@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.tl.types import User
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,7 +29,11 @@ def _get_client() -> TelegramClient:
     api_hash = config.TELEGRAM_API_HASH
     if not api_id or not api_hash:
         raise ValueError("TELEGRAM_API_ID and TELEGRAM_API_HASH must be set in .env")
-    client = TelegramClient(SESSION_NAME, int(api_id), api_hash)
+    session_str = getattr(config, "TELEGRAM_SESSION_STRING", None) or os.getenv(
+        "TELEGRAM_SESSION_STRING"
+    )
+    session = StringSession(session_str) if session_str else SESSION_NAME
+    client = TelegramClient(session, int(api_id), api_hash)
     client.flood_sleep_threshold = 0  # Do not sleep, raise FloodWaitError immediately
     return client
 
