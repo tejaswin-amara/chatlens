@@ -756,3 +756,48 @@ def test_api_status_probe_degraded(in_memory_db):
         assert "unhealthy" in data["database"]
     finally:
         main.app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_firebase_auth_token_validation():
+    from fastapi import HTTPException
+    from firebase_auth import get_current_user
+
+    # No header
+    assert await get_current_user(None) is None
+
+    # Invalid header format
+    assert await get_current_user("Basic xyz") is None
+
+    # Offline mock token
+    user = await get_current_user("Bearer mock-test-token")
+    assert user is not None
+    assert user["uid"] == "test-user-123"
+
+    # Offline unknown token without firebase_admin initialized
+    assert await get_current_user("Bearer unknown-token") is None
+
+    # Simulated Firebase Admin verification success
+    mock_auth = MagicMock()
+    mock_auth.verify_id_token.return_value = {
+        "uid": "live-user-456",
+        "email": "live@example.com",
+    }
+    with (
+        patch("firebase_auth.HAS_FIREBASE", True),
+        patch("firebase_auth.admin_auth", mock_auth),
+    ):
+        res = await get_current_user("Bearer live-valid-token")
+        assert res is not None
+        assert res["uid"] == "live-user-456"
+
+    # Simulated Firebase Admin verification error
+    mock_auth_err = MagicMock()
+    mock_auth_err.verify_id_token.side_effect = Exception("Token expired")
+    with (
+        patch("firebase_auth.HAS_FIREBASE", True),
+        patch("firebase_auth.admin_auth", mock_auth_err),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user("Bearer expired-token")
+        assert exc_info.value.status_code == 401

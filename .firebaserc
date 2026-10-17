@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "chatlens-app",
+    "staging": "chatlens-staging",
+    "production": "chatlens-prod"
+  }
+}

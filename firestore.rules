@@ -1,0 +1,235 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: Firebase Auth UID ({userId})
+    // Fields:
+    //   - userId: string (required, 1..128 chars, matches auth.uid)
+    //   - email: string (optional, valid email format, max 100 chars)
+    //   - displayName: string (optional, 1..100 chars)
+    //   - photoURL: string (optional, valid http/https URL, max 500 chars)
+    //   - createdAt: timestamp (required, immutable)
+    //   - updatedAt: timestamp (optional)
+    //   - preferences: map (optional, max 20 keys)
+    //   - role: string (optional, only 'user' allowed, immutable on update)
+    //
+    // Collection: /shared_insights/{insightId}
+    // Document ID: Auto-generated or client UUID ({insightId})
+    // Fields:
+    //   - id: string (optional, 1..128 chars, matches insightId if present)
+    //   - insightId: string (optional, 1..128 chars, matches insightId if present)
+    //   - authorId: string (required, 1..128 chars, matches auth.uid, immutable)
+    //   - authorName: string (optional, 1..100 chars)
+    //   - title: string (required, 1..200 chars)
+    //   - insight: string (required, 1..50000 chars)
+    //   - summary: string (optional, 1..5000 chars)
+    //   - chatType: string (optional, 1..50 chars, e.g. 'telegram', 'whatsapp')
+    //   - insightType: string (optional, 1..50 chars, e.g. 'summary', 'sentiment')
+    //   - tags: list (optional, max 20 items)
+    //   - metrics: map (optional, max 20 keys)
+    //   - createdAt: timestamp (required, immutable)
+    //   - updatedAt: timestamp (optional)
+    //   - isPublic: bool (optional)
+    //
+    // Collection: /chat_telemetry/{docId}
+    // Document ID: Auto-generated document ID ({docId})
+    // Fields:
+    //   - userId: string (required, 1..128 chars, matches auth.uid)
+    //   - event: string (required, 1..100 chars)
+    //   - timestamp: timestamp (required, past or present timestamp)
+    //   - platform: string (optional, 1..50 chars, e.g. 'web', 'desktop')
+    //   - sessionDuration: number (optional, >= 0 and <= 86400000 ms)
+    //   - metadata: map (optional, max 20 keys)
+    //   - status: string (optional, 1..50 chars, e.g. 'success', 'failure')
+    //   - errorMessage: string (optional, 1..500 chars)
+    //   - appVersion: string (optional, 1..50 chars)
+    //   - createdAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Core Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+             email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+             (url.matches('^https://.*') || url.matches('^http://.*'));
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalEmail(field) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() <= 100 &&
+              isValidEmail(request.resource.data[field]));
+    }
+
+    function isValidOptionalUrl(field, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() <= maxLen &&
+              isValidUrl(request.resource.data[field]));
+    }
+
+    function isValidOptionalMap(field, maxKeys) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is map &&
+              request.resource.data[field].keys().size() <= maxKeys);
+    }
+
+    function isValidOptionalList(field, maxSize) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is list &&
+              request.resource.data[field].size() <= maxSize);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['userId', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt', 'preferences', 'role']) &&
+             hasRequiredFields(['userId', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.createdAt is timestamp &&
+             isValidOptionalEmail('email') &&
+             isValidOptionalString('displayName', 1, 100) &&
+             isValidOptionalUrl('photoURL', 500) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+             isValidOptionalMap('preferences', 20) &&
+             (!('role' in data) || (data.role is string && data.role == 'user'));
+    }
+
+    function isValidSharedInsight(data) {
+      return hasOnlyAllowedFields(['id', 'insightId', 'authorId', 'authorName', 'title', 'insight', 'summary', 'chatType', 'insightType', 'tags', 'metrics', 'createdAt', 'updatedAt', 'isPublic']) &&
+             hasRequiredFields(['authorId', 'title', 'insight', 'createdAt']) &&
+             data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.insight is string && data.insight.size() >= 1 && data.insight.size() <= 50000 &&
+             data.createdAt is timestamp &&
+             isValidOptionalString('id', 1, 128) &&
+             isValidOptionalString('insightId', 1, 128) &&
+             isValidOptionalString('authorName', 1, 100) &&
+             isValidOptionalString('summary', 1, 5000) &&
+             isValidOptionalString('chatType', 1, 50) &&
+             isValidOptionalString('insightType', 1, 50) &&
+             isValidOptionalList('tags', 20) &&
+             isValidOptionalMap('metrics', 20) &&
+             (!('isPublic' in data) || data.isPublic is bool) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidTelemetry(data) {
+      return hasOnlyAllowedFields(['userId', 'event', 'timestamp', 'platform', 'sessionDuration', 'metadata', 'status', 'errorMessage', 'appVersion', 'createdAt']) &&
+             hasRequiredFields(['userId', 'event', 'timestamp']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.event is string && data.event.size() >= 1 && data.event.size() <= 100 &&
+             data.timestamp is timestamp &&
+             data.timestamp <= request.time + duration.value(5, 'm') &&
+             isValidOptionalString('platform', 1, 50) &&
+             isValidOptionalString('status', 1, 50) &&
+             isValidOptionalString('errorMessage', 1, 500) &&
+             isValidOptionalString('appVersion', 1, 50) &&
+             (!('sessionDuration' in data) || (data.sessionDuration is number && data.sessionDuration >= 0 && data.sessionDuration <= 86400000)) &&
+             isValidOptionalMap('metadata', 20) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules Definition
+    // ===============================================================
+
+    // User Profiles:
+    // Only the authenticated owner can read or write their own user profile document.
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       request.resource.data.userId == userId &&
+                       isValidUser(request.resource.data);
+
+      allow update: if isOwner(userId) &&
+                       isValidUser(request.resource.data) &&
+                       areImmutableFieldsUnchanged(['userId', 'createdAt', 'role']);
+
+      allow delete: if isOwner(userId);
+    }
+
+    // Shared Insights:
+    // Public read so shared links can be viewed.
+    // Create by authenticated author only.
+    // Update and delete restricted to original author.
+    match /shared_insights/{insightId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated() &&
+                       request.resource.data.authorId == request.auth.uid &&
+                       (!('insightId' in request.resource.data) || request.resource.data.insightId == insightId) &&
+                       (!('id' in request.resource.data) || request.resource.data.id == insightId) &&
+                       isValidSharedInsight(request.resource.data);
+
+      allow update: if isAuthenticated() &&
+                       resource.data.authorId == request.auth.uid &&
+                       request.resource.data.authorId == resource.data.authorId &&
+                       isValidSharedInsight(request.resource.data) &&
+                       areImmutableFieldsUnchanged(['authorId', 'createdAt', 'id', 'insightId']);
+
+      allow delete: if isAuthenticated() &&
+                       resource.data.authorId == request.auth.uid;
+    }
+
+    // Chat Telemetry:
+    // Append-only client writes for authenticated users.
+    // Bounded document payload protects Spark tier quotas.
+    // Client reads, updates, and deletes are strictly denied.
+    match /chat_telemetry/{docId} {
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidTelemetry(request.resource.data);
+
+      allow read, update, delete: if false;
+    }
+
+    // Zero-trust default deny for all other collections and document paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
