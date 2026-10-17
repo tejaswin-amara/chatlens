@@ -27,13 +27,13 @@ async def bot_callback_poll() -> None:
 
     import asyncio
 
-    from src.ingestion.handlers import handle_bot_callback, handle_undo_command
+    from src.ingestion.handlers import handle_bot_callback, handle_bot_command
     from src.notify.bot import bot
 
     offset = 0
     while True:
         try:
-            updates = await asyncio.to_thread(bot.get_updates, offset)
+            updates = await asyncio.to_thread(bot.get_updates, offset, 1)
             if updates and "result" in updates:
                 for up in updates["result"]:
                     update_id = up.get("update_id", offset)
@@ -43,16 +43,13 @@ async def bot_callback_poll() -> None:
                         await handle_bot_callback(up["callback_query"])
                     elif "message" in up:
                         m = up["message"]
-                        text = m.get("text", "")
-                        sender_id = m.get("from", {}).get("id") or m.get("chat", {}).get("id")
-                        if text.startswith("/undo") and sender_id == settings.owner_chat_id:
-                            await handle_undo_command(m)
-            await asyncio.sleep(2)
+                        await handle_bot_command(m)
+            await asyncio.sleep(0.2)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.error("Bot callback polling error", error=str(e))
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
 
 
 async def run_briefing() -> None:
@@ -293,3 +290,7 @@ def main() -> None:
 
     code = asyncio.run(run_daemon())
     sys.exit(code)
+
+
+if __name__ == "__main__":
+    main()

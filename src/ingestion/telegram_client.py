@@ -17,6 +17,16 @@ def create_telegram_client() -> TelegramClient:
         raise ValueError("TELEGRAM_SESSION_STRING must be configured for headless operation.")
 
     logger.info("Initializing headless Telethon StringSession client")
-    session = StringSession(settings.telegram_session_string)
-    client = TelegramClient(session, settings.telegram_api_id, settings.telegram_api_hash)
+    raw_session = (
+        settings.telegram_session_string.get_secret_value()
+        if hasattr(settings.telegram_session_string, "get_secret_value")
+        else str(settings.telegram_session_string)
+    )
+    raw_hash = (
+        settings.telegram_api_hash.get_secret_value()
+        if hasattr(settings.telegram_api_hash, "get_secret_value")
+        else str(settings.telegram_api_hash)
+    )
+    session = StringSession(raw_session)
+    client = TelegramClient(session, settings.telegram_api_id, raw_hash)
     return client

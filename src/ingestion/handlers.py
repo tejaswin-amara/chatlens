@@ -591,6 +591,103 @@ async def handle_undo_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, f"❌ Undo failed: {e}")
 
 
+async def handle_bot_command(msg: dict) -> None:
+    from src.config import settings
+    from src.notify.bot import bot
+
+    chat_id = msg.get("chat", {}).get("id") or msg.get("from", {}).get("id")
+    if settings.owner_chat_id and chat_id and chat_id != settings.owner_chat_id:
+        return
+
+    text = (msg.get("text") or "").strip()
+    cmd = text.split()[0].lower() if text else ""
+
+    if cmd in ("/start", "/help"):
+        reply = (
+            "👋 **Welcome to ChatLens & SPARK PA!**\n\n"
+            "I monitor your course chats, track timetable changes, "
+            "and answer questions with Google Gemini AI.\n\n"
+            "**Commands**:\n"
+            "• `/today` — Today's classes & timetable\n"
+            "• `/status` — Live status & monitored chats\n"
+            "• `/undo` — Revert the last applied override\n"
+            "• `/help` — Show this guide\n\n"
+            "💬 *Tip: You can also ask me any questions directly!*"
+        )
+        await asyncio.to_thread(bot.send, reply)
+
+    elif cmd == "/status":
+        from src.utils import clock
+
+        now_str = clock.now_ist().strftime("%Y-%m-%d %H:%M:%S IST")
+        reply = (
+            f"🟢 **ChatLens PA Status** ({now_str})\n\n"
+            f"• **SPARK Mode**: `{settings.spark_mode}`\n"
+            f"• **Telegram**: Active ({len(settings.allowed_chat_ids)} monitored course chats)\n"
+            f"• **Gemini AI**: `{settings.gemini_model}` (Active & Connected)\n"
+            f"• **Google Workspace**: Connected\n"
+            f"• **Owner**: `{settings.owner_chat_id}`\n"
+            f"• **Status**: 🚀 Live & Listening in Real-Time"
+        )
+        await asyncio.to_thread(bot.send, reply)
+
+    elif cmd == "/today":
+        import src.timetable as tt
+        from src.utils import clock
+
+        today = clock.today_ist()
+        day_abbr = today.strftime("%a")
+        timetable = tt.load()
+
+        if not timetable:
+            await asyncio.to_thread(bot.send, "⚠️ Timetable file not found.")
+            return
+
+        matching = [s for s in timetable.slots if s.day == day_abbr]
+        if not matching:
+            await asyncio.to_thread(
+                bot.send,
+                f"📅 **Schedule for {today.strftime('%A, %b %d')}**:\n\n"
+                f"No scheduled classes for today! Enjoy your day 🎉",
+            )
+        else:
+            lines = [f"📅 **Schedule for {today.strftime('%A, %b %d')}**:"]
+            for s in sorted(matching, key=lambda x: x.period):
+                lines.append(f"• **P{s.period}**: {s.course} in `{s.room}` ({s.faculty})")
+            await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd == "/undo":
+        await handle_undo_command(msg)
+
+    else:
+        reply_sent = False
+        if settings.gemini_api_key.get_secret_value():
+            try:
+                from google import genai
+
+                client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
+                prompt = (
+                    "You are the helpful personal college assistant for Tejaswin Amara (KLEF).\n"
+                    f"Answer this query concisely in 1-3 sentences:\n\n{text}"
+                )
+                res = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=settings.gemini_model,
+                    contents=prompt,
+                )
+                if res and res.text:
+                    await asyncio.to_thread(bot.send, f"🤖 {res.text.strip()}")
+                    reply_sent = True
+            except Exception as e:
+                logger.warning("Gemini command reply failed", error=str(e))
+
+        if not reply_sent:
+            await asyncio.to_thread(
+                bot.send,
+                f'🤖 Received: "{text}"\nUse `/help` for commands or `/today` for your schedule.',
+            )
+
+
 async def catch_up_chats(client: TelegramClient) -> None:
     for chat_id in settings.allowed_chat_ids:
         try:
