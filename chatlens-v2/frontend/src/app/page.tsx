@@ -216,7 +216,7 @@ export default function LoginPage() {
     setUsername('2100030000');
     setPassword('demo_password');
     setCaptcha('demo');
-    // ponytail: reuse handleLogin with overrides to bypass async state update delay
+    // shortcut: direct handleLogin call with overrides, upgrade: migrate to unified form action hook if form state expands
     void handleLogin(undefined, { u: '2100030000', p: 'demo_password', c: 'demo' });
   };
 

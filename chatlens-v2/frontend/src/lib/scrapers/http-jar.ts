@@ -6,7 +6,7 @@ export const LOGIN_URL = `${ERP_URL}/index.php?r=site%2Flogin`;
 export const ATTENDANCE_URL = `${ERP_URL}/index.php?r=studentattendance%2Fstudentdailyattendance%2Fsearchgetinput`;
 export const COURSE_LIST_URL = `${ERP_URL}/index.php?r=studentattendance%2Fstudentdailyattendance%2Fcourselist`;
 
-// ponytail: Object.create(null) prevents prototype-pollution via route params (e.g. /constructor)
+// Security invariant: Object.create(null) prevents prototype-pollution via route params (e.g. /constructor)
 export const ERP_ENDPOINTS: Record<string, string> = Object.assign(Object.create(null), {
   marks: `${ERP_URL}/index.php?r=studentinfo%2Fstudentendexamresult%2Fgetstudentinternalmarks`,
   timetable: `${ERP_URL}/index.php?r=timetables%2Funiversitymasteracademictimetableview%2Findexstudentindisearch`,

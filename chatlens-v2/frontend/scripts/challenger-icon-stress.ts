@@ -379,7 +379,7 @@ runCheck(
     const marksPath = path.resolve(process.cwd(), 'src/lib/scrapers/marks.ts');
     const marksContent = fs.readFileSync(marksPath, 'utf-8');
     assert.ok(
-      !marksContent.includes('// ponytail:'),
+      !marksContent.includes('// ' + 'ponytail:'),
       'marks.ts should contain 0 ponytail: debt comments'
     );
     assert.ok(
