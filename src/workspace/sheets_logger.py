@@ -17,7 +17,8 @@ HEADERS = ["Timestamp", "Source Sender", "Message Text", "Intent", "Execution St
 
 class SheetsLogger:
     def __init__(self, sheet_id: str | None = None, auth_adapter: Any = None) -> None:
-        self.sheet_id = sheet_id or settings.google_sheet_id
+        raw_id = sheet_id if sheet_id is not None else settings.google_sheet_id
+        self.sheet_id = raw_id.strip() if raw_id else ""
         self.auth = auth_adapter or workspace_auth
 
     def _ensure_audit_tab(self, service: Any) -> None:

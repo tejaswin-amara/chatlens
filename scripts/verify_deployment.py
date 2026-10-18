@@ -390,7 +390,7 @@ def main() -> int:
             print(f"  - {err}")
         return 1
 
-    print("\n\033[32mAll Deployment Verification Checks Passed Cleanly!\033[0m")
+    print("\n\033[32m[PASS] All 12/12 deployment verification check groups passed cleanly!\033[0m")
     return 0
 
 

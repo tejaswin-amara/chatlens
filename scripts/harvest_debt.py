@@ -39,9 +39,11 @@ def harvest_debt(repo_root: Path | None = None) -> list[dict[str, str]]:
     return entries
 
 
-def update_debt_file(entries: list[dict[str, str]], output_path: Path | None = None) -> None:
+def update_debt_file(entries: list[dict[str, str]], output_path: Path | None = None) -> int:
     if output_path is None:
         output_path = Path(__file__).resolve().parent.parent / "PONYTAIL-DEBT.md"
+
+    rot_risk_count = sum(1 for e in entries if "upgrade" not in e["comment"].lower())
 
     rows = []
     for idx, e in enumerate(entries, 1):
@@ -64,12 +66,23 @@ Tracked deferrals and shortcuts harvested from codebase annotations (`shortcut:`
 **Summary**: {len(entries)} total debt markers tracked in ledger.
 """
     output_path.write_text(content, encoding="utf-8")
-    print(f"Updated {output_path} with {len(entries)} entries.")
+    print(
+        f"Updated {output_path} with {len(entries)} entries "
+        f"({rot_risk_count} rot-risk markers (no-trigger))."
+    )
+    return rot_risk_count
 
 
 def main() -> int:
     entries = harvest_debt()
+    rot_risk_count = sum(1 for e in entries if "upgrade" not in e["comment"].lower())
     update_debt_file(entries)
+    if rot_risk_count > 0:
+        print(
+            f"ERROR: {rot_risk_count} untracked debt markers lack upgrade triggers!",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

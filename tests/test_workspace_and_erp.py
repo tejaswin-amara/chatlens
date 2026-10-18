@@ -17,6 +17,14 @@ def test_sheets_logger_heartbeat_empty_sheet_id():
         mock_service.assert_not_called()
 
 
+def test_sheets_logger_heartbeat_whitespace_sheet_id():
+    """Verify log_heartbeat strips whitespace and returns early without making requests."""
+    logger = SheetsLogger(sheet_id="   ")
+    with patch.object(logger.auth, "get_sheets_service") as mock_service:
+        logger.log_heartbeat()
+        mock_service.assert_not_called()
+
+
 def test_sheets_logger_heartbeat_configured_sheet_id():
     """Verify log_heartbeat updates Status!A1 when sheet_id is present."""
     logger = SheetsLogger(sheet_id="test_sheet_123")
