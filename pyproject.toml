@@ -64,6 +64,7 @@ ignore = ["S608"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "-m 'not integration'"
 markers = [
     "integration: marks integration tests requiring docker",
 ]

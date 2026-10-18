@@ -112,6 +112,7 @@ class AIExtractor:
             f"</untrusted_telegram_message>"
         )
 
+        start_time = clock.now_ist()
         response = client.models.generate_content(
             model=self.model_name,
             contents=prompt,
@@ -121,16 +122,34 @@ class AIExtractor:
                 response_schema=ExtractedAcademicEvent,
             ),
         )
+        duration_ms = (clock.now_ist() - start_time).total_seconds() * 1000.0
 
+        event: ExtractedAcademicEvent | None = None
         if response.parsed and isinstance(response.parsed, ExtractedAcademicEvent):
-            return response.parsed
+            event = response.parsed
+        elif response.text:
+            try:
+                event = ExtractedAcademicEvent.model_validate_json(response.text)
+            except Exception:
+                event = None
 
-        if not response.text:
-            return None
-        try:
-            return ExtractedAcademicEvent.model_validate_json(response.text)
-        except Exception:
-            return None
+        if event:
+            logger.info(
+                "llm_extraction_success",
+                intent=event.intent,
+                course_code=event.course_code,
+                gen_ai_system="gemini",
+                gen_ai_model=self.model_name,
+                duration_ms=round(duration_ms, 2),
+            )
+        else:
+            logger.info(
+                "llm_extraction_empty_or_failed",
+                gen_ai_system="gemini",
+                gen_ai_model=self.model_name,
+                duration_ms=round(duration_ms, 2),
+            )
+        return event
 
     @retry(
         stop=stop_after_attempt(2),
@@ -157,6 +176,7 @@ class AIExtractor:
             "Transcribe this voice note and extract the academic event/task."
         )
 
+        start_time = clock.now_ist()
         response = client.models.generate_content(
             model=self.model_name,
             contents=[audio_part, prompt],
@@ -166,16 +186,34 @@ class AIExtractor:
                 response_schema=ExtractedAcademicEvent,
             ),
         )
+        duration_ms = (clock.now_ist() - start_time).total_seconds() * 1000.0
 
+        event: ExtractedAcademicEvent | None = None
         if response.parsed and isinstance(response.parsed, ExtractedAcademicEvent):
-            return response.parsed
+            event = response.parsed
+        elif response.text:
+            try:
+                event = ExtractedAcademicEvent.model_validate_json(response.text)
+            except Exception:
+                event = None
 
-        if not response.text:
-            return None
-        try:
-            return ExtractedAcademicEvent.model_validate_json(response.text)
-        except Exception:
-            return None
+        if event:
+            logger.info(
+                "llm_voice_extraction_success",
+                intent=event.intent,
+                course_code=event.course_code,
+                gen_ai_system="gemini",
+                gen_ai_model=self.model_name,
+                duration_ms=round(duration_ms, 2),
+            )
+        else:
+            logger.info(
+                "llm_voice_extraction_empty_or_failed",
+                gen_ai_system="gemini",
+                gen_ai_model=self.model_name,
+                duration_ms=round(duration_ms, 2),
+            )
+        return event
 
     @retry(
         stop=stop_after_attempt(2),
@@ -202,6 +240,7 @@ class AIExtractor:
             "Perform OCR on this notice and extract the academic event or timetable change."
         )
 
+        start_time = clock.now_ist()
         response = client.models.generate_content(
             model=self.model_name,
             contents=[media_part, prompt],
@@ -211,16 +250,34 @@ class AIExtractor:
                 response_schema=ExtractedAcademicEvent,
             ),
         )
+        duration_ms = (clock.now_ist() - start_time).total_seconds() * 1000.0
 
+        media_event: ExtractedAcademicEvent | None = None
         if response.parsed and isinstance(response.parsed, ExtractedAcademicEvent):
-            return response.parsed
+            media_event = response.parsed
+        elif response.text:
+            try:
+                media_event = ExtractedAcademicEvent.model_validate_json(response.text)
+            except Exception:
+                media_event = None
 
-        if not response.text:
-            return None
-        try:
-            return ExtractedAcademicEvent.model_validate_json(response.text)
-        except Exception:
-            return None
+        if media_event:
+            logger.info(
+                "llm_media_extraction_success",
+                intent=media_event.intent,
+                course_code=media_event.course_code,
+                gen_ai_system="gemini",
+                gen_ai_model=self.model_name,
+                duration_ms=round(duration_ms, 2),
+            )
+        else:
+            logger.info(
+                "llm_media_extraction_empty_or_failed",
+                gen_ai_system="gemini",
+                gen_ai_model=self.model_name,
+                duration_ms=round(duration_ms, 2),
+            )
+        return media_event
 
 
 ai_extractor = AIExtractor()
