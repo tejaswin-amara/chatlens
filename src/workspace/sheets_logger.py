@@ -113,6 +113,8 @@ class SheetsLogger:
             return []
 
     def log_heartbeat(self) -> None:
+        if not self.sheet_id:
+            return
         from src.utils import clock
 
         now_str = clock.now_ist().isoformat()

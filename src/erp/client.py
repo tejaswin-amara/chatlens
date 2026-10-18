@@ -192,17 +192,28 @@ class KLUERPClient:
 
         return False
 
+    def _is_session_expired(self, res: httpx.Response) -> bool:
+        url_str = str(res.url)
+        if hasattr(res, "request") and res.request and (not url_str or url_str == "https://"):
+            url_str = str(res.request.url)
+        url_lower = url_str.lower()
+        return (
+            "site/login" in url_lower
+            or "site%2flogin" in url_lower
+            or "please login" in res.text.lower()
+            or 'id="login-form"' in res.text
+            or 'id="loginform-username"' in res.text
+        )
+
     async def fetch_page(self, url: str) -> str:
         """Fetches an ERP page using authenticated session cookies."""
         async with self._get_http_client() as client:
             res = await client.get(url)
-            # Check if redirected to login page
-            if "site/login" in str(res.url) or "Please login" in res.text:
+            if self._is_session_expired(res):
                 logger.info("ERP session expired. Re-authenticating...")
                 logged_in = await self.login()
                 if not logged_in:
                     return ""
-                # Retry with fresh cookies
                 async with self._get_http_client() as fresh_client:
                     fresh_res = await fresh_client.get(url)
                     return fresh_res.text
@@ -231,6 +242,27 @@ class KLUERPClient:
                         "Referer": ATTENDANCE_INPUT_URL,
                     },
                 )
+                if self._is_session_expired(res):
+                    logger.info("ERP session expired during attendance query. Re-authenticating...")
+                    if await self.login():
+                        search_html = await self.fetch_page(ATTENDANCE_INPUT_URL)
+                        csrf_m = re.search(
+                            r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']', search_html
+                        )
+                        csrf = csrf_m.group(1) if csrf_m else ""
+                        async with self._get_http_client() as fresh_client:
+                            res = await fresh_client.post(
+                                ATTENDANCE_URL,
+                                data={
+                                    "_csrf": csrf,
+                                    "DynamicModel[academicyear]": academic_year,
+                                    "DynamicModel[semesterid]": semester_id,
+                                },
+                                headers={
+                                    "X-Requested-With": "XMLHttpRequest",
+                                    "Referer": ATTENDANCE_INPUT_URL,
+                                },
+                            )
                 records = parse_attendance_records(res.text)
                 if records:
                     deduplicator.meta_set("erp_attendance_cache", json.dumps(records))
@@ -255,19 +287,16 @@ class KLUERPClient:
                 "timetables/universitymasteracademictimetableview"
                 "/individualstudenttimetableget"
             )
-            async with self._get_http_client() as client:
-                res = await client.get(
-                    TIMETABLE_URL,
-                    params={
-                        "r": tt_route,
-                        "UniversityMasterAcademicTimetableView[academicyear]": academic_year,
-                        "UniversityMasterAcademicTimetableView[semesterid]": semester_id,
-                    },
-                )
-                records = parse_timetable_records(res.text)
-                if records:
-                    deduplicator.meta_set("erp_timetable_cache", json.dumps(records))
-                    return records
+            tt_url = (
+                f"{TIMETABLE_URL}?r={tt_route}&"
+                f"UniversityMasterAcademicTimetableView[academicyear]={academic_year}&"
+                f"UniversityMasterAcademicTimetableView[semesterid]={semester_id}"
+            )
+            html = await self.fetch_page(tt_url)
+            records = parse_timetable_records(html)
+            if records:
+                deduplicator.meta_set("erp_timetable_cache", json.dumps(records))
+                return records
         except Exception as e:
             logger.error("Failed to query ERP timetable", error=str(e))
 
