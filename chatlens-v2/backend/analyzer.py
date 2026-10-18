@@ -14,10 +14,15 @@ _CHUNK_SIZE = 800
 
 
 def _redact_forbidden_ids(text: str) -> str:
-    """Strictly redact forbidden IDs (RRN, Aadhaar, MyNumber) to generic placeholders."""
+    """Strictly redact forbidden IDs (RRN, Aadhaar, MyNumber, Phone) to generic placeholders."""
     text = re.sub(r"\b\d{6}[ -]?[1-8]\d{6}\b", "[RRN Redacted]", text)
     text = re.sub(r"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b", "[Aadhaar Redacted]", text)
     text = re.sub(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b", "[MyNumber Redacted]", text)
+    text = re.sub(
+        r"(?<!\d)(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\d{5}[-.\s]\d{5})(?!\d)",
+        "[PHONE]",
+        text,
+    )
     return text
 
 

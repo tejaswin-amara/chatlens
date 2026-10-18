@@ -62,12 +62,19 @@ def test_forbidden_id_scrubbing_and_zero_disclosure():
     raw_aadhaar_dash = "9876-5432-1098"
     raw_rrn = "950101-1234567"
     raw_mynumber = "1234 5678 9012"
+    raw_phone_dash = "123-456-7890"
+    raw_phone_solid = "9876543210"
+    raw_phone_intl = "+91 98765 43210"
 
     event_dict = {
-        "event": f"Student with Aadhaar {raw_aadhaar_space} and RRN {raw_rrn}",
+        "event": (
+            f"Student with Aadhaar {raw_aadhaar_space}, RRN {raw_rrn}, phone {raw_phone_dash}"
+        ),
         "metadata": {
             "aadhaar_alt": raw_aadhaar_dash,
             "jp_id": raw_mynumber,
+            "contact": raw_phone_solid,
+            "intl_phone": raw_phone_intl,
         },
     }
 
@@ -76,12 +83,35 @@ def test_forbidden_id_scrubbing_and_zero_disclosure():
     # 1. Check placeholders
     assert "[Aadhaar Redacted]" in result["event"]
     assert "[RRN Redacted]" in result["event"]
+    assert "[PHONE]" in result["event"]
     assert "[Aadhaar Redacted]" in result["metadata"]["aadhaar_alt"]
     assert "[MyNumber Redacted]" in result["metadata"]["jp_id"]
+    assert "[PHONE]" in result["metadata"]["contact"]
+    assert "[PHONE]" in result["metadata"]["intl_phone"]
 
     # 2. Strict Zero-Disclosure verification: zero raw digits in output
-    for sensitive_id in [raw_aadhaar_space, raw_aadhaar_dash, raw_rrn, raw_mynumber]:
+    for sensitive_id in [
+        raw_aadhaar_space,
+        raw_aadhaar_dash,
+        raw_rrn,
+        raw_mynumber,
+        raw_phone_dash,
+        raw_phone_solid,
+        raw_phone_intl,
+    ]:
         assert sensitive_id not in str(result)
         # Ensure digits sequence is not present
         digits_only = "".join(filter(str.isdigit, sensitive_id))
         assert digits_only not in str(result)
+
+
+def test_phone_number_scrubbing_formats():
+    event_dict = {
+        "us_phone": "Call (123) 456-7890 immediately",
+        "intl_phone": "Reach +1-123-456-7890 or +91 9876543210",
+        "in_phone_split": "Emergency: 98765 43210 or 98765-43210",
+    }
+    result = _scrub_secrets(None, None, event_dict)
+    assert result["us_phone"] == "Call [PHONE] immediately"
+    assert result["intl_phone"] == "Reach [PHONE] or [PHONE]"
+    assert result["in_phone_split"] == "Emergency: [PHONE] or [PHONE]"

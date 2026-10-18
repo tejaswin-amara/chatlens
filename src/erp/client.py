@@ -1,8 +1,11 @@
 """KLU ERP client for authenticating against newerp.kluniversity.in and scraping academic data."""
 
 import asyncio
+import contextlib
 import json
 import re
+import sqlite3
+import time
 from typing import Any
 
 import httpx
@@ -52,7 +55,87 @@ class KLUERPClient:
         self.password = password or settings.erp_password.get_secret_value()
         self.base_url = base_url
         self._cookies: dict[str, str] = {}
+        self._login_lock = asyncio.Lock()
+        self._last_login_time: float = 0.0
         self._load_cached_session()
+
+    def _save_marks_cache(
+        self, academic_year: str, semester_id: str, records: list[dict[str, Any]]
+    ) -> None:
+        try:
+            key = f"{academic_year}:{semester_id}"
+            data_json = json.dumps(records)
+            now = time.time()
+            with contextlib.closing(
+                sqlite3.connect(settings.spark_db, isolation_level=None)
+            ) as conn:
+                conn.execute("PRAGMA busy_timeout = 5000")
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS erp_marks_cache (
+                        key TEXT PRIMARY KEY,
+                        academic_year TEXT,
+                        semester_id TEXT,
+                        data TEXT,
+                        updated REAL
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO erp_marks_cache
+                    (key, academic_year, semester_id, data, updated)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (key, academic_year, semester_id, data_json, now),
+                )
+            deduplicator.meta_set("erp_marks_cache", data_json)
+        except Exception as e:
+            logger.debug("Failed to save marks cache", error=str(e))
+
+    def _get_cached_marks(
+        self, academic_year: str, semester_id: str
+    ) -> list[dict[str, Any]]:
+        try:
+            key = f"{academic_year}:{semester_id}"
+            with contextlib.closing(
+                sqlite3.connect(settings.spark_db, isolation_level=None)
+            ) as conn:
+                conn.execute("PRAGMA busy_timeout = 5000")
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS erp_marks_cache (
+                        key TEXT PRIMARY KEY,
+                        academic_year TEXT,
+                        semester_id TEXT,
+                        data TEXT,
+                        updated REAL
+                    )
+                    """
+                )
+                row = conn.execute(
+                    """
+                    SELECT data FROM erp_marks_cache
+                    WHERE key = ? OR (academic_year = ? AND semester_id = ?)
+                    """,
+                    (key, academic_year, semester_id),
+                ).fetchone()
+                if row and row[0]:
+                    records = json.loads(row[0])
+                    if isinstance(records, list):
+                        return records
+        except Exception as e:
+            logger.debug("Failed to query erp_marks_cache table", error=str(e))
+
+        cached = deduplicator.meta_get("erp_marks_cache")
+        if cached:
+            try:
+                records = json.loads(cached)
+                if isinstance(records, list):
+                    return records
+            except Exception as e:
+                logger.debug("Failed to decode cached ERP marks from meta", error=str(e))
+        return []
 
     def _load_cached_session(self) -> None:
         cached = deduplicator.meta_get("erp_session_cookies")
@@ -111,88 +194,99 @@ class KLUERPClient:
             logger.warning("Missing ERP credentials. Set ERP_USERNAME and ERP_PASSWORD in .env")
             return False
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                async with httpx.AsyncClient(
-                    headers={"User-Agent": USER_AGENT}, timeout=15.0, follow_redirects=True
-                ) as client:
-                    # 1. Fetch login page
-                    login_res = await client.get(LOGIN_URL)
-                    html = login_res.text
+        start_wait = time.time()
+        async with self._login_lock:
+            if self._last_login_time > start_wait and self._cookies:
+                logger.info("ERP session already refreshed by concurrent task")
+                return True
 
-                    # 2. Extract CSRF token
-                    csrf_match = re.search(
-                        r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']', html
-                    )
-                    csrf_token = csrf_match.group(1) if csrf_match else ""
-                    if not csrf_token:
-                        logger.error("Failed to find _csrf token in ERP login page")
-                        return False
+            for attempt in range(1, max_retries + 1):
+                try:
+                    async with httpx.AsyncClient(
+                        headers={"User-Agent": USER_AGENT}, timeout=15.0, follow_redirects=True
+                    ) as client:
+                        # 1. Fetch login page
+                        login_res = await client.get(LOGIN_URL)
+                        html = login_res.text
 
-                    # 3. Extract Captcha image URL
-                    captcha_match = re.search(
-                        r'id=["\']loginFormCaptcha-image["\'][^>]*src=["\']([^"\']+)["\']', html
-                    )
-                    if not captcha_match:
-                        logger.error("Failed to find captcha image element")
-                        return False
+                        # 2. Extract CSRF token
+                        csrf_match = re.search(
+                            r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']', html
+                        )
+                        csrf_token = csrf_match.group(1) if csrf_match else ""
+                        if not csrf_token:
+                            logger.error("Failed to find _csrf token in ERP login page")
+                            return False
 
-                    captcha_src = captcha_match.group(1).replace("&amp;", "&")
-                    if captcha_src.startswith("/"):
-                        captcha_url = f"{self.base_url}{captcha_src}"
-                    elif not captcha_src.startswith("http"):
-                        captcha_url = f"{self.base_url}/{captcha_src}"
-                    else:
-                        captcha_url = captcha_src
+                        # 3. Extract Captcha image URL
+                        captcha_match = re.search(
+                            r'id=["\']loginFormCaptcha-image["\'][^>]*src=["\']([^"\']+)["\']', html
+                        )
+                        if not captcha_match:
+                            logger.error("Failed to find captcha image element")
+                            return False
 
-                    # 4. Download captcha image
-                    img_res = await client.get(captcha_url, headers={"Referer": LOGIN_URL})
-                    captcha_solution = await self.solve_captcha(img_res.content)
-                    if not captcha_solution:
-                        logger.warning("Empty captcha solution", attempt=attempt)
-                        continue
+                        captcha_src = captcha_match.group(1).replace("&amp;", "&")
+                        if captcha_src.startswith("/"):
+                            captcha_url = f"{self.base_url}{captcha_src}"
+                        elif not captcha_src.startswith("http"):
+                            captcha_url = f"{self.base_url}/{captcha_src}"
+                        else:
+                            captcha_url = captcha_src
 
-                    # 5. POST login credentials
-                    form_data = {
-                        "_csrf": csrf_token,
-                        "LoginForm[username]": self.username,
-                        "LoginForm[password]": self.password,
-                        "LoginForm[captcha]": captcha_solution,
-                        "LoginForm[rememberMe]": "1",
-                        "login-button": "",
-                    }
+                        # 4. Download captcha image
+                        img_res = await client.get(captcha_url, headers={"Referer": LOGIN_URL})
+                        captcha_solution = await self.solve_captcha(img_res.content)
+                        if not captcha_solution:
+                            logger.warning("Empty captcha solution", attempt=attempt)
+                            continue
 
-                    post_res = await client.post(
-                        LOGIN_URL,
-                        data=form_data,
-                        headers={"Referer": LOGIN_URL},
-                    )
+                        # 5. POST login credentials
+                        form_data = {
+                            "_csrf": csrf_token,
+                            "LoginForm[username]": self.username,
+                            "LoginForm[password]": self.password,
+                            "LoginForm[captcha]": captcha_solution,
+                            "LoginForm[rememberMe]": "1",
+                            "login-button": "",
+                        }
 
-                    # Successful login redirects away from site/login or contains dashboard markers
-                    if "site/login" not in str(post_res.url) and (
-                        "Dashboard" in post_res.text
-                        or "Welcome" in post_res.text
-                        or "Logout" in post_res.text
-                    ):
-                        self._cookies = {k: v for k, v in client.cookies.items()}
-                        self._save_session()
-                        logger.info("Successfully authenticated to KLU ERP", username=self.username)
-                        return True
+                        post_res = await client.post(
+                            LOGIN_URL,
+                            data=form_data,
+                            headers={"Referer": LOGIN_URL},
+                        )
 
-                    if "Incorrect username or password" in post_res.text:
-                        logger.error("Invalid ERP username or password")
-                        return False
+                        # Successful login redirects away or contains dashboard markers
+                        if "site/login" not in str(post_res.url) and (
+                            "Dashboard" in post_res.text
+                            or "Welcome" in post_res.text
+                            or "Logout" in post_res.text
+                        ):
+                            self._cookies = {k: v for k, v in client.cookies.items()}
+                            self._save_session()
+                            self._last_login_time = time.time()
+                            logger.info(
+                                "Successfully authenticated to KLU ERP", username=self.username
+                            )
+                            return True
 
-                    logger.warning(
-                        "ERP login attempt failed (possibly wrong captcha)", attempt=attempt
-                    )
+                        if "Incorrect username or password" in post_res.text:
+                            logger.error("Invalid ERP username or password")
+                            return False
 
-            except Exception as e:
-                logger.warning("ERP login attempt exception", attempt=attempt, error=str(e))
+                        logger.warning(
+                            "ERP login attempt failed (possibly wrong captcha)", attempt=attempt
+                        )
 
-        return False
+                except Exception as e:
+                    logger.warning("ERP login attempt exception", attempt=attempt, error=str(e))
+
+            return False
 
     def _is_session_expired(self, res: httpx.Response) -> bool:
+        if res.status_code in (401, 403):
+            return True
         url_str = str(res.url)
         if hasattr(res, "request") and res.request and (not url_str or url_str == "https://"):
             url_str = str(res.request.url)
@@ -327,10 +421,35 @@ class KLUERPClient:
                     },
                     headers={"Referer": MARKS_URL},
                 )
-                return parse_marks_records(res.text)
+                if self._is_session_expired(res):
+                    logger.info("ERP session expired during marks query. Re-authenticating...")
+                    if await self.login():
+                        marks_page = await self.fetch_page(MARKS_URL)
+                        csrf_m = re.search(
+                            r'name=["\']_csrf["\'][^>]*value=["\']([^"\']+)["\']', marks_page
+                        )
+                        csrf = csrf_m.group(1) if csrf_m else ""
+                        async with self._get_http_client() as fresh_client:
+                            res = await fresh_client.post(
+                                MARKS_URL,
+                                data={
+                                    "_csrf": csrf,
+                                    "DynamicModel[academicyear]": academic_year,
+                                    "DynamicModel[semester]": semester_id,
+                                },
+                                headers={"Referer": MARKS_URL},
+                            )
+                records = parse_marks_records(res.text)
+                if records:
+                    self._save_marks_cache(academic_year, semester_id, records)
+                    return records
         except Exception as e:
             logger.error("Failed to query ERP marks", error=str(e))
-            return []
+
+        cached = self._get_cached_marks(academic_year, semester_id)
+        if cached:
+            return cached
+        return []
 
     async def get_cgpa(self) -> list[dict[str, Any]]:
         """Scrapes and returns official academic grades, grade points and CGPA records."""

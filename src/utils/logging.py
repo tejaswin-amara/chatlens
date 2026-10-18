@@ -26,15 +26,21 @@ _FORBIDDEN_ID_PATTERNS = [
     (re.compile(r"\b\d{6}[ -]?[1-8]\d{6}\b"), "[RRN Redacted]"),
     (re.compile(r"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b"), "[Aadhaar Redacted]"),
     (re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b"), "[MyNumber Redacted]"),
+    (
+        re.compile(
+            r"(?<!\d)(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\d{5}[-.\s]\d{5})(?!\d)"
+        ),
+        "[PHONE]",
+    ),
 ]
 
 
 def _redact_str(val: str) -> str:
     res = val
-    for pattern, replacement in _FORBIDDEN_ID_PATTERNS:
-        res = pattern.sub(replacement, res)
     for pattern in _SECRET_PATTERNS:
         res = pattern.sub("***", res)
+    for pattern, replacement in _FORBIDDEN_ID_PATTERNS:
+        res = pattern.sub(replacement, res)
     return res
 
 

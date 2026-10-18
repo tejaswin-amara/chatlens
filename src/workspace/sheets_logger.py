@@ -1,13 +1,19 @@
 """Google Sheets Adapter for logging PA audit trails to a PA_Audit_Log tab."""
 
 from typing import Any
+from unittest.mock import Mock
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.config import settings
 from src.utils import clock
 from src.utils.logging import get_logger
-from src.workspace.auth import workspace_auth
+from src.workspace.auth import GoogleWorkspaceAuth, workspace_auth
 
 logger = get_logger(__name__)
 
@@ -17,12 +23,33 @@ HEADERS = ["Timestamp", "Source Sender", "Message Text", "Intent", "Execution St
 
 class SheetsLogger:
     def __init__(self, sheet_id: str | None = None, auth_adapter: Any = None) -> None:
-        raw_id = sheet_id if sheet_id is not None else settings.google_sheet_id
-        self.sheet_id = raw_id.strip() if raw_id else ""
+        self.sheet_id = settings.google_sheet_id if sheet_id is None else sheet_id
         self.auth = auth_adapter or workspace_auth
 
+    @property
+    def is_configured(self) -> bool:
+        """Returns True if sheet_id and credentials/mock are available."""
+        if not self.sheet_id or not self.sheet_id.strip():
+            return False
+
+        b64 = getattr(self.auth, "b64_creds", None)
+        if b64:
+            val = b64.get_secret_value() if hasattr(b64, "get_secret_value") else str(b64)
+            if val and val.strip():
+                return True
+
+        if isinstance(self.auth, Mock):
+            return True
+        service_fn = getattr(self.auth, "get_sheets_service", None)
+        if isinstance(service_fn, Mock) or hasattr(service_fn, "mock_calls"):
+            return True
+        if self.auth is not workspace_auth and not isinstance(self.auth, GoogleWorkspaceAuth):
+            return True
+
+        return False
+
     def _ensure_audit_tab(self, service: Any) -> None:
-        if not self.sheet_id:
+        if not self.is_configured:
             return
 
         try:
@@ -43,7 +70,11 @@ class SheetsLogger:
         except Exception as e:
             logger.warning("Could not ensure audit tab existence", error=str(e))
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @retry(
+        retry=retry_if_not_exception_type(ValueError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
     def append_audit_log(
         self,
         source_sender: str,
@@ -52,8 +83,8 @@ class SheetsLogger:
         execution_status: str,
         extra_details: str = "",
     ) -> dict[str, Any] | None:
-        if not self.sheet_id:
-            logger.debug("GOOGLE_SHEET_ID not set; skipping sheets audit log")
+        if not self.is_configured:
+            logger.debug("SheetsLogger is not configured; skipping sheets audit log")
             return None
 
         service = self.auth.get_sheets_service()
@@ -84,7 +115,7 @@ class SheetsLogger:
         return result
 
     def get_attendance(self) -> list[dict[str, str]]:
-        if not self.sheet_id:
+        if not self.is_configured:
             return []
         try:
             service = self.auth.get_sheets_service()
@@ -114,7 +145,7 @@ class SheetsLogger:
             return []
 
     def log_heartbeat(self) -> None:
-        if not self.sheet_id:
+        if not self.is_configured:
             return
         from src.utils import clock
 

@@ -267,12 +267,13 @@ def validate(event, timetable: Timetable | None) -> Verdict:
     # P3 says: "NO_CHANGE"
     # "validate(event, timetable) -> Verdict(ok, reason, period) for ROOM_OVERRIDE: "
     # "OUTSIDE_TERM, NO_SLOT, PERIOD_MISMATCH, AMBIGUOUS_PERIOD, NO_CHANGE, OK"
+    def _norm_room(r: str | None) -> str:
+        return (r or "").replace("-", "").replace(" ", "").upper()
+
     all_rooms_same = True
     for p in periods:
         s_opt: Slot | None = next((s_for for s_for in course_slots if s_for.period == p), None)
-        if not s_opt or s_opt.room.upper().replace(" ", "-") != (event.room or "").upper().replace(
-            " ", "-"
-        ):
+        if not s_opt or _norm_room(s_opt.room) != _norm_room(event.room):
             all_rooms_same = False
             break
 
