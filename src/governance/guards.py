@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+import unicodedata
 from dataclasses import dataclass
 
 # Deterministic Prompt Injection & Jailbreak Heuristics
@@ -98,13 +99,22 @@ class InputGuard:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     @classmethod
+    def normalize_text(cls, text: str) -> str:
+        """Strip zero-width evasion bytes and normalize Unicode fullwidth characters."""
+        if not text:
+            return ""
+        clean = re.sub(r"[\u200b-\u200f\ufeff\u202a-\u202e]", "", text)
+        return unicodedata.normalize("NFKD", clean)
+
+    @classmethod
     def detect_injection(cls, text: str) -> tuple[bool, str | None]:
         """Detect prompt injection and adversarial manipulation attempts."""
         if not text:
             return False, None
 
+        normalized = cls.normalize_text(text)
         for pattern in INJECTION_PATTERNS:
-            match = pattern.search(text)
+            match = pattern.search(text) or pattern.search(normalized)
             if match:
                 return True, f"Matched injection signature: '{match.group(0)[:40]}'"
         return False, None
