@@ -110,43 +110,73 @@ sequenceDiagram
 
 ## 3. SPARK_MODE State Machine
 
+The daemon's runtime decision is made by `src.ingestion.handlers.decide()`. The order of
+evaluation matters: **`dry` always audits without Calendar/Tasks writes; in `confirm` and
+`live`, a failed validation goes to review before any write decision.** A valid event in
+`live` is auto-applied only when it matches the narrow allowlist below.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Ingested
+    Ingested --> QuarantineCheck
 
-    Ingested --> Parsing
-    Parsing --> RegexMatched: Matches regex pattern
-    Parsing --> GeminiMatched: Residual (budget & rate checked)
+    QuarantineCheck --> Quarantined: Prompt injection detected
+    QuarantineCheck --> Parsing: Input is clean
 
-    RegexMatched --> ValidateTimetable
-    GeminiMatched --> ValidateTimetable
+    Parsing --> RegexMatched: Deterministic regex extracts event
+    Parsing --> GeminiMatched: Residual or media extraction
+    RegexMatched --> ValidateEvent
+    GeminiMatched --> ValidateEvent
 
-    ValidateTimetable --> VerdictOK: Class & Period match
-    ValidateTimetable --> VerdictFailed: Class or Period mismatch
+    ValidateEvent --> DryMode: SPARK_MODE is dry
+    ValidateEvent --> ValidationFailed: Verdict failed and mode is not dry
+    ValidateEvent --> ConfirmMode: Verdict passed and mode is confirm
+    ValidateEvent --> LiveEligibility: Verdict passed and mode is live
 
-    state ModeFork <<choice>>
-    VerdictOK --> ModeFork
+    DryMode --> AuditOnly: Log DRY_RUN receipt; no Calendar or Tasks writes
+    ValidationFailed --> ReviewOnly: Notify owner with validation reason
+    ConfirmMode --> PendingOwner: Request explicit owner approval
 
-    ModeFork --> DryMode: SPARK_MODE == 'dry'
-    ModeFork --> ConfirmMode: SPARK_MODE == 'confirm'
-    ModeFork --> LiveMode: SPARK_MODE == 'live'
+    LiveEligibility --> PendingOwner: HOLIDAY, CLASS_CANCELLED, Gemini, or other intent
+    LiveEligibility --> TimetableGate: Regex ROOM_OVERRIDE
+    LiveEligibility --> AutoWrite: Regex TASK or EXAM_DEADLINE
 
-    DryMode --> AuditOnly: Audit to Sheets; zero writes
-    ConfirmMode --> PendingOwner: Require [✅ Apply] callback
+    TimetableGate --> AutoWrite: Timetable is authoritative and event is validated
+    TimetableGate --> PendingOwner: Timetable unavailable but verdict passed
 
-    LiveMode --> AutoWrite: ROOM_OVERRIDE (regex) OR TASK/DEADLINE (regex)
-    LiveMode --> PendingOwner: HOLIDAY, CLASS_CANCELLED, or Gemini-derived
+    PendingOwner --> Executed: Authorized owner approves
+    PendingOwner --> Dismissed: Owner rejects or request expires
+    AutoWrite --> Executed: Apply allowed Calendar or Tasks mutation
+    Executed --> CanUndo: Persist prior state and write receipt
+    CanUndo --> Undone: Owner invokes /undo within retention window
 
-    VerdictFailed --> ReviewOnly: Notify Owner with reason (no apply button)
-
-    PendingOwner --> Executed: Owner approves
-    PendingOwner --> Dismissed: Owner ignores / rejects
-
-    AutoWrite --> Executed: Write to Calendar / Tasks
-    Executed --> CanUndo: State saved to `writes`
-    CanUndo --> Undone: /undo within retention window
+    Quarantined --> [*]
+    AuditOnly --> [*]
+    ReviewOnly --> [*]
+    Dismissed --> [*]
+    Undone --> [*]
 ```
 
+### 3.1 Decision matrix
+
+| Event / condition | `dry` | `confirm` | `live` |
+|---|---|---|---|
+| Read-only command | Allow read | Allow read | Allow read |
+| Any extracted event; no external mutation | Audit-only `DRY_RUN` | Continue to validation | Continue to validation |
+| Validation fails | Audit-only `DRY_RUN` | Review alert; no apply action | Review alert; no apply action |
+| `ROOM_OVERRIDE`, regex, validation passes, authoritative timetable ready | Audit-only `DRY_RUN` | Owner approval required | **Auto-write** |
+| `ROOM_OVERRIDE`, regex, verdict passes but timetable is unavailable/sample | Audit-only `DRY_RUN` | Owner approval required | Owner approval required |
+| `TASK` / `EXAM_DEADLINE`, regex, validation passes | Audit-only `DRY_RUN` | Owner approval required | **Auto-write** |
+| Gemini-derived event, validation passes | Audit-only `DRY_RUN` | Owner approval required | Owner approval required |
+| `HOLIDAY` / `CLASS_CANCELLED`, validation passes | Audit-only `DRY_RUN` | Owner approval required | Owner approval required |
+| Other mutation / unsupported intent | Audit-only `DRY_RUN` | Owner approval or conservative review | Owner approval or conservative review |
+| Prompt-injection quarantine | Block and alert | Block and alert | Block and alert |
+
+**Safety invariants:** Telegram group/channel ingestion is read-only; only the owner bot or Saved
+Messages may receive output. No Calendar/Tasks mutation occurs in `dry`. Validation failures in
+`confirm`/`live` never expose an apply action. In `live`, only regex-derived, validated room
+overrides with an authoritative timetable and regex-derived tasks/deadlines can auto-write.
+Holiday/cancellation and Gemini-derived events require explicit owner approval.
 ---
 
 ## 4. Domain Constants & Invariants
