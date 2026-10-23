@@ -18,9 +18,11 @@ def generate_embedding(
         return None
 
     try:
+        config_dict = {"task_type": task_type} if task_type else None
         result = client.models.embed_content(
             model=model,
             contents=text,
+            config=config_dict,
         )
         if hasattr(result, "embeddings") and result.embeddings:
             vals = result.embeddings[0].values
@@ -35,6 +37,7 @@ def generate_embeddings_batch(
     client: Any,
     texts: list[str],
     *,
+    task_type: str = "RETRIEVAL_DOCUMENT",
     model: str = "gemini-embedding-001",
 ) -> list[list[float] | None]:
     """Generate vector embeddings for a batch of texts safely."""
@@ -43,5 +46,5 @@ def generate_embeddings_batch(
 
     results: list[list[float] | None] = []
     for text in texts:
-        results.append(generate_embedding(client, text, model=model))
+        results.append(generate_embedding(client, text, task_type=task_type, model=model))
     return results

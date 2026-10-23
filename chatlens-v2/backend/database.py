@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://chatlens:chatlens_password@localhost:5432/chatlens_db"
+    "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/chatlens"
 )
 
 engine_kwargs: dict[str, Any] = {"echo": False}

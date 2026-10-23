@@ -1,452 +1,451 @@
-'use client';
+"use client";
 
-/* eslint-disable @next/next/no-img-element */
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Menu, X, Search } from "lucide-react";
 
-import { useEffect, useState } from 'react';
-import {
-  AlertCircle,
-  Loader2,
-  Lock,
-  LogIn,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  User,
-} from '@/components/ui/icons';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { triggerHaptic } from '@/lib/fluid-motion';
-import { prefetchAllUserData } from '@/lib/data-prefetcher';
-import { useI18n } from '@/lib/i18n';
-import { LanguageSelector } from '@/components/ui/LanguageSelector';
-import { Captcha } from '@/components/Captcha';
+import type { Chat, Message, ChatStats, GlobalStats, AiCardData, ToastData } from "@/types";
+import { useApi } from "@/hooks/useApi";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const { t } = useI18n();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [captcha, setCaptcha] = useState('');
-  const [captchaToken, setCaptchaToken] = useState('');
-  const [captchaImage, setCaptchaImage] = useState<string | null>(null);
-  const [captchaSessionId, setCaptchaSessionId] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
-  const [deviceId, setDeviceId] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [autoSolveFailed, setAutoSolveFailed] = useState(false);
+import Sidebar from "@/components/Sidebar";
+import ChatHeader from "@/components/ChatHeader";
+import { MessageList } from "@/components/MessageList";
+import { Dashboard } from "@/components/Dashboard";
+import ImportModal from "@/components/ImportModal";
+import SparkStatusModal from "@/components/SparkStatusModal";
+import TimetableModal from "@/components/TimetableModal";
+import DeadlinesModal from "@/components/DeadlinesModal";
+import ExamPrepModal from "@/components/ExamPrepModal";
+import AskBar from "@/components/AskBar";
+import { WelcomePage } from "@/components/WelcomePage";
+import Toast from "@/components/Toast";
 
-  const fetchCaptcha = async (preserveError = false): Promise<string> => {
-    setCaptchaLoading(true);
-    if (!preserveError) setError(null);
+const PAGE_SIZE = 100;
+
+export default function Home() {
+  // ── Global state ──
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [globalStats, setGlobalStats] = useState<GlobalStats>({ total_messages: 0, total_chats: 0 });
+  const [globalSummary, setGlobalSummary] = useState<string | null>(null);
+
+  // ── Navigation ──
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentChat, setCurrentChat] = useState<string | null>(null);
+  const [view, setView] = useState<"messages" | "dashboard">("messages");
+
+  // ── In-Chat Search & Filtering ──
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Message[] | null>(null);
+  const [senderFilter, setSenderFilter] = useState<string | null>(null);
+
+  // ── Per-chat data & pagination ──
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [chatStats, setChatStats] = useState<ChatStats | null>(null);
+  const [loadingView, setLoadingView] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  // ── AI state ──
+  const [aiCards, setAiCards] = useState<AiCardData[]>([]);
+  const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const [askInput, setAskInput] = useState("");
+
+  // ── Modals ──
+  const [modalOpen, setModalOpen] = useState(false);
+  const [sparkModalOpen, setSparkModalOpen] = useState(false);
+  const [timetableModalOpen, setTimetableModalOpen] = useState(false);
+  const [deadlinesModalOpen, setDeadlinesModalOpen] = useState(false);
+  const [examPrepModalOpen, setExamPrepModalOpen] = useState(false);
+
+  // ── Toast ──
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const api = useApi();
+
+  // ── Toast helper ──
+  const showToast = useCallback((message: string, type: ToastData["type"]) => {
+    setToasts((prev) => [...prev, { id: crypto.randomUUID(), message, type }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // ── Initial data load ──
+  useEffect(() => {
+    Promise.all([api.loadChats(), api.loadStats()]).then(([c, s]) => {
+      setChats(c);
+      setGlobalStats(s);
+    });
+    api.loadGlobalSummary().then(setGlobalSummary).catch((e) => setGlobalSummary(`Error: ${e.message}`));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Scroll to bottom on new content (when not searching) ──
+  useEffect(() => {
+    if (!isSearching && !searchResults) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, aiCards, aiLoading, isSearching, searchResults]);
+
+  // ── Load data when chat or view changes ──
+  useEffect(() => {
+    if (!currentChat) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingView(true);
+
+    if (view === "messages") {
+      api.loadMessages(currentChat, PAGE_SIZE, 0).then((msgs) => {
+        setMessages(msgs);
+        setHasMore(msgs.length === PAGE_SIZE);
+      }).finally(() => setLoadingView(false));
+    } else {
+      api.loadChatStats(currentChat).then(setChatStats).finally(() => setLoadingView(false));
+    }
+  }, [currentChat, view]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Pagination: Load earlier messages ──
+  const handleLoadEarlier = async () => {
+    if (!currentChat || loadingEarlier) return;
+    setLoadingEarlier(true);
     try {
-      const response = await fetch('/api/captcha', {
-        signal: AbortSignal.timeout(12000),
-      });
-      const sid = response.headers.get('x-session-id');
-      if (sid) setCaptchaSessionId(sid);
-      const data = await response.json();
-      if (
-        !response.ok ||
-        typeof data.captchaImage !== 'string' ||
-        !data.captchaImage
-      ) {
-        throw new Error(data.error || 'Captcha service unavailable');
+      const older = await api.loadMessages(currentChat, PAGE_SIZE, messages.length);
+      if (older.length < PAGE_SIZE) {
+        setHasMore(false);
       }
-      setCaptchaImage(data.captchaImage);
-      setCaptchaToken('');
-      if (
-        typeof data.solvedCaptcha === 'string' &&
-        data.solvedCaptcha.length > 0
-      ) {
-        setCaptcha(data.solvedCaptcha);
-        setAutoSolveFailed(false);
-      } else {
-        setCaptcha('');
-        setAutoSolveFailed(true);
-      }
-      return data.solvedCaptcha || '';
-    } catch (err) {
-      console.warn('[CAPTCHA] Bootstrap failed:', err);
-      setCaptchaImage(null);
-      setCaptcha('');
-      setCaptchaToken('');
-      setAutoSolveFailed(true);
-      if (!preserveError)
-        setError('Could not load the security code. Please retry.');
-      return '';
+      setMessages((prev) => [...older, ...prev]);
+    } catch {
+      showToast("Failed to load earlier messages", "error");
     } finally {
-      setCaptchaLoading(false);
+      setLoadingEarlier(false);
     }
   };
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      try {
-        void fetchCaptcha();
-        const savedDevice = localStorage.getItem('kl_erp_device_id');
-        if (savedDevice) setDeviceId(savedDevice);
-      } catch {
-        void fetchCaptcha();
-      }
-      const savedUser = localStorage.getItem('remember_username');
-      if (savedUser) {
-        setUsername(savedUser);
-        setRememberMe(true);
-      }
-    });
-  }, [router]);
-
-  const handleLogin = async (
-    event?: React.FormEvent,
-    overrideCreds?: { u: string; p: string; c: string }
-  ) => {
-    event?.preventDefault();
-    const u = overrideCreds ? overrideCreds.u : username;
-    const p = overrideCreds ? overrideCreds.p : password;
-    const c = overrideCreds ? overrideCreds.c : captcha;
-
-    const cleanCaptcha = c
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z]/g, '');
-    if (!u || !p || !cleanCaptcha) {
-      triggerHaptic('error');
-      setError(
-        'Please fill in all fields. The security code accepts lowercase letters a–z only.'
-      );
+  // ── In-Chat Message Search ──
+  const handleSearchSubmit = async () => {
+    const q = searchQuery.trim();
+    if (!q || !currentChat) {
+      setSearchResults(null);
       return;
     }
-    setLoading(true);
-    setError(null);
-    setStatus(null);
-    triggerHaptic('light');
+    setLoadingView(true);
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(captchaSessionId ? { 'x-session-id': captchaSessionId } : {}),
-        },
-        body: JSON.stringify({
-          username: u.trim(),
-          password: p,
-          captcha: cleanCaptcha,
-          captchaToken: captchaToken || undefined,
-          sessionId: captchaSessionId || undefined,
-          deviceId:
-            deviceId ||
-            (typeof localStorage !== 'undefined'
-              ? localStorage.getItem('kl_erp_device_id')
-              : '') ||
-            '',
-          rememberMe,
-        }),
-      });
-      const data = await response.json();
-      if (data.deviceId) {
-        setDeviceId(data.deviceId);
-        try {
-          localStorage.setItem('kl_erp_device_id', data.deviceId);
-        } catch {}
-      }
-      if (data.needsCaptchaRetry) {
-        setError(null);
-        setStatus(
-          'First-time device setup — please enter the captcha once more.'
-        );
-        await fetchCaptcha(true);
-        setLoading(false);
-        triggerHaptic('warning');
-        return;
-      }
-      if (!response.ok)
-        throw new Error(data.message || data.error || 'Login failed');
-      if (rememberMe) localStorage.setItem('remember_username', username);
-      else localStorage.removeItem('remember_username');
-      localStorage.removeItem('remember_password');
-      try {
-        localStorage.setItem(
-          'kl_erp_academic_years',
-          JSON.stringify(data.academicYears || [])
-        );
-        localStorage.setItem(
-          'kl_erp_semesters',
-          JSON.stringify(data.semesters || [])
-        );
-      } catch {}
-      let academicYear = '';
-      if (data.academicYears?.length) {
-        academicYear = data.academicYears[0].value;
-      }
-      let semesterId = '';
-      if (data.semesters?.length) {
-        semesterId = data.semesters[0].value;
-      }
-      if (academicYear) localStorage.setItem('kl_erp_year', academicYear);
-      if (semesterId) localStorage.setItem('kl_erp_sem', semesterId);
-      if (username) localStorage.setItem('studentId', username);
-      void prefetchAllUserData({ academicYear, semesterId });
-      triggerHaptic('success');
-      router.push('/dashboard');
-    } catch (err: unknown) {
-      triggerHaptic('error');
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'An unexpected error occurred'
-      );
-      await fetchCaptcha(true);
+      const results = await api.searchMessages(currentChat, q);
+      setSearchResults(results);
+    } catch {
+      showToast("Message search failed", "error");
     } finally {
-      setLoading(false);
+      setLoadingView(false);
     }
   };
 
-  const handleDemoMode = () => {
-    triggerHaptic('selection');
-    setUsername('2100030000');
-    setPassword('demo_password');
-    setCaptcha('demo');
-    // shortcut: direct handleLogin call with overrides, upgrade: migrate to unified form action hook if form state expands
-    void handleLogin(undefined, { u: '2100030000', p: 'demo_password', c: 'demo' });
+  // ── Delete Chat ──
+  const handleDeleteChat = async () => {
+    if (!currentChat) return;
+    const confirmed = window.confirm(`Are you sure you want to delete all messages in "${currentChat}"?`);
+    if (!confirmed) return;
+
+    try {
+      await api.deleteChat(currentChat);
+      showToast(`Deleted chat "${currentChat}"`, "success");
+      setCurrentChat(null);
+      Promise.all([api.loadChats(), api.loadStats()]).then(([c, s]) => {
+        setChats(c);
+        setGlobalStats(s);
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to delete chat";
+      showToast(msg, "error");
+    }
   };
 
+  // ── Export Chat as Markdown ──
+  const handleExport = () => {
+    if (!currentChat || messages.length === 0) {
+      showToast("No messages to export", "info");
+      return;
+    }
+    const lines = [
+      `# Chat Transcript: ${currentChat}`,
+      `*Exported from ChatLens on ${new Date().toISOString()}*`,
+      "",
+      "---",
+      "",
+    ];
+    for (const m of messages) {
+      lines.push(`**${m.sender}** (${m.timestamp}):\n${m.text}\n`);
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentChat.replace(/[^a-zA-Z0-9_-]/g, "_")}_transcript.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Transcript exported to Markdown", "success");
+  };
+
+  // ── Export Chat as JSON / CSV via Backend API ──
+  const handleExportFormat = (format: "json" | "csv") => {
+    if (!currentChat) {
+      showToast("No chat selected to export", "info");
+      return;
+    }
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+    const url = `${apiBase}/api/chats/${encodeURIComponent(currentChat)}/export?format=${format}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", `${currentChat.replace(/[^a-zA-Z0-9_-]/g, "_")}_export.${format}`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast(`Exporting chat as ${format.toUpperCase()}...`, "success");
+  };
+
+  // ── AI actions ──
+  const handleInsight = async (type: string) => {
+    if (!currentChat) return;
+    setAiLoading(`Analyzing ${type.replace("_", " ")}...`);
+    try {
+      const data = await api.runInsight(currentChat, type);
+      setAiCards((prev) => [
+        ...prev,
+        { label: `Insight: ${type.replace("_", " ").toUpperCase()}`, body: data.insight || data.error || "" },
+      ]);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setAiCards((prev) => [...prev, { label: "Error", body: msg }]);
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!currentChat) return;
+    setAiLoading("Running full analysis...");
+    try {
+      const data = await api.runFullAnalysis(currentChat);
+      if (data.error) {
+        setAiCards((prev) => [...prev, { label: "Error", body: data.error }]);
+      } else {
+        const sections = ["summary", "sentiment", "topics", "relationships", "timeline"];
+        const body = sections
+          .filter((s) => data[s])
+          .map((s) => `### ${s.charAt(0).toUpperCase() + s.slice(1)}\n${data[s]}`)
+          .join("\n\n");
+        setAiCards((prev) => [...prev, { label: "Full Analysis", body }]);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setAiCards((prev) => [...prev, { label: "Error", body: msg }]);
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
+  const handleAsk = async () => {
+    const q = askInput.trim();
+    if (!q) return;
+    setAskInput("");
+    setAiCards((prev) => [...prev, { label: "You", body: q }]);
+    setAiLoading("Thinking with semantic retrieval...");
+    try {
+      const answer = await api.askQuestion(q, currentChat);
+      setAiCards((prev) => [...prev, { label: "Answer", body: answer }]);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setAiCards((prev) => [...prev, { label: "Error", body: msg }]);
+    } finally {
+      setAiLoading(null);
+    }
+  };
+
+  const handleSelectChat = (name: string) => {
+    setCurrentChat(name);
+    setView("messages");
+    setAiCards([]);
+    setIsSearching(false);
+    setSearchQuery("");
+    setSearchResults(null);
+    setSenderFilter(null);
+    setHasMore(true);
+  };
+
+  const handleFilterSender = (sender: string) => {
+    setSenderFilter((prev) => (prev === sender ? null : sender));
+    setView("messages");
+  };
+
+  const handleImportComplete = () => {
+    Promise.all([api.loadChats(), api.loadStats()]).then(([c, s]) => {
+      setChats(c);
+      setGlobalStats(s);
+    });
+  };
+
+  let displayedMessages = searchResults ?? messages;
+  if (senderFilter) {
+    displayedMessages = displayedMessages.filter(
+      (m) => m.sender.toLowerCase() === senderFilter.toLowerCase()
+    );
+  }
+
   return (
-    <main className="relative flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
-      <h1 className="sr-only">KL Sync Student Portal</h1>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(79,70,200,0.10),transparent_35%),radial-gradient(circle_at_90%_100%,rgba(19,138,99,0.08),transparent_36%)]" />
-      <div className="absolute right-4 top-4 z-30 flex items-center gap-2 sm:right-6 sm:top-6">
-        <LanguageSelector />
-      </div>
+    <div className="flex w-full h-full text-[15px]">
+      {/* Mobile sidebar toggle */}
+      <button
+        className="md:hidden fixed top-3 left-3 z-50 w-9 h-9 flex items-center justify-center rounded-brand-sm border border-brand-border bg-brand-card text-brand-text backdrop-blur-md spring-click"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle sidebar"
+      >
+        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
 
+      <Sidebar
+        chats={chats}
+        currentChat={currentChat}
+        globalStats={globalStats}
+        sidebarOpen={sidebarOpen}
+        onSelectChat={handleSelectChat}
+        onImportClick={() => setModalOpen(true)}
+        onSparkClick={() => setSparkModalOpen(true)}
+        onTimetableClick={() => setTimetableModalOpen(true)}
+        onDeadlinesClick={() => setDeadlinesModalOpen(true)}
+        onExamPrepClick={() => setExamPrepModalOpen(true)}
+        onCloseMobile={() => setSidebarOpen(false)}
+      />
 
+      {/* Mobile sidebar backdrop overlay */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-      <section className="relative flex min-h-[100dvh] flex-col overflow-y-auto py-6 sm:py-8 custom-scrollbar bg-background">
-        <div className="m-auto w-full max-w-[420px] px-4 animate-spring-up">
-          <Card variant="glass" className="rounded-[--radius-2xl] border-border/60 p-4 sm:p-6 shadow-xl backdrop-blur-xl">
-            <CardHeader className="p-0 pb-4">
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-11 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-surface-1 p-1.5 shadow-xs backdrop-blur-md">
-                  <img
-                    src="/logo.webp"
-                    alt="KL University Logo"
-                    className="h-full w-auto object-contain"
-                  />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight text-foreground leading-tight">
-                    KL Sync
-                  </h1>
-                  <p className="text-[11px] text-muted-foreground font-medium">
-                    KL University Student Portal
-                  </p>
-                </div>
+      <main className="flex-1 flex flex-col min-w-0 bg-brand-bg relative">
+        {currentChat ? (
+          <>
+            <ChatHeader
+              chatName={currentChat}
+              view={view}
+              onViewChange={setView}
+              onInsight={handleInsight}
+              onAnalyze={handleAnalyze}
+              aiLoading={!!aiLoading}
+              onToggleSearch={() => {
+                setIsSearching(!isSearching);
+                if (isSearching) {
+                  setSearchResults(null);
+                  setSearchQuery("");
+                }
+              }}
+              isSearching={isSearching}
+              onExport={handleExport}
+              onExportJson={() => handleExportFormat("json")}
+              onExportCsv={() => handleExportFormat("csv")}
+              onDeleteChat={handleDeleteChat}
+              senderFilter={senderFilter}
+              onClearSenderFilter={() => setSenderFilter(null)}
+            />
+
+            {/* In-chat search banner */}
+            {isSearching && view === "messages" && (
+              <div className="p-3 px-6 bg-brand-card border-b border-brand-border flex items-center gap-2 animate-fade-in">
+                <Search size={14} className="text-brand-accent shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Filter messages in this chat (press Enter)..."
+                  aria-label="Filter messages in this chat"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchSubmit()}
+                  className="flex-1 bg-transparent border-none text-[0.82rem] text-brand-text outline-none placeholder-brand-text-dim"
+                  autoFocus
+                />
+                {searchResults && (
+                  <button
+                    onClick={() => {
+                      setSearchResults(null);
+                      setSearchQuery("");
+                    }}
+                    aria-label="Clear filter results"
+                    className="text-[0.7rem] text-brand-text-dim hover:text-brand-text px-2 py-0.5 rounded border border-brand-border"
+                  >
+                    Clear Filter ({searchResults.length} found)
+                  </button>
+                )}
               </div>
+            )}
 
-              <p className="caption-label mb-0.5 text-primary font-semibold">
-                Welcome back
-              </p>
-              <h2 className="display-title text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Sign in to your{' '}
-                <span className="text-gradient-brand">workspace.</span>
-              </h2>
-              <CardDescription className="mt-1 text-xs sm:text-sm">
-                Use your student ERP credentials to continue.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {error && (
-                <div
-                  role="alert"
-                  aria-live="assertive"
-                  className="mb-3 flex items-start gap-2.5 rounded-[--radius-md] border border-error/35 bg-error/10 p-2.5 text-xs text-error sm:text-sm"
-                >
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p className="leading-relaxed">{error}</p>
-                </div>
+            <div className="flex-1 overflow-y-auto">
+              {view === "messages" ? (
+                <MessageList
+                  messages={displayedMessages}
+                  loading={loadingView}
+                  aiCards={aiCards}
+                  aiLoading={aiLoading}
+                  messagesEndRef={messagesEndRef}
+                  onLoadEarlier={handleLoadEarlier}
+                  hasMore={hasMore && !searchResults}
+                  loadingEarlier={loadingEarlier}
+                  searchQuery={searchResults ? searchQuery : undefined}
+                />
+              ) : (
+                <Dashboard
+                  chatStats={chatStats}
+                  loading={loadingView}
+                  onFilterSender={handleFilterSender}
+                />
               )}
-              {status && !error && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="mb-3 flex items-start gap-2.5 rounded-[--radius-md] border border-info/35 bg-info/10 p-2.5 text-xs text-info sm:text-sm"
-                >
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p className="leading-relaxed">{status}</p>
-                </div>
-              )}
-              <form
-                onSubmit={handleLogin}
-                className="space-y-3"
-                aria-label="Student ERP Authentication Form"
-              >
-                <div className="space-y-1">
-                  <label
-                    htmlFor="student-id-field"
-                    className="caption-label text-muted-foreground"
-                  >
-                    {t('studentId', 'Student ID / username')}
-                  </label>
-                  <Input
-                    id="student-id-field"
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    placeholder="210003xxxx"
-                    leftIcon={<User className="h-4 w-4" />}
-                    aria-required="true"
-                    autoComplete="username"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label
-                    htmlFor="password-field"
-                    className="caption-label text-muted-foreground"
-                  >
-                    {t('password', 'Password')}
-                  </label>
-                  <Input
-                    id="password-field"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Enter your password"
-                    leftIcon={<Lock className="h-4 w-4" />}
-                    aria-required="true"
-                    autoComplete="current-password"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <label
-                      htmlFor="captcha-field"
-                      className="caption-label text-muted-foreground"
-                    >
-                      {t('securityCode', 'Security code')}
-                    </label>
-                    <span className="text-[10px] font-semibold text-primary">
-                      {autoSolveFailed
-                        ? 'Type the code shown'
-                        : 'Lowercase letters only'}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      id="captcha-field"
-                      value={captcha}
-                      onChange={(event) =>
-                        setCaptcha(
-                          event.target.value
-                            .toLowerCase()
-                            .replace(/[^a-z]/g, '')
-                        )
-                      }
-                      placeholder="e.g. abcd"
-                      aria-required="true"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      className="min-w-0 flex-1 font-mono lowercase tracking-[0.25em]"
-                    />
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <div className="flex h-11 w-[90px] items-center justify-center overflow-hidden rounded-[--radius-md] border border-border bg-surface-1 shadow-xs">
-                        {captchaLoading ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin text-muted-foreground"
-                            aria-label="Loading captcha"
-                          />
-                        ) : captchaImage ? (
-                          <img
-                            src={captchaImage}
-                            alt="Security code"
-                            className="h-full w-full object-contain mix-blend-normal"
-                            onError={(event) => {
-                              event.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          triggerHaptic('light');
-                          setCaptchaToken('');
-                          void fetchCaptcha();
-                        }}
-                        isLoading={captchaLoading}
-                        disabled={captchaLoading}
-                        aria-label="Refresh captcha"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label
-                    htmlFor="remember-me-checkbox"
-                    className="flex min-h-[44px] cursor-pointer items-center gap-2.5 text-xs sm:text-sm font-medium text-muted-foreground select-none hover:text-foreground transition-colors"
-                  >
-                    <input
-                      id="remember-me-checkbox"
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(event) => setRememberMe(event.target.checked)}
-                      className="h-4 w-4 rounded border-input bg-surface-2 text-primary accent-primary focus-visible:ring-2 focus-visible:ring-primary"
-                    />
-                    <span>{t('rememberMe', 'Remember me')}</span>
-                  </label>
-                </div>
-                <Captcha onVerify={setCaptchaToken} />
-                <Button
-                  type="submit"
-                  size="lg"
-                  isLoading={loading}
-                  disabled={loading || !captcha}
-                  className="mt-1 w-full"
-                >
-                  <LogIn className="h-4 w-4" />
-                  {t('signIn', 'Sign in')}
-                </Button>
+            </div>
 
-                <div className="relative flex items-center justify-center py-1">
-                  <div className="flex-grow border-t border-border/60" />
-                  <span className="shrink-0 px-3 text-[11px] font-medium text-muted-foreground">
-                    or
-                  </span>
-                  <div className="flex-grow border-t border-border/60" />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleDemoMode}
-                  disabled={loading}
-                  className="apple-pill flex min-h-[44px] w-full items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-foreground hover:text-primary transition-all active:scale-[0.98] disabled:opacity-50"
-                  aria-label="Explore Demo Portal"
-                >
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span>Explore Demo Portal</span>
-                </button>
-              </form>
-
-              <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success" />
-                <span>Protected with AES-256 encrypted session tokens</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+            {view === "messages" && (
+              <AskBar
+                value={askInput}
+                onChange={setAskInput}
+                onAsk={handleAsk}
+                disabled={!!aiLoading}
+              />
+            )}
+          </>
+        ) : (
+          <WelcomePage globalSummary={globalSummary} />
+        )}
       </main>
+
+      <ImportModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onImportComplete={handleImportComplete}
+        onToast={showToast}
+        api={api}
+      />
+
+      <SparkStatusModal
+        open={sparkModalOpen}
+        onClose={() => setSparkModalOpen(false)}
+        onRefresh={api.getSparkStatus}
+      />
+
+      <TimetableModal
+        open={timetableModalOpen}
+        onClose={() => setTimetableModalOpen(false)}
+        onToast={showToast}
+      />
+
+      <DeadlinesModal
+        open={deadlinesModalOpen}
+        onClose={() => setDeadlinesModalOpen(false)}
+        onToast={showToast}
+      />
+
+      <ExamPrepModal
+        isOpen={examPrepModalOpen}
+        onClose={() => setExamPrepModalOpen(false)}
+      />
+
+      <Toast toasts={toasts} onDismiss={dismissToast} />
+    </div>
   );
 }

@@ -31,4 +31,4 @@
 
 ## 5. Technical Debt & Documentation
 - [ ] **PONYTAIL-DEBT.md**: All deliberate shortcuts carry explicit upgrade triggers. 0 rot-risk entries (`no-trigger`).
-- [ ] **ADR Integrity**: Architectural decisions are recorded under `docs/architecture/adr/` in MADR 3.0 format.
+- [ ] **ADR Integrity**: Architectural decisions are recorded under `adr/` in MADR 3.0 format.

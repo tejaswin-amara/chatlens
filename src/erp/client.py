@@ -93,9 +93,7 @@ class KLUERPClient:
         except Exception as e:
             logger.debug("Failed to save marks cache", error=str(e))
 
-    def _get_cached_marks(
-        self, academic_year: str, semester_id: str
-    ) -> list[dict[str, Any]]:
+    def _get_cached_marks(self, academic_year: str, semester_id: str) -> list[dict[str, Any]]:
         try:
             key = f"{academic_year}:{semester_id}"
             with contextlib.closing(
@@ -313,7 +311,6 @@ class KLUERPClient:
                     return fresh_res.text
             return res.text
 
-
     async def get_attendance(
         self, academic_year: str = "29", semester_id: str = "1"
     ) -> list[dict[str, Any]]:
@@ -378,8 +375,7 @@ class KLUERPClient:
         """Scrapes and returns official weekly timetable matrix from KLU ERP."""
         try:
             tt_route = (
-                "timetables/universitymasteracademictimetableview"
-                "/individualstudenttimetableget"
+                "timetables/universitymasteracademictimetableview/individualstudenttimetableget"
             )
             tt_url = (
                 f"{TIMETABLE_URL}?r={tt_route}&"

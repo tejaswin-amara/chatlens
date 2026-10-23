@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 import os
 from typing import Any
 
@@ -34,6 +35,8 @@ except ImportError:
 
     celery_app = DummyCelery()  # type: ignore
 
+logger = logging.getLogger(__name__)
+
 
 def generate_embeddings_batch(texts: list[str]) -> list[list[float] | None]:
     """Generate vector embeddings for a list of texts via Google GenAI."""
@@ -67,7 +70,8 @@ async def save_messages(messages: list[dict[str, Any]]) -> None:
             )
             msg["content_hash"] = hashlib.sha256(msg_str.encode("utf-8")).hexdigest()
 
-        # Batch embed up to first 200 non-empty messages to enrich vector search without hitting quota
+        # Batch embed up to first 200 non-empty messages to enrich vector search
+        # without hitting API quota
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key and genai is not None:
             try:
@@ -82,8 +86,8 @@ async def save_messages(messages: list[dict[str, Any]]) -> None:
                     )
                     if emb is not None:
                         m["embedding"] = emb
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"Batch embedding skipped: {exc}")
 
         bind = session.bind or getattr(session, "_bind", None)
         is_sqlite = False
@@ -177,6 +181,6 @@ def parse_file_task(self: Any, file_path: str, platform: str) -> dict[str, Any]:
         self.update_state(
             state="PROGRESS", meta={"current": 0, "total": 0, "status": "Parsing file"}
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"Task progress update failed: {exc}")
     return parse_and_save_sync(file_path, platform)

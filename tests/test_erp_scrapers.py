@@ -277,4 +277,3 @@ def test_parse_timetable() -> None:
     assert records[1]["component"] == "S"
     assert records[1]["section"] == "S-11"
     assert records[1]["room"] == "H301A"
-

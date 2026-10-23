@@ -1,18 +1,18 @@
 # Verify Command (`/verify`)
 
-Execute the complete Awesome Dev Pipeline v2.0.0 local verification suite across Python and TypeScript stacks:
+Execute the complete Awesome Dev Pipeline v2.2.0 local verification suite across Python and TypeScript stacks:
 
 1. **Python Linter**:
    ```bash
-   uv run ruff check src tests scripts chatlens chatlens-v2/backend
+   uv run ruff check src tests scripts chatlens-v2/backend
    ```
 2. **Python Code Formatter**:
    ```bash
-   uv run ruff format --check src tests scripts chatlens chatlens-v2/backend
+   uv run ruff format --check src tests scripts chatlens-v2/backend
    ```
 3. **Python Static Type Checking**:
    ```bash
-   uv run mypy src
+   uv run mypy src scripts benchmarks chatlens-v2/backend
    ```
 4. **Python Test Suite (Runtime Warnings Treated as Errors)**:
    ```bash

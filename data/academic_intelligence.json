@@ -1,0 +1,110 @@
+{
+  "last_updated": "2026-10-23T14:10:00+05:30",
+  "exams": [
+    {
+      "course": "Embedded System Design & IoT",
+      "course_code": "25EC2206E",
+      "section": "S-10",
+      "event": "Lab In-Sem Examination",
+      "date": "2026-10-15",
+      "time": "10:00 AM – 11:40 AM",
+      "room": "103",
+      "faculty": "Dr. Dinesh Kumar",
+      "lab_technician": null
+    },
+    {
+      "course": "Embedded System Design & IoT",
+      "course_code": "25EC2206E",
+      "section": "S-10",
+      "event": "Project Defence & Demonstration",
+      "date": "2026-10-16",
+      "time": "10:00 AM – 11:40 AM",
+      "room": "14D",
+      "faculty": "Dr. Dinesh Kumar",
+      "lab_technician": "Ms. Swathi"
+    }
+  ],
+  "lab_experiments": [
+    {
+      "id": 1,
+      "title": "Two LEDs Blinking",
+      "task": "Blink two LEDs continuously at 1s interval using digital output pins (Pins 12, 13).",
+      "viva_questions": [
+        "What is the role of transmit buffers, receive FIFOs, and acceptance filters in the STM32H7 FDCAN peripheral?",
+        "Name two common CAN bit rates (e.g., 250 kbps, 500 kbps, 1 Mbps)."
+      ]
+    },
+    {
+      "id": 2,
+      "title": "LED Control via Push Button",
+      "task": "Control LED with momentary push button (Pins 2, 12 with INPUT_PULLUP).",
+      "viva_questions": [
+        "What is the role of a CAN transceiver between the MCU and the bus (converts TTL logic to differential voltage)?",
+        "What is the purpose of the CRC field in CAN (cyclic redundancy check for transmission error detection)?"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "LED Brightness via Potentiometer (PWM)",
+      "task": "Read analog value from potentiometer on A0 and map to PWM output on Pin 9 (0-255).",
+      "viva_questions": [
+        "Why are 120-ohm termination resistors used in a CAN bus (impedance matching to prevent signal reflections)?",
+        "What is the Nyquist criterion (sampling rate must be at least twice the maximum signal frequency)?"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Light Intensity Measurement using LDR",
+      "task": "Measure surrounding light using LDR voltage divider on A0 and print lux condition to Serial Monitor.",
+      "viva_questions": [
+        "What is the purpose of the ACK field in CAN?",
+        "What is an error frame, and why does CAN automatically retransmit a failed message?"
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Distance Measurement using Ultrasonic Sensor",
+      "task": "HC-SR04 pulse duration measurement and convert to cm on Serial Monitor.",
+      "viva_questions": [
+        "What do the proportional, integral, and derivative terms contribute to a PID controller?",
+        "How many data bytes can a Classical CAN frame carry (up to 8 bytes, compared to 64 in CAN FD)?"
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Human Movement Detection using PIR Sensor",
+      "task": "Digital read PIR sensor and output Motion Detected / No Motion.",
+      "viva_questions": [
+        "What are command, telemetry, and heartbeat messages in a CAN application?",
+        "What is the difference between a data frame and a remote frame?"
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Servo Motor Angular Sweep",
+      "task": "Sweep servo from 0 to 180 degrees and return with step delays.",
+      "viva_questions": [
+        "What is bumpless transfer (smooth switching between manual and automatic control)?",
+        "What does DLC indicate in a CAN frame (Data Length Code, number of payload bytes)?"
+      ]
+    },
+    {
+      "id": 8,
+      "title": "16x2 I2C LCD Interfacing",
+      "task": "Display Name on Row 1 and Roll Number on Row 2 via I2C address (0x27 or 0x3F).",
+      "viva_questions": [
+        "Why is discrete-time PID used in a microcontroller, and what is the sampling period?",
+        "If two nodes transmit simultaneously, which CAN identifier wins arbitration (the lower numerical ID / dominant bits)?"
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Temperature Measurement using Thermistor",
+      "task": "10k NTC thermistor (Beta=3950) on Pin A1 with 10k resistor divider to measure temperature in Celsius.",
+      "viva_questions": [
+        "What is CAN, and where is it commonly used (automotive, avionics, industrial automation)?",
+        "How can CAN identifiers be assigned to give important messages higher priority?"
+      ]
+    }
+  ]
+}

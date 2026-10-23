@@ -57,7 +57,8 @@ ignore = ["S608"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "ASYNC230"]
 "scripts/*" = ["S603", "S607"]
-"chatlens-v2/*" = ["ALL"]
+"chatlens-v2/backend/migrations/*" = ["E501", "UP007", "UP035", "S110", "BLE001"]
+"chatlens-v2/backend/main.py" = ["B008", "ASYNC230", "ASYNC240"]
 
 
 [tool.pytest.ini_options]
@@ -82,5 +83,7 @@ module = [
     "google_auth_oauthlib.*",
     "celery",
     "celery.*",
+    "pgvector",
+    "pgvector.*",
 ]
 ignore_missing_imports = true

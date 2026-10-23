@@ -10,6 +10,15 @@ from src.config import settings
 from src.parsing.ai_extractor import ai_extractor
 from src.parsing.regex_parser import RegexParser
 from src.parsing.schemas import ExtractedAcademicEvent
+from src.timetable import (
+    COURSE_INFO as COURSE_INFO,
+)
+from src.timetable import (
+    PERIOD_TIMES as PERIOD_TIMES,
+)
+from src.timetable import (
+    format_day_schedule,
+)
 from src.utils.deduplication import deduplicator
 from src.utils.logging import get_logger
 from src.workspace.calendar_sync import calendar_sync
@@ -502,7 +511,7 @@ async def handle_bot_callback(query: dict) -> None:
     from src.notify.bot import bot
 
     sender_id = query.get("from", {}).get("id")
-    if settings.owner_chat_id and sender_id != settings.owner_chat_id:
+    if settings.owner_chat_id and (not sender_id or str(sender_id) != str(settings.owner_chat_id)):
         return
 
     cb_id = query.get("id")
@@ -513,6 +522,16 @@ async def handle_bot_callback(query: dict) -> None:
         await asyncio.to_thread(bot.answer_callback, cb_id)
     except Exception as e:
         logger.debug("Failed to answer callback query", error=str(e))
+
+    if data.startswith("cmd:"):
+        cmd_name = data.split(":", 1)[1]
+        synth_msg = {
+            "chat": {"id": sender_id},
+            "from": {"id": sender_id},
+            "text": f"/{cmd_name}",
+        }
+        await handle_bot_command(synth_msg)
+        return
 
     if not data.startswith("ok:") and not data.startswith("no:"):
         return
@@ -587,7 +606,7 @@ async def handle_undo_command(msg: dict) -> None:
     from src.workspace.tasks_sync import tasks_sync
 
     chat_id = msg.get("chat", {}).get("id") or msg.get("from", {}).get("id")
-    if settings.owner_chat_id and chat_id and chat_id != settings.owner_chat_id:
+    if settings.owner_chat_id and chat_id and str(chat_id) != str(settings.owner_chat_id):
         return
 
     last = deduplicator.last_write()
@@ -651,28 +670,60 @@ async def handle_bot_command(msg: dict) -> None:
     from src.notify.bot import bot
 
     chat_id = msg.get("chat", {}).get("id") or msg.get("from", {}).get("id")
-    if settings.owner_chat_id and chat_id and chat_id != settings.owner_chat_id:
+    if settings.owner_chat_id and (not chat_id or str(chat_id) != str(settings.owner_chat_id)):
         return
 
     text = (msg.get("text") or "").strip()
-    cmd = text.split()[0].lower() if text else ""
+    cmd = text.split()[0].lower().split("@")[0] if text else ""
 
-    if cmd in ("/start", "/help"):
+    recognized_commands = (
+        "/",
+        "/start",
+        "/help",
+        "/today",
+        "/tomorrow",
+        "/attendance",
+        "/deadlines",
+        "/deadline",
+        "/tasks",
+        "/status",
+        "/marks",
+        "/cgpa",
+        "/fee",
+        "/rescan",
+        "/scan",
+        "/undo",
+        "/ask",
+        "/exam",
+        "/exams",
+        "/viva",
+    )
+    if cmd.startswith("/") and cmd not in recognized_commands:
+        import difflib
+
+        fuzzy_candidates = tuple(c for c in recognized_commands if c not in ("/", "/undo"))
+        close = difflib.get_close_matches(cmd, fuzzy_candidates, n=1, cutoff=0.75)
+        if close:
+            cmd = close[0]
+
+    if cmd in ("/", "/start", "/help"):
         reply = (
-            "👋 **Welcome to ChatLens & SPARK PA!**\n\n"
-            "I monitor your course chats, track timetable changes, sync with KL ERP, "
-            "and answer queries using Google Gemini AI.\n\n"
-            "**Academic & Schedule Commands**:\n"
-            "• `/today` — Today's classes & room overrides\n"
+            "👋 **ChatLens & SPARK PA Menu**\n\n"
+            "Academic & Schedule Commands:\n"
+            "• `/today` — Today's classes, rooms & status\n"
+            "• `/tomorrow` — Tomorrow's schedule & upcoming classes\n"
             "• `/attendance` — Live attendance & safe bunk margins\n"
+            "• `/deadlines` — Upcoming task deadlines & academic milestones\n"
+            "• `/exam` — In-sem lab exams & project defence schedules\n"
+            "• `/ask <question>` — Instant semantic answer (viva prep, Arduino code, rooms)\n"
+            "• `/status` — Live daemon & chat monitoring status\n"
             "• `/marks` — In-sem internal marks & assessments\n"
             "• `/cgpa` — Official academic grades & transcript\n"
             "• `/fee` — Fee orders & payment receipts\n"
             "• `/rescan` — Deep-scan course group messages & files (past 7 days)\n"
-            "• `/status` — Live status & monitored chats\n"
             "• `/undo` — Revert last applied calendar override\n"
-            "• `/help` — Show this command directory\n\n"
-            "💬 *Tip: Ask me any question directly to search with Gemini!*"
+            "• `/help` — Show all available options\n\n"
+            "💬 *Tap any button below or ask a question directly!*"
         )
         await asyncio.to_thread(bot.send, reply)
 
@@ -693,33 +744,21 @@ async def handle_bot_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, reply)
 
     elif cmd == "/today":
-        import src.timetable as tt
         from src.utils import clock
 
         today = clock.today_ist()
-        timetable = tt.load()
+        now = clock.now_ist()
+        schedule_text = format_day_schedule(today, now_dt=now)
+        await asyncio.to_thread(bot.send, schedule_text)
 
-        if not timetable:
-            await asyncio.to_thread(bot.send, "⚠️ Timetable file not found.")
-            return
+    elif cmd == "/tomorrow":
+        import datetime
 
-        effective_slots = tt.get_effective_slots(today, timetable)
-        if not effective_slots:
-            await asyncio.to_thread(
-                bot.send,
-                f"📅 **Schedule for {today.strftime('%A, %b %d')}**:\n\n"
-                f"No scheduled classes for today! Enjoy your day 🎉",
-            )
-        else:
-            lines = [f"📅 **Schedule for {today.strftime('%A, %b %d')}**:"]
-            for s in sorted(effective_slots, key=lambda x: x.period):
-                if s.override == "CANCELLED":
-                    lines.append(f"• ~**P{s.period}**: {s.course}~ ❌ *[CANCELLED]*")
-                elif s.override:
-                    lines.append(f"• **P{s.period}**: {s.course} in `{s.room}` ⚡ *({s.override})*")
-                else:
-                    lines.append(f"• **P{s.period}**: {s.course} in `{s.room}` ({s.faculty})")
-            await asyncio.to_thread(bot.send, "\n".join(lines))
+        from src.utils import clock
+
+        tomorrow = clock.today_ist() + datetime.timedelta(days=1)
+        schedule_text = format_day_schedule(tomorrow, now_dt=None)
+        await asyncio.to_thread(bot.send, schedule_text)
 
     elif cmd == "/attendance":
         from src.erp import klu_erp
@@ -730,7 +769,7 @@ async def handle_bot_command(msg: dict) -> None:
             await asyncio.to_thread(
                 bot.send,
                 "⚠️ Could not retrieve attendance from KL ERP.\n"
-                "Please verify `ERP_USERNAME` and `ERP_PASSWORD` in `.env` or check portal status."
+                "Please verify `ERP_USERNAME` and `ERP_PASSWORD` in `.env` or check portal status.",
             )
         else:
             lines = ["📊 **Live Attendance Overview (KL ERP)**:\n"]
@@ -828,17 +867,91 @@ async def handle_bot_command(msg: dict) -> None:
                 f"✅ **Deep Rescan Complete**\n"
                 f"• Messages & files processed: {count}\n"
                 f"• Monitored chats: {len(settings.allowed_chat_ids)}\n"
-                f"• Type `/today` to review your updated schedule."
+                f"• Type `/today` to review your updated schedule.",
             )
         else:
             await asyncio.to_thread(bot.send, "⚠️ Telegram client not available for rescan.")
+
+    elif cmd in ("/deadlines", "/deadline", "/tasks"):
+        from src.academic_calendar import load_calendar
+        from src.utils import clock
+        from src.utils.deduplication import deduplicator
+
+        today = clock.today_ist()
+        cal = load_calendar()
+        milestones_list = []
+        if cal:
+            for term, term_dates in cal.terms.items():
+                for m_name, m_date in term_dates.items():
+                    if m_date >= today:
+                        milestones_list.append((m_date, f"{m_name} ({term})"))
+        milestones_list.sort(key=lambda x: x[0])
+
+        pending_items = deduplicator.list_pending(limit=5)
+
+        lines = [f"⏰ **Upcoming Deadlines & Milestones** (as of {today.strftime('%d %b %Y')}):\n"]
+        if not milestones_list and not pending_items:
+            lines.append("🎉 No upcoming deadlines registered in calendar or task tracker.")
+        else:
+            if milestones_list:
+                lines.append("📅 **Academic Calendar Milestones**:")
+                for m_date, m_label in milestones_list[:6]:
+                    days_left = (m_date - today).days
+                    if days_left == 0:
+                        day_str = "today!"
+                    elif days_left > 0:
+                        day_str = f"in {days_left} days"
+                    else:
+                        day_str = ""
+                    lines.append(f"• **{m_label}**: `{m_date.strftime('%d %b %Y')}` ({day_str})")
+            if pending_items:
+                lines.append("\n📝 **Pending Tasks & Class Deadlines**:")
+                for item in pending_items:
+                    ev = item.get("event", {})
+                    summary = ev.get("summary") or ev.get("description") or "Assignment / Task"
+                    lines.append(f"• **{summary}** (Status: `{item.get('status')}`)")
+
+        await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd in ("/exam", "/exams", "/viva"):
+        reply = (
+            "📝 **ESD & IoT Lab Exams & Defence (Section S-10)**:\n\n"
+            "• **Lab In-Sem Exam**: 15 Oct 2026, 10:00 AM – 11:40 AM (P3-P4)\n"
+            "  - Room: `103` | Faculty: Dr. Dinesh Kumar\n\n"
+            "• **Project Defence & Demonstration**: 16 Oct 2026, 10:00 AM – 11:40 AM (P3-P4)\n"
+            "  - Room: `14D` | Faculty: Dr. Dinesh Kumar | Lab Tech: Ms. Swathi\n\n"
+            "💡 *Tip: Use `/ask <question>` (e.g. `/ask thermistor viva`) to review prep!*"
+        )
+        await asyncio.to_thread(bot.send, reply)
+
+    elif cmd == "/ask":
+        query_text = text[len(cmd):].strip()
+        if not query_text:
+            msg_hint = "ℹ️ Please specify your question: `/ask <your question>`"
+            await asyncio.to_thread(bot.send, msg_hint)
+        else:
+            from src.knowledge.retriever import knowledge_retriever
+
+            answer_text = await asyncio.to_thread(knowledge_retriever.answer, query_text)
+            await asyncio.to_thread(bot.send, f"💡 **Academic Intel Answer**:\n\n{answer_text}")
 
     elif cmd == "/undo":
         await handle_undo_command(msg)
 
     else:
         reply_sent = False
-        if settings.gemini_api_key.get_secret_value():
+        if not text.startswith("/"):
+            from src.knowledge.retriever import knowledge_retriever
+
+            intel_answer = await asyncio.to_thread(knowledge_retriever.answer, text)
+            if (
+                intel_answer
+                and "Information not provided" not in intel_answer
+                and len(intel_answer.strip()) > 5
+            ):
+                await asyncio.to_thread(bot.send, f"💡 {intel_answer}")
+                reply_sent = True
+        elif settings.gemini_api_key.get_secret_value():
             try:
                 from google import genai
 

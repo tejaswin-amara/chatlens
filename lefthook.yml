@@ -1,4 +1,4 @@
-# Lefthook Git Hook Configuration (Awesome Dev Pipeline v2.0.0)
+# Lefthook Git Hook Configuration (Engineering Pipeline Brief Standard 2.2.0)
 
 pre-commit:
   parallel: true
@@ -12,15 +12,21 @@ pre-commit:
       run: uv run ruff format {staged_files}
       stage_fixed: true
     secrets:
-      run: gitleaks git --pre-commit --staged || true
+      run: gitleaks git --pre-commit --staged --redact --no-banner
+    workflow-lint:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: actionlint && zizmor --persona=pedantic .github/workflows/
 
 pre-push:
   parallel: false
   commands:
     mypy:
-      run: uv run mypy src
+      run: uv run mypy src scripts benchmarks chatlens-v2/backend
     pytest:
       run: uv run pytest -q -W error::RuntimeWarning
     frontend-typecheck:
       root: chatlens-v2/frontend
       run: npx tsc --noEmit
+    frontend-test:
+      root: chatlens-v2/frontend
+      run: npm run test -- --run

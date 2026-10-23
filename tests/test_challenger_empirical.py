@@ -264,9 +264,7 @@ async def test_empirical_erp_session_expiry_triggers_ocr_reauth():
     with patch.object(
         client, "_get_http_client", side_effect=lambda: httpx.AsyncClient(transport=transport)
     ):
-        with patch.object(
-            client, "login", new_callable=AsyncMock, return_value=True
-        ) as mock_login:
+        with patch.object(client, "login", new_callable=AsyncMock, return_value=True) as mock_login:
             content = await client.fetch_page("https://newerp.kluniversity.in/target")
             assert mock_login.called, "Session expiry did not trigger login()"
             assert content == '<div id="content">Student Data</div>'
@@ -350,9 +348,9 @@ def test_empirical_timetable_room_normalization():
         )
         v = validate(evt, tt)
         assert not v.ok, f"Expected ok=False for {desc} ({room_variant})"
-        assert (
-            v.reason == "NO_CHANGE"
-        ), f"Expected NO_CHANGE for {desc} ({room_variant}), got {v.reason}"
+        assert v.reason == "NO_CHANGE", (
+            f"Expected NO_CHANGE for {desc} ({room_variant}), got {v.reason}"
+        )
 
     # Room variations that represent a REAL CHANGE
     changed_cases = [
@@ -393,7 +391,6 @@ def test_empirical_regex_parser_room_variations():
         event = RegexParser.parse(text)
         assert event is not None, f"RegexParser failed to parse room {raw_room}"
         assert event.intent == "ROOM_OVERRIDE"
-        assert (
-            event.room.upper().replace("-", "").replace(" ", "")
-            == expected.upper().replace("-", "").replace(" ", "")
-        )
+        assert event.room.upper().replace("-", "").replace(" ", "") == expected.upper().replace(
+            "-", ""
+        ).replace(" ", "")

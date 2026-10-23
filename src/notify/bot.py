@@ -95,27 +95,113 @@ class BotClient:
                 time.sleep(2**attempt)
         return self._request(endpoint, data, timeout)
 
-    def send(self, text: str, buttons: list | None = None, parse_mode: str | None = None) -> dict:
-        data: dict = {"chat_id": settings.owner_chat_id, "text": text}
+    def send(
+        self,
+        text: str,
+        buttons: list | None = None,
+        parse_mode: str | None = None,
+        chat_id: int | str | None = None,
+    ) -> dict:
+        target_chat_id = chat_id if chat_id is not None else settings.owner_chat_id
+        if not target_chat_id:
+            logger.warning("No chat_id or owner_chat_id configured for bot.send")
+            return {"ok": False, "description": "No chat_id"}
+
+        data: dict = {"chat_id": target_chat_id, "text": text}
+        chosen_parse_mode = parse_mode
+        if not chosen_parse_mode and ("**" in text or "`" in text or "*" in text):
+            chosen_parse_mode = "Markdown"
+
+        if chosen_parse_mode:
+            data["parse_mode"] = chosen_parse_mode
+
+        if buttons is not None:
+            if buttons:
+                inline_kb = buttons if isinstance(buttons[0], list) else [buttons]
+                data["reply_markup"] = {"inline_keyboard": inline_kb}
+        else:
+            # Default quick-action buttons on every chat response
+            data["reply_markup"] = {
+                "inline_keyboard": [
+                    [
+                        {"text": "📅 Today", "callback_data": "cmd:today"},
+                        {"text": "📊 Attendance", "callback_data": "cmd:attendance"},
+                    ],
+                    [
+                        {"text": "⏰ Deadlines", "callback_data": "cmd:deadlines"},
+                        {"text": "🟢 Status", "callback_data": "cmd:status"},
+                    ],
+                ]
+            }
+
+        try:
+            return self._retry("sendMessage", data)
+        except BotError as e:
+            if chosen_parse_mode and "400" in str(e):
+                logger.warning(
+                    "Markdown formatting rejected by Telegram, retrying as plain text",
+                    error=str(e),
+                )
+                data.pop("parse_mode", None)
+                return self._retry("sendMessage", data)
+            raise
+
+    def edit(
+        self,
+        message_id: int | str,
+        text: str,
+        parse_mode: str | None = None,
+        chat_id: int | str | None = None,
+    ) -> dict:
+        target_chat_id = chat_id if chat_id is not None else settings.owner_chat_id
+        data = {"chat_id": target_chat_id, "message_id": message_id, "text": text}
         if parse_mode:
             data["parse_mode"] = parse_mode
-        elif "**" in text or "`" in text or "*" in text:
-            data["parse_mode"] = "Markdown"
+        try:
+            return self._retry("editMessageText", data)
+        except BotError as e:
+            if parse_mode and "400" in str(e):
+                data.pop("parse_mode", None)
+                return self._retry("editMessageText", data)
+            raise
 
-        if buttons:
-            data["reply_markup"] = {"inline_keyboard": [buttons]}
-
-        return self._retry("sendMessage", data)
-
-    def edit(self, message_id: int | str, text: str, parse_mode: str | None = None) -> dict:
-        data = {"chat_id": settings.owner_chat_id, "message_id": message_id, "text": text}
-        if parse_mode:
-            data["parse_mode"] = parse_mode
-        return self._retry("editMessageText", data)
-
-    def answer_callback(self, callback_id: str | None) -> dict:
-        data = {"callback_query_id": callback_id or ""}
+    def answer_callback(self, callback_id: str | None, text: str | None = None) -> dict:
+        data: dict = {"callback_query_id": callback_id or ""}
+        if text:
+            data["text"] = text
         return self._retry("answerCallbackQuery", data)
+
+    def delete_webhook(self, drop_pending_updates: bool = False) -> dict:
+        if not self.base_url:
+            return {"ok": False, "description": "BOT_TOKEN is not set"}
+        data = {"drop_pending_updates": drop_pending_updates}
+        try:
+            return self._request("deleteWebhook", data)
+        except Exception as e:
+            logger.debug("Failed to delete webhook", error=str(e))
+            return {"ok": False, "description": str(e)}
+
+    def set_my_commands(self) -> dict:
+        if not self.base_url:
+            return {"ok": False, "description": "BOT_TOKEN is not set"}
+        commands = [
+            {"command": "today", "description": "Today's classes, rooms & status"},
+            {"command": "attendance", "description": "Live attendance & safe bunks"},
+            {"command": "deadlines", "description": "Upcoming deadlines & milestones"},
+            {"command": "status", "description": "Live daemon & chat monitoring status"},
+            {"command": "marks", "description": "In-sem assessment marks"},
+            {"command": "cgpa", "description": "Official academic grades & CGPA"},
+            {"command": "fee", "description": "Fee orders & payment receipts"},
+            {"command": "rescan", "description": "Rescan course group chats"},
+            {"command": "undo", "description": "Undo last applied calendar change"},
+            {"command": "help", "description": "Show all available options"},
+        ]
+        data = {"commands": commands}
+        try:
+            return self._request("setMyCommands", data)
+        except Exception as e:
+            logger.debug("Failed to set bot commands", error=str(e))
+            return {"ok": False, "description": str(e)}
 
     def get_updates(self, offset: int, timeout: int = 30) -> dict:
         data = {

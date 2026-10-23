@@ -18,7 +18,8 @@ test:
 	uv run pytest -q -W error::RuntimeWarning
 
 security:
-	uv run python scripts/detect_archetype.py . --format text
+	gitleaks git --redact --no-banner
+	osv-scanner -r .
 
 frontend-check:
-	cd chatlens-v2/frontend && npm run lint && npx tsc --noEmit && npm run build
+	cd chatlens-v2/frontend && npm run lint && npx tsc --noEmit && npx vitest run && npm run build

@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 async def bot_callback_poll() -> None:
-    if settings.spark_mode == "dry" or not settings.bot_token or not settings.owner_chat_id:
+    if not settings.bot_token or not settings.owner_chat_id:
         return
 
     import asyncio
@@ -33,6 +33,9 @@ async def bot_callback_poll() -> None:
         handle_undo_command,
     )
     from src.notify.bot import bot
+
+    await asyncio.to_thread(bot.delete_webhook)
+    await asyncio.to_thread(bot.set_my_commands)
 
     offset = 0
     while True:
@@ -49,9 +52,11 @@ async def bot_callback_poll() -> None:
                         m = up["message"]
                         text = (m.get("text") or "").strip()
                         sender_id = m.get("from", {}).get("id") or m.get("chat", {}).get("id")
-                        if text.startswith("/undo") and sender_id == settings.owner_chat_id:
+                        if settings.owner_chat_id and str(sender_id) != str(settings.owner_chat_id):
+                            continue
+                        if text.startswith("/undo"):
                             await handle_undo_command(m)
-                        elif sender_id == settings.owner_chat_id:
+                        else:
                             await handle_bot_command(m)
             await asyncio.sleep(0.2)
         except asyncio.CancelledError:
@@ -205,7 +210,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
         asyncio.create_task(supervise("briefing", run_briefing, stop_event)),
         asyncio.create_task(supervise("heartbeat", run_heartbeat, stop_event)),
     ]
-    if settings.spark_mode != "dry":
+    if settings.bot_token and settings.owner_chat_id:
         jobs.append(asyncio.create_task(supervise("bot_poll", bot_callback_poll, stop_event)))
 
     startup_sent = False
@@ -222,6 +227,18 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
 
                 if not startup_sent:
                     from src.timetable import load as load_timetable
+                    from src.utils import clock
+                    from src.utils.deduplication import deduplicator
+
+                    now_ts = clock.now_ist().timestamp()
+                    last_notify = deduplicator.meta_get("last_startup_notify_ts")
+                    should_notify = True
+                    if last_notify:
+                        try:
+                            if now_ts - float(last_notify) < 900:  # 15m debounce
+                                should_notify = False
+                        except ValueError:
+                            pass
 
                     loaded_tt = load_timetable()
                     tt_status = (
@@ -236,11 +253,12 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                         f"🚀 SPARK started: mode={settings.spark_mode}, "
                         f"{len(settings.allowed_chat_ids)} chats, timetable {tt_status}"
                     )
-                    if settings.bot_token and settings.owner_chat_id:
+                    if should_notify and settings.bot_token and settings.owner_chat_id:
                         from src.notify.bot import bot
 
                         try:
-                            await asyncio.to_thread(bot.send, msg)
+                            await asyncio.to_thread(bot.send, msg, buttons=[])
+                            deduplicator.meta_set("last_startup_notify_ts", str(now_ts))
                         except Exception as err:
                             logger.warning("Failed to send startup notification", error=str(err))
                     startup_sent = True

@@ -348,4 +348,3 @@ def parse_timetable_records(html: str) -> list[dict[str, Any]]:
                         )
 
     return records
-

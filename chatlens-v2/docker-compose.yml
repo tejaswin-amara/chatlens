@@ -4,9 +4,9 @@ services:
     image: pgvector/pgvector:pg16
     container_name: chatlens_postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-chatlens}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatlens_password}
-      POSTGRES_DB: ${POSTGRES_DB:-chatlens_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-chatlens}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:

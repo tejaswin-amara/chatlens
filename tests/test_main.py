@@ -202,6 +202,7 @@ async def test_daemon_startup_notification_loaded(mock_valid_settings):
         patch("src.timetable.load", return_value=mock_tt),
         patch("src.notify.bot.bot.send") as mock_send,
         patch("src.main.catch_up_chats", new=AsyncMock()),
+        patch("src.utils.deduplication.deduplicator.meta_get", return_value=None),
     ):
         mock_valid_settings.spark_mode = "live"
         code = await guard(run_daemon(client=client, stop_event=stop_event, handle_signals=False))
@@ -221,6 +222,7 @@ async def test_daemon_startup_notification_sample(mock_valid_settings):
         patch("src.timetable.load", return_value=mock_tt),
         patch("src.notify.bot.bot.send") as mock_send,
         patch("src.main.catch_up_chats", new=AsyncMock()),
+        patch("src.utils.deduplication.deduplicator.meta_get", return_value=None),
     ):
         mock_valid_settings.spark_mode = "live"
         code = await guard(run_daemon(client=client, stop_event=stop_event, handle_signals=False))
@@ -256,11 +258,59 @@ async def test_bot_callback_poll_undo_routing(mock_valid_settings):
 
 
 @pytest.mark.asyncio
-async def test_bot_callback_poll_dry_mode_returns_immediately(mock_valid_settings):
+async def test_bot_callback_poll_no_token_returns_immediately(mock_valid_settings):
     with patch("src.notify.bot.bot.get_updates") as mock_get:
-        mock_valid_settings.spark_mode = "dry"
+        mock_valid_settings.bot_token = None
         await guard(bot_callback_poll())
         mock_get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bot_callback_poll_runs_in_dry_mode(mock_valid_settings):
+    with (
+        patch("src.notify.bot.bot.delete_webhook") as mock_del_wh,
+        patch("src.notify.bot.bot.set_my_commands") as mock_set_cmds,
+        patch("src.notify.bot.bot.get_updates") as mock_get,
+        patch("src.ingestion.handlers.handle_bot_command", new_callable=AsyncMock) as mock_cmd,
+    ):
+        mock_valid_settings.spark_mode = "dry"
+        mock_get.side_effect = [
+            {
+                "result": [
+                    {
+                        "update_id": 1,
+                        "message": {"text": "/today", "from": {"id": 12345}},
+                    }
+                ]
+            },
+            asyncio.CancelledError(),
+        ]
+        with pytest.raises(asyncio.CancelledError):
+            await guard(bot_callback_poll())
+
+        mock_del_wh.assert_called_once()
+        mock_set_cmds.assert_called_once()
+        assert mock_get.call_count == 2
+        mock_cmd.assert_called_once()
+        assert mock_cmd.call_args[0][0]["text"] == "/today"
+
+
+@pytest.mark.asyncio
+async def test_daemon_startup_debounce(mock_valid_settings):
+    import time
+
+    client = FakeTelegramClient(authorized=True)
+    stop_event = asyncio.Event()
+    asyncio.get_running_loop().call_soon(stop_event.set)
+
+    with (
+        patch("src.notify.bot.bot.send") as mock_send,
+        patch("src.main.catch_up_chats", new=AsyncMock()),
+        patch("src.utils.deduplication.deduplicator.meta_get", return_value=str(time.time())),
+    ):
+        code = await guard(run_daemon(client=client, stop_event=stop_event, handle_signals=False))
+        assert code == 0
+        mock_send.assert_not_called()
 
 
 @pytest.mark.asyncio

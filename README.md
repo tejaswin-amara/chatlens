@@ -1,6 +1,6 @@
 # ChatLens & SPARK PA Assistant
 
-[![Awesome Dev Pipeline v2.0.0](https://img.shields.io/badge/standard-Awesome%20Dev%20Pipeline%20v2.0.0-blue.svg)](adr/0001-awesome-dev-pipeline-adoption.md)
+[![Awesome Dev Pipeline v2.2.0](https://img.shields.io/badge/standard-Awesome%20Dev%20Pipeline%20v2.2.0-blue.svg)](adr/0001-awesome-dev-pipeline-adoption.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![Next.js 16](https://img.shields.io/badge/next.js-16%20App%20Router-black.svg)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.141+-009688.svg)](https://fastapi.tiangolo.com/)
@@ -270,13 +270,13 @@ Run the complete local verification suite:
 
 ```bash
 # 1. Lint Python codebase
-uv run ruff check src tests scripts chatlens chatlens-v2/backend
+uv run ruff check src tests scripts chatlens-v2/backend
 
 # 2. Check Python formatting
-uv run ruff format --check src tests scripts chatlens chatlens-v2/backend
+uv run ruff format --check src tests scripts chatlens-v2/backend
 
 # 3. Static type checking
-uv run mypy src
+uv run mypy src scripts benchmarks chatlens-v2/backend
 
 # 4. Run test suite with strict runtime warning elevation
 uv run pytest -q -W error::RuntimeWarning
@@ -294,6 +294,6 @@ gitleaks git --redact --no-banner
 ---
 
 ## 8. License & Governance
-* Built under **Awesome Dev Pipeline v2.0.0**.
+* Built under **Awesome Dev Pipeline v2.2.0**.
 * Architectural decisions documented in [`adr/`](adr/).
 * Threat model documented in [`adr/threat-model.md`](adr/threat-model.md).

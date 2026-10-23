@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Execute the complete Awesome Dev Pipeline v2.0.0 offline verification suite across Python and TypeScript stacks.
+description: Execute the complete Awesome Dev Pipeline v2.2.0 offline verification suite across Python and TypeScript stacks.
 ---
 
 # Complete Pipeline Verification Skill (`verify`)
@@ -12,14 +12,14 @@ Use this skill to run the full quality gate matrix for ChatLens and the SPARK PA
 ### 1. Python Linting & Formatting
 Run fast static checks:
 ```bash
-uv run ruff check src tests scripts chatlens chatlens-v2/backend
-uv run ruff format --check src tests scripts chatlens chatlens-v2/backend
+uv run ruff check src tests scripts chatlens-v2/backend
+uv run ruff format --check src tests scripts chatlens-v2/backend
 ```
 
 ### 2. Python Type Checking
 Ensure strict type compliance with zero untyped definitions:
 ```bash
-uv run mypy src
+uv run mypy src scripts benchmarks chatlens-v2/backend
 ```
 
 ### 3. Python Test Execution

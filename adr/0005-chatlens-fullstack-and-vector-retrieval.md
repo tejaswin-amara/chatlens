@@ -20,10 +20,11 @@ Previously, `chatlens-v2` had several architectural limitations:
 * Non-blocking ingestion with Celery background worker and automatic synchronous fallback for lightweight developer environments.
 * Read-only SPARK PA daemon bridge that accesses SQLite state without introducing PostgreSQL dependencies into the daemon.
 * Production-grade frontend UX featuring in-chat message search, chat deletion, markdown export, and pagination.
+* Frontend architecture: Next.js 16 App Router (`output: 'export'`), React 19, TypeScript strict mode, Tailwind CSS v4, Vitest, Playwright, native Web Crypto AES-256-GCM, and zero-runtime SVG icons (Ponytail minimalism, YAGNI, standard library first).
 
 ## Considered Options
 * Option 1: Retain 1536-dim embeddings and require separate OpenAI API keys for vector search.
-* Option 2: Standardize on Google Gemini ecosystem with 768-dim `text-embedding-004`, HNSW cosine index, Celery background worker with synchronous fallback, and SQLite read-only status bridge.
+* Option 2: Standardize on Google Gemini ecosystem with 768-dim `text-embedding-004`, HNSW cosine index, Celery background worker with synchronous fallback, SQLite read-only status bridge, and Next.js 16 static export frontend.
 
 ## Decision Outcome
 Chosen option: **Option 2 (Unified Gemini 768-dim pgvector and SPARK Bridge)**.

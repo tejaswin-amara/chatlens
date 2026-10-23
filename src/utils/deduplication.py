@@ -2,6 +2,7 @@
 
 import contextlib
 import hashlib
+import json
 import sqlite3
 import time
 
@@ -84,6 +85,26 @@ class MessageDeduplicator:
             )
             row = cur.fetchone()
             return (row[0], row[1], float(row[2])) if row else None
+
+    def list_pending(self, limit: int = 20) -> list[dict]:
+        with self._get_conn() as conn:
+            query = (
+                "SELECT id, event_json, status, created "
+                "FROM pending WHERE status = 'PENDING' "
+                "ORDER BY created DESC LIMIT ?"
+            )
+            cur = conn.execute(query, (limit,))
+            rows = cur.fetchall()
+            results = []
+            for r in rows:
+                try:
+                    data = json.loads(r[1])
+                    results.append(
+                        {"id": r[0], "event": data, "status": r[2], "created": float(r[3])}
+                    )
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    continue
+            return results
 
     def claim_pending(self, pid: int) -> bool:
         with self._get_conn() as conn:

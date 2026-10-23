@@ -68,7 +68,7 @@ async def verify_code(phone: str, code: str, phone_code_hash: str) -> bool:
         await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
         return True
     except Exception as e:
-        raise ValueError(f"Failed to verify code: {e}")
+        raise ValueError(f"Failed to verify code: {e}") from e
     finally:
         await client.disconnect()
 

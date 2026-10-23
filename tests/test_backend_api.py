@@ -801,3 +801,56 @@ async def test_firebase_auth_token_validation():
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user("Bearer expired-token")
         assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_timetable_and_deadlines_endpoints():
+    client = TestClient(main.app)
+
+    # 1. Timetable today
+    res = client.get("/api/timetable/today")
+    assert res.status_code == 200
+    today_data = res.json()
+    assert "date" in today_data
+    assert "slots" in today_data
+
+    # 2. Timetable week
+    res = client.get("/api/timetable/week")
+    assert res.status_code == 200
+    assert "slots" in res.json()
+
+    # 3. Timetable override
+    override_payload = {
+        "course_code": "25SC2107E",
+        "room": "H-301A",
+        "status": "OVERRIDE",
+        "summary": "Shifted to H-301A",
+    }
+    res = client.post("/api/timetable/override", json=override_payload)
+    assert res.status_code == 200
+    assert res.json()["success"] is True
+    assert res.json()["room"] == "H-301A"
+
+    # 4. Deadlines
+    res = client.get("/api/deadlines")
+    assert res.status_code == 200
+    deadlines_data = res.json()
+    assert "today" in deadlines_data
+    assert "milestones" in deadlines_data
+    assert "tasks" in deadlines_data
+
+    # 5. Say Deadlines AI briefing
+    res = client.post("/api/deadlines/say", json={"query": "Say my schedule"})
+    assert res.status_code == 200
+    assert "script" in res.json()
+
+
+@pytest.mark.asyncio
+async def test_monitoring_status_endpoint(in_memory_db):
+    client, _ = in_memory_db
+    res = client.get("/api/monitoring/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert "status" in data
+    assert "monitored_chat_ids" in data
+    assert "total_saved_messages" in data

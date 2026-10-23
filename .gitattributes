@@ -3,3 +3,4 @@
 *.md text eol=lf
 *.yml text eol=lf
 *.service text eol=lf
+graphify-out/graph.json merge=graphify

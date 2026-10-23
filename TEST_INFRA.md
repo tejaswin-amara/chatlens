@@ -1,18 +1,16 @@
-# Test Infrastructure Specification: ChatLens v2 & SPARK PA Daemon
+# Test Infrastructure Specification: ChatLens PA Daemon Remediation
 
 ## 1. Overview & Architecture
-This test infrastructure defines an opaque-box End-to-End (E2E) acceptance testing suite for the ChatLens v2 and SPARK PA Daemon production deployment.
+This test infrastructure defines the opaque-box End-to-End (E2E) acceptance testing suite for the ChatLens PA Daemon and Telegram Bot remediation per `ORIGINAL_REQUEST.md` (2026-10-23T05:12:11Z) and `PROJECT.md`.
 
-The suite adheres to the 4-Tier testing taxonomy:
-1. **Tier 1 — Core Feature Coverage**: Direct verification of primary interface contracts (>=5 tests per feature area).
-2. **Tier 2 — Boundary & Corner Cases**: Stressing edge conditions, malformed payloads, rate boundaries, and fault fallbacks (>=5 tests per feature area).
-3. **Tier 3 — Cross-Feature Combinations**: Pairwise validation across subsystem boundaries (reverse proxy, static assets, database, worker queue, persistence volume).
-4. **Tier 4 — Real-World Application Scenarios**: Multi-step user journeys and operational lifecycles from ingress to persistence.
+The suite operates at the public boundary of the assistant:
+- **Telegram Bot Command Ingress** (`handle_bot_command`): Evaluates owner commands, command stripping, autocomplete directory, and fuzzy matching.
+- **Inline Callback Interaction** (`handle_bot_callback`): Evaluates callback query interception, spinner dismissal (`answerCallbackQuery`), and synthetic command execution.
+- **Native Autocomplete API** (`bot.set_my_commands`): Evaluates Telegram `setMyCommands` payload structure and command definitions.
+- **Timetable Engine & §0 Formatter** (`src/timetable`): Evaluates fallback mechanics, zero conversational filler ([R2]), 4-slot layout ([R3]), live status icons ([R4]), and stats line calculation ([R9]).
+- **SQLite Concurrency & Startup Debounce** (`src/main.py`, `src/utils/deduplication.py`): Evaluates persistent 15-minute notification cooldown and WAL mode integrity.
 
-### Dual Execution Architecture
-The test harness (`tests/e2e/harness.py`) supports dual operational modes:
-- **Offline / Staging Simulation Mode (Default)**: Executes instantly in developer environments or CI pipelines without requiring live external network access, Telegram credentials, or a running Docker daemon. Emulates the reverse proxy layer (Caddy routing), frontend static asset distribution (Nginx rules), in-memory async database transactions, and SPARK SQLite WAL mode isolation.
-- **Live Cluster Mode (`LIVE_E2E=1`)**: When enabled via environment variable, redirects the opaque-box HTTP client to the live reverse proxy ingress (`BASE_URL`, defaulting to `http://localhost`), issuing live network requests across running containers.
+All tests operate 100% offline with zero external network dependencies, isolating temporary SQLite databases in WAL mode and mocking network adapter boundaries.
 
 ---
 
@@ -20,63 +18,52 @@ The test harness (`tests/e2e/harness.py`) supports dual operational modes:
 
 ```
 kind-faraday/
-├── TEST_INFRA.md                   # This infrastructure specification
-├── TEST_READY.md                   # E2E test suite readiness publication
+├── TEST_INFRA.md                 # Test infrastructure specification (this document)
+├── TEST_READY.md                 # E2E test suite readiness publication
 └── tests/
-    └── e2e/
-        ├── __init__.py             # Package marker
-        ├── conftest.py             # Pytest fixtures & lifecycle hooks
-        ├── harness.py              # Dual-mode HTTP client, proxy/asset simulator & parsers
-        ├── test_tier1_features.py  # Tier 1: Core Feature Coverage (26 tests)
-        ├── test_tier2_boundaries.py# Tier 2: Boundary & Corner Cases (25 tests)
-        ├── test_tier3_combinations.py # Tier 3: Pairwise Subsystem Combinations (6 tests)
-        └── test_tier4_scenarios.py # Tier 4: Real-World User Scenarios (5 tests)
+    ├── test_e2e_remediation.py   # Remediation Opaque-Box E2E Suite (Tiers 1–4, 28 tests)
+    └── e2e/                      # Deployment & cluster acceptance suites
 ```
 
 ---
 
-## 3. Tier Coverage Matrix
+## 3. Tier Coverage Matrix (`tests/test_e2e_remediation.py`)
 
-| Tier | File | Tests | Covered Areas / Scenarios |
-|------|------|:-----:|---------------------------|
-| **Tier 1** | `test_tier1_features.py` | 26 | **F1**: Reverse proxy routing (`/` to frontend, `/api/*` to backend, `/ws*`, Caddyfile syntax, TLS/compression).<br>**F2**: Frontend static assets (`/_next/static/*` 200s, SPA route fallback, relative origin API calls, cache headers).<br>**F4/F5**: Database & Alembic (pgvector SQL init, Alembic config, schema linting, content_hash unique constraint, 768-dim vector type).<br>**F6**: Celery & Redis (broker URL resolution, result backend, Redis ping healthcheck, shared volume, task status polling).<br>**F8/F9**: Persistence & Healthchecks (SQLite WAL journal mode, integrity checks, status bridge `/api/spark/status`, container healthchecks, restart policies). |
-| **Tier 2** | `test_tier2_boundaries.py` | 25 | **Proxy**: Percent-encoding, method not allowed (405), 404 JSON handling, URI >2048 chars, slash normalization.<br>**Static Assets**: Traversal blocking (`..`), missing asset 404, query string cache busting, nested SPA paths, HEAD method.<br>**Database**: Rerun idempotency, metadata existing resilience, null embedding vectors, hash collision rejection, destructive DDL linter fence.<br>**Worker**: Empty task ID, broker connection loss fallback, payload >50MB (413), 0-byte upload, invalid platform parameter.<br>**Persistence**: Missing DB offline status, corrupt DB integrity failure detection, read-only mode enforcement, empty tables handling, 50 rapid healthcheck requests (<5s). |
-| **Tier 3** | `test_tier3_combinations.py` | 6 | **Pairwise 1**: Frontend SPA calling backend API through reverse proxy.<br>**Pairwise 2**: Proxy TLS termination forwarding upstream headers (`X-Forwarded-Proto`, `X-Forwarded-For`).<br>**Pairwise 3**: Schema migrations executing prior to backend processing data requests.<br>**Pairwise 4**: Backend chat upload saving to shared volume consumed by Celery worker.<br>**Pairwise 5**: SPARK daemon SQLite WAL concurrency with backend status bridge.<br>**Pairwise 6**: Celery background task state publication reflected in API poll endpoint. |
-| **Tier 4** | `test_tier4_scenarios.py` | 5 | **Scenario 1**: Initial cold boot and stack health probe convergence.<br>**Scenario 2**: Complete web browser user journey (root load, asset chunks, API telemetry, chat sidebar, deep route refresh).<br>**Scenario 3**: Chat upload, asynchronous task polling, and data query lifecycle.<br>**Scenario 4**: SPARK PA assistant message ingestion, container restart, and state persistence.<br>**Scenario 5**: Reverse proxy dynamic domain failover, TLS termination, and error boundary isolation. |
-| **Total** | | **62** | **100% Pass Rate Across All Tiers** |
+| Tier | Tests | Covered Features & Verification Focus |
+|------|:-----:|----------------------------------------|
+| **Tier 1: Core Feature Coverage** | 9 | **F1.1**: Timetable fallback to `data/timetable_T04.toml` when configured path is missing.<br>**F1.2 - F1.6**: `/today` 4-slot format (Room, Faculty, Section S-10, Type, Note), zero filler, live status icons (`✅`, `🔴`, `🟡`, `⬡`), and stats line (`📊 Monday \| Wk1: ...`).<br>**F1.7**: `/tomorrow` command with static `⬡` icons (no premature completion icons).<br>**F2.1**: Default 2x2 quick-action buttons injection on outgoing responses.<br>**F2.2**: `cmd:<action>` callback queries answering spinner and executing synthetic commands.<br>**F2.3**: Native `setMyCommands` registering all 10 commands.<br>**F2.4**: Standalone `/` command directory trigger.<br>**F2.5**: Fuzzy routing matching typos (`/todat` -> `/today`, `/tomorow` -> `/tomorrow`).<br>**F3.1 - F3.2**: Startup debounce 15-minute cooldown in SQLite `meta` table. |
+| **Tier 2: Boundary & Corner Cases** | 8 | **Empty Schedule**: Sunday clean response with friendly non-error copy.<br>**All Cancelled**: Complete course cancellation showing `🔴` and note `❌ Class cancelled`.<br>**Exact Debounce Bounds**: Cooldown active at 899.9s vs expired at 900.1s.<br>**Unrecognized Commands**: Unmatched command strings gracefully fallback without crashing.<br>**Unauthorized Senders**: Strict isolation ignoring commands and callbacks from stranger chat IDs.<br>**Time Boundary - Morning**: At 07:00 IST before classes, P1 is `🟡` and remainder are `⬡`.<br>**Time Boundary - Evening**: At 21:00 IST after instruction, all 8 periods show `✅`.<br>**SQLite Concurrency**: Verifies WAL journal mode and concurrency-safe transactions. |
+| **Tier 3: Cross-Feature Combinations** | 6 | **Pairwise 1**: Callback query `cmd:today` driving schedule formatting and attaching buttons.<br>**Pairwise 2**: Callback query `cmd:tomorrow` driving tomorrow schedule with static icons.<br>**Pairwise 3**: Startup debounce active during daemon restart combined with immediate `/status` command.<br>**Pairwise 4**: Fuzzy routing (`/todat`) resolving when SQLite dynamic room overrides are active.<br>**Pairwise 5**: Standalone `/` menu trigger followed by `cmd:deadlines` callback query.<br>**Pairwise 6**: Resilient recovery when `meta` table holds corrupt non-numeric timestamps. |
+| **Tier 4: Real-World User Journeys** | 5 | **Scenario 1**: Student morning boot journey (daemon start -> `/` menu -> `cmd:today` schedule -> `cmd:status` telemetry).<br>**Scenario 2**: Room override notice -> student typo `/todat` -> override reflected in Lab slot -> student checks `/tomorrow`.<br>**Scenario 3**: Progressive status calculation throughout day (morning `🟡` -> in-progress `🔴` -> evening `✅`).<br>**Scenario 4**: Daemon power failure, 18-minute reboot (notified), rapid reboot (debounced), and deadlines check.<br>**Scenario 5**: 2x2 interactive button consistency verified across every command reply. |
+| **Total** | **28** | **100% Pass Rate Across All 4 Tiers** |
 
 ---
 
-## 4. Execution Instructions
+## 4. Execution & Verification Commands
 
-### Running the E2E Test Suite (Offline Simulation)
+### Running the Remediation Acceptance Suite
 ```bash
-uv run pytest -q tests/e2e/
+uv run pytest tests/test_e2e_remediation.py -v
 ```
 
 ### Running Specific Tiers
 ```bash
-uv run pytest -q tests/e2e/test_tier1_features.py
-uv run pytest -q tests/e2e/test_tier2_boundaries.py
-uv run pytest -q tests/e2e/test_tier3_combinations.py
-uv run pytest -q tests/e2e/test_tier4_scenarios.py
+uv run pytest tests/test_e2e_remediation.py -k "test_tier1"
+uv run pytest tests/test_e2e_remediation.py -k "test_tier2"
+uv run pytest tests/test_e2e_remediation.py -k "test_tier3"
+uv run pytest tests/test_e2e_remediation.py -k "test_tier4"
 ```
 
-### Running Live Cluster Verification
-Once the container stack is booted via `docker compose up -d`:
+### Static Analysis & Linter Verification
 ```bash
-LIVE_E2E=1 BASE_URL=http://localhost uv run pytest -q tests/e2e/
-```
-
-### Linting & Code Hygiene
-```bash
-uv run ruff check tests/e2e/
+uv run ruff check tests/test_e2e_remediation.py
+uv run mypy tests/test_e2e_remediation.py
 ```
 
 ---
 
 ## 5. Invariant Gates & Quality Enforcements
-1. **Network Boundary**: Tests never initiate external network calls to Telegram, Google, or Gemini during automated suite runs (mocked at adapter boundaries).
-2. **Persistence Integrity**: State files are tested against SQLite WAL mode and verified with `PRAGMA integrity_check`.
-3. **Case-Insensitive HTTP Headers**: `E2EResponse` uses RFC 7230 compliant `CaseInsensitiveHeaderDict` ensuring cross-platform stability.
-4. **Zero Extra Dependencies**: The test harness relies strictly on standard library, `httpx`, `fastapi.testclient`, `sqlalchemy`, and existing project modules without introducing external YAML or testing dependencies.
+1. **Zero Network Egress**: Telegram Bot API and Telethon calls are strictly mocked at adapter boundaries.
+2. **Deterministic Time Control**: Current time is controlled via `src.utils.clock` to verify period calculations reliably.
+3. **Isolated Persistence**: Tests execute against ephemeral SQLite databases, validating WAL mode and `PRAGMA busy_timeout = 5000`.
+4. **Style & Hygiene**: 100% compliant with PEP 8 and project `ruff` configuration (line length <= 100, clean imports).

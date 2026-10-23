@@ -10,6 +10,8 @@ try:
     import firebase_admin  # type: ignore[import-untyped,import-not-found]
     from firebase_admin import (  # type: ignore[import-untyped,import-not-found]
         auth as _auth,
+    )
+    from firebase_admin import (
         credentials,
     )
 
@@ -35,17 +37,45 @@ async def get_current_user(authorization: str | None = Header(None)) -> dict[str
     if not authorization or not authorization.startswith("Bearer "):
         return None
 
-    token = authorization.split("Bearer ", 1)[1]
+    bearer_token = authorization.split("Bearer ", 1)[1]
+    is_test_env = os.getenv("ENVIRONMENT") == "test" or os.getenv("TESTING") == "1"
+
     if not HAS_FIREBASE:
-        if token == "mock-test-token":
+        if bearer_token == "mock-test-token":  # noqa: S105
             return {"uid": "test-user-123", "email": "tester@example.com"}
         return None
 
+    if bearer_token == "mock-test-token":  # noqa: S105
+        if is_test_env:
+            return {"uid": "test-user-123", "email": "tester@example.com"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mock tokens are prohibited in non-test environments",
+        )
+
     try:
-        decoded: dict[str, Any] = admin_auth.verify_id_token(token)
+        decoded: dict[str, Any] = admin_auth.verify_id_token(bearer_token)
         return decoded
-    except Exception:
+    except Exception as err:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired Firebase authentication token",
+        ) from err
+
+
+async def require_current_user(
+    authorization: str | None = Header(None),
+) -> dict[str, Any] | None:
+    """Enforce Firebase authentication when required by configuration."""
+    user = await get_current_user(authorization)
+    if user is None:
+        require_auth = (
+            os.getenv("REQUIRE_AUTH", "false").lower() in ("1", "true")
+            or os.getenv("ENVIRONMENT") == "production"
         )
+        if require_auth:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication credentials were not provided or are invalid",
+            )
+    return user

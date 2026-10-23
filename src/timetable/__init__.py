@@ -1,9 +1,32 @@
 import tomllib
-from datetime import date
+from datetime import date, datetime
 from typing import NamedTuple
 
 from src.config import settings
 from src.utils import clock
+
+DEFAULT_TIMETABLE_PATH = "data/timetable_T04.toml"
+
+COURSE_INFO: dict[str, tuple[str, str]] = {
+    "DSA": ("25CS2103E", "Data Structures & Algorithms-3"),
+    "OSSP": ("25CS2104E", "Operating Systems & Systems Programming"),
+    "ML": ("25SC2107E", "Machine Learning"),
+    "ESD": ("25EC2206E", "Embedded System Design & IoT"),
+    "DBSE": ("25CS1302E", "Database Systems Engineering"),
+    "JAPANESE": ("25FL2112E", "Japanese Language Proficiency-2"),
+}
+
+PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
+    1: ("08:10 AM", "09:00 AM", 8, 10, 9, 0),
+    2: ("09:00 AM", "09:50 AM", 9, 0, 9, 50),
+    3: ("10:00 AM", "10:50 AM", 10, 0, 10, 50),
+    4: ("10:50 AM", "11:40 AM", 10, 50, 11, 40),
+    5: ("11:50 AM", "12:40 PM", 11, 50, 12, 40),
+    # Note: Period 6 does NOT exist in KLEF T04 (lunch break 12:40 - 13:20)
+    7: ("01:20 PM", "02:10 PM", 13, 20, 14, 10),
+    8: ("02:20 PM", "03:10 PM", 14, 20, 15, 10),
+    9: ("03:10 PM", "04:00 PM", 15, 10, 16, 0),
+}
 
 
 class Slot(NamedTuple):
@@ -33,11 +56,25 @@ class Timetable(NamedTuple):
 
 
 def load(path: str | None = None) -> Timetable | None:
-    path = path or settings.spark_timetable
+    target_path = path or settings.spark_timetable or DEFAULT_TIMETABLE_PATH
+    data = None
+    actual_path = target_path
+
     try:
-        with open(path, "rb") as f:
+        with open(target_path, "rb") as f:
             data = tomllib.load(f)
     except (FileNotFoundError, OSError):
+        if target_path != DEFAULT_TIMETABLE_PATH:
+            try:
+                with open(DEFAULT_TIMETABLE_PATH, "rb") as f:
+                    data = tomllib.load(f)
+                    actual_path = DEFAULT_TIMETABLE_PATH
+            except (FileNotFoundError, OSError):
+                return None
+        else:
+            return None
+
+    if data is None:
         return None
 
     meta_dict = data.get("meta", {})
@@ -62,7 +99,7 @@ def load(path: str | None = None) -> Timetable | None:
             )
         )
 
-    return Timetable(meta=meta, slots=slots, path=path)
+    return Timetable(meta=meta, slots=slots, path=actual_path)
 
 
 def get_effective_slots(day_date: date | str, timetable: Timetable | None = None) -> list[Slot]:
@@ -134,6 +171,103 @@ def get_effective_slots(day_date: date | str, timetable: Timetable | None = None
             effective_slots.append(s)
 
     return effective_slots
+
+
+def format_day_schedule(
+    target_date: date,
+    now_dt: datetime | None = None,
+    timetable: Timetable | None = None,
+) -> str:
+    """Format a full day's schedule following §0 Operating Rules ([R1]-[R10]).
+
+    - If now_dt is provided (for today), calculates live status icons (✅, 🔴, 🟡, ⬡).
+    - If now_dt is None (e.g. for tomorrow), status icons are static (⬡ scheduled, 🔴 cancelled).
+    - Uses standard 4-slot structure with Room, Faculty, Section S-10, Type, Note.
+    - Appends stats line ([R9]):
+      📊 [Day] | Wk[N]: [N] academic · [N] lab(s) · [N] non-ERP · Regular instruction
+    """
+    tt = timetable or load()
+    if not tt:
+        return "⚠️ Timetable file not found."
+
+    effective_slots = get_effective_slots(target_date, tt)
+    if not effective_slots:
+        return f"No scheduled classes for {target_date.strftime('%A, %b %d')}. Enjoy your day 🎉"
+
+    slots_sorted = sorted(effective_slots, key=lambda x: x.period)
+    lines: list[str] = []
+    next_found = False
+    academic_cnt, lab_cnt, non_erp_cnt = 0, 0, 0
+
+    term_start = date(2026, 7, 15)
+    if (
+        tt
+        and hasattr(tt, "meta")
+        and hasattr(tt.meta, "valid_from")
+        and isinstance(tt.meta.valid_from, date)
+    ):
+        term_start = tt.meta.valid_from
+    wk_num = max(1, (target_date - term_start).days // 7 + 1)
+    now_mins = (now_dt.hour * 60 + now_dt.minute) if now_dt is not None else None
+
+    for s in slots_sorted:
+        p_info = PERIOD_TIMES.get(s.period, ("00:00", "00:00", 0, 0, 0, 0))
+        time_str = f"{p_info[0]} – {p_info[1]}"
+        st_mins = p_info[2] * 60 + p_info[3]
+        end_mins = p_info[4] * 60 + p_info[5]
+
+        if s.override == "CANCELLED":
+            icon = "🔴"
+        elif now_mins is not None:
+            if now_mins > end_mins:
+                icon = "✅"
+            elif st_mins <= now_mins <= end_mins:
+                icon = "🔴"
+            elif not next_found and st_mins > now_mins:
+                icon = "🟡"
+                next_found = True
+            else:
+                icon = "⬡"
+        else:
+            icon = "⬡"
+
+        c_code, c_name = COURSE_INFO.get(s.course, (s.course, s.course))
+        room = s.room
+        c_type = "Skill" if s.course == "JAPANESE" else ("Lab" if "HC-" in room else "Lecture")
+
+        if c_type == "Lab":
+            lab_cnt += 1
+        elif c_type == "Skill":
+            non_erp_cnt += 1
+        else:
+            academic_cnt += 1
+
+        note = (
+            f"Week {wk_num} lab session; bring laptop"
+            if c_type == "Lab"
+            else f"Week {wk_num} core topics"
+        )
+        if s.override and s.override != "CANCELLED":
+            note = f"⚡ Room override: {s.override}"
+        elif s.override == "CANCELLED":
+            note = "❌ Class cancelled"
+
+        lines.append(
+            f"{icon} [{time_str}]: {c_name} ({c_code})\n"
+            f"* Room    : {room}\n"
+            f"* Faculty : {s.faculty}\n"
+            f"* Section : S-10\n"
+            f"* Type    : {c_type}\n"
+            f"* Note    : {note}\n"
+        )
+
+    day_name = target_date.strftime("%A")
+    stats_line = (
+        f"📊 {day_name} | Wk{wk_num}: {academic_cnt} academic · {lab_cnt} lab(s) · "
+        f"{non_erp_cnt} non-ERP · Regular instruction"
+    )
+    lines.append(stats_line)
+    return "\n".join(lines)
 
 
 def parse_periods(text: str) -> list[int]:

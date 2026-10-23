@@ -160,9 +160,7 @@ async def test_erp_client_fetch_page_session_recovery():
     with patch.object(
         client, "_get_http_client", side_effect=lambda: httpx.AsyncClient(transport=transport)
     ):
-        with patch.object(
-            client, "login", new_callable=AsyncMock, return_value=True
-        ) as mock_login:
+        with patch.object(client, "login", new_callable=AsyncMock, return_value=True) as mock_login:
             content = await client.fetch_page("https://newerp.kluniversity.in/target")
             assert mock_login.called
             assert content == '<div id="target-content">Verified Content</div>'

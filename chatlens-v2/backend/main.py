@@ -2,29 +2,32 @@ import csv
 import inspect
 import io
 import json
+import logging
 import os
 import re
 import sqlite3
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from analyzer import ChatAnalyzer
 from celery_worker import celery_app, parse_and_save_sync, parse_file_task, save_messages
-from config import MAX_UPLOAD_BYTES
 from database import engine, get_db
 from embeddings import generate_embedding
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from firebase_auth import require_current_user
 from models import Base, Message
 from parsers.telegram_live import _fetch, check_status, send_code, verify_code
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import RetryError
+
+from config import MAX_UPLOAD_BYTES
 
 try:
     import celery.result
@@ -36,6 +39,13 @@ try:
 except ImportError:
     genai = None  # type: ignore
 
+logger = logging.getLogger(__name__)
+
+
+def _escape_like(val: str) -> str:
+    """Escape special characters in SQL LIKE/ILIKE patterns."""
+    return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,36 +54,28 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             await conn.run_sync(Base.metadata.create_all)
-
-            # Apply migrations dynamically
-            migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
-            if os.path.exists(migrations_dir):
-                for fname in sorted(os.listdir(migrations_dir)):
-                    if fname.endswith(".sql"):
-                        with open(os.path.join(migrations_dir, fname)) as mf:
-                            sql = mf.read()
-                            for statement in sql.split(";"):
-                                stmt = statement.strip()
-                                if stmt:
-                                    try:
-                                        await conn.execute(text(stmt))
-                                    except Exception:
-                                        pass
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"Database init warning: {exc}")
     yield
     # Shutdown
     try:
         await engine.dispose()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(f"Engine dispose warning: {exc}")
 
 
 app = FastAPI(title="ChatLens v2.0 Backend", lifespan=lifespan)
 
+cors_origins_env = os.getenv("CORS_ORIGINS")
+allowed_origins = (
+    [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+    if cors_origins_env
+    else ["http://localhost:3000", "http://127.0.0.1:3000"]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -156,7 +158,10 @@ async def upload_telegram(file: UploadFile = File(...)):
 
 @app.post("/api/chats/import")
 async def import_chat(file: UploadFile = File(...), platform: str | None = None):
-    """Universal chat import endpoint supporting WhatsApp (.txt, .zip) and Telegram (.json, .zip)."""
+    """Universal chat import endpoint.
+
+    Supports WhatsApp (.txt, .zip) and Telegram (.json, .zip).
+    """
     fname = (file.filename or "").lower()
     inferred = platform or ("telegram" if fname.endswith(".json") else "whatsapp")
     return await handle_upload(file, inferred)
@@ -180,11 +185,11 @@ async def handle_upload(file: UploadFile, platform: str):
     try:
         task = parse_file_task.delay(abs_path, platform)
         return {"status": "processing", "task_id": task.id, "platform": platform}
-    except Exception:
+    except Exception as exc:
         # Fallback to synchronous in-process parsing
         res = parse_and_save_sync(abs_path, platform)
         if res.get("status") == "error":
-            raise HTTPException(status_code=400, detail=res.get("error", "Parsing failed"))
+            raise HTTPException(status_code=400, detail=res.get("error", "Parsing failed")) from exc
         return {"status": "done", "count": res.get("count", 0), "platform": platform}
 
 
@@ -274,7 +279,7 @@ async def export_chat(
     if format == "json":
         data = {
             "chat_name": chat_id,
-            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_at": datetime.now(UTC).isoformat(),
             "total_messages": len(messages),
             "messages": [message_to_dict(m) for m in messages],
         }
@@ -347,9 +352,9 @@ async def search_messages(
     if chat_name:
         stmt = stmt.where(Message.chat_name == chat_name)
     if sender:
-        stmt = stmt.where(Message.sender.ilike(f"%{sender}%"))
+        stmt = stmt.where(Message.sender.ilike(f"%{_escape_like(sender)}%"))
     if effective_query:
-        stmt = stmt.where(Message.text.ilike(f"%{effective_query}%"))
+        stmt = stmt.where(Message.text.ilike(f"%{_escape_like(effective_query)}%"))
     stmt = stmt.order_by(Message.timestamp.desc()).offset(effective_skip).limit(min(limit, 200))
     result = await db.execute(stmt)
     return [message_to_dict(msg) for msg in result.scalars().all()]
@@ -469,8 +474,8 @@ async def get_chat_stats(chat_name: str, db: AsyncSession = Depends(get_db)):
                     sender_stats[sender]["response_times"].append(diff)
             last_timestamp = dt
             last_sender = sender
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Timestamp parse error: {exc}")
 
     if sender_stats:
         top_talker = max(sender_stats.keys(), key=lambda s: sender_stats[s]["messages"])
@@ -570,8 +575,8 @@ async def _retrieve_relevant_messages(
             found = list(v_result.scalars().all())
             if found:
                 return sorted(found, key=lambda m: m.timestamp or "")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Vector search failed, falling back to recency: {exc}")
 
     # Fallback to recency / chronological order
     query = select(Message)
@@ -637,7 +642,7 @@ async def api_chat_insights(
         insight = await get_analyzer().generate_insight(req.type, messages)
         return {"insight": insight}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.get("/api/spark/status")
@@ -736,7 +741,7 @@ async def api_telegram_send_code(req: SendCodeRequest):
         phone_code_hash = await send_code(req.phone)
         return {"success": True, "phone_code_hash": phone_code_hash}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/api/telegram/auth/verify")
@@ -747,7 +752,7 @@ async def api_telegram_verify(req: VerifyCodeRequest):
             return {"success": True}
         raise HTTPException(status_code=400, detail="Invalid code")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/api/telegram/auth/sync_live")
@@ -757,4 +762,272 @@ async def api_telegram_sync_live():
         await save_messages(messages)
         return {"success": True, "count": len(messages)}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+class TimetableOverrideRequest(BaseModel):
+    target_date: str | None = None
+    period: int | None = None
+    course_code: str
+    course_name: str | None = None
+    room: str | None = None
+    status: str = "OVERRIDE"
+    summary: str = ""
+
+
+class SayDeadlinesRequest(BaseModel):
+    query: str | None = None
+
+
+@app.get("/api/timetable/today")
+async def api_timetable_today(user: dict[str, Any] | None = Depends(require_current_user)):
+    """Retrieve today's effective class timetable with real-time room overrides."""
+    try:
+        import src.timetable as tt
+        from src.utils import clock
+
+        today = clock.today_ist()
+        timetable = tt.load()
+        if not timetable:
+            return {"date": today.isoformat(), "slots": [], "message": "No timetable loaded"}
+
+        effective = tt.get_effective_slots(today, timetable)
+        slots_data = []
+        for s in sorted(effective, key=lambda x: x.period):
+            slots_data.append(
+                {
+                    "period": s.period,
+                    "course": s.course,
+                    "room": s.room,
+                    "faculty": s.faculty,
+                    "override": s.override,
+                    "status": "CANCELLED"
+                    if s.override == "CANCELLED"
+                    else ("OVERRIDE" if s.override else "NORMAL"),
+                }
+            )
+        return {
+            "date": today.isoformat(),
+            "day": today.strftime("%A"),
+            "slots": slots_data,
+        }
+    except Exception as exc:
+        logger.error(f"Failed to fetch timetable: {exc}")
+        return {"date": datetime.now(UTC).date().isoformat(), "slots": [], "error": str(exc)}
+
+
+@app.get("/api/timetable/week")
+async def api_timetable_week(user: dict[str, Any] | None = Depends(require_current_user)):
+    """Retrieve all slots for the full weekly timetable."""
+    try:
+        import src.timetable as tt
+
+        timetable = tt.load()
+        if not timetable:
+            return {"slots": []}
+        return {
+            "meta": {
+                "term": timetable.meta.term,
+                "valid_from": str(timetable.meta.valid_from),
+                "valid_to": str(timetable.meta.valid_to),
+            },
+            "slots": [
+                {
+                    "day": s.day,
+                    "period": s.period,
+                    "course": s.course,
+                    "room": s.room,
+                    "faculty": s.faculty,
+                }
+                for s in timetable.slots
+            ],
+        }
+    except Exception as exc:
+        return {"slots": [], "error": str(exc)}
+
+
+@app.post("/api/timetable/override")
+async def api_timetable_override(
+    req: TimetableOverrideRequest,
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Update timetable with a new room override or class cancellation."""
+    try:
+        from src.utils import clock
+        from src.utils.deduplication import deduplicator
+
+        target_date = req.target_date or clock.today_ist().strftime("%Y-%m-%d")
+        row_id = deduplicator.record_override(
+            target_date=target_date,
+            period=req.period,
+            course_code=req.course_code,
+            course_name=req.course_name,
+            room=req.room,
+            status=req.status.upper(),
+            summary=req.summary
+            or f"Manual override via ChatLens web: {req.course_code} -> {req.room or req.status}",
+        )
+        return {
+            "success": True,
+            "id": row_id,
+            "target_date": target_date,
+            "course_code": req.course_code,
+            "status": req.status.upper(),
+            "room": req.room,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to record timetable override: {exc}"
+        ) from exc
+
+
+@app.get("/api/deadlines")
+async def api_deadlines(user: dict[str, Any] | None = Depends(require_current_user)):
+    """Retrieve upcoming academic calendar milestones and pending tasks."""
+    try:
+        from src.academic_calendar import load_calendar
+        from src.utils import clock
+        from src.utils.deduplication import deduplicator
+
+        today = clock.today_ist()
+        cal = load_calendar()
+        milestones = []
+        if cal:
+            for term, term_dates in cal.terms.items():
+                for m_name, m_date in term_dates.items():
+                    if m_date >= today:
+                        milestones.append(
+                            {
+                                "title": m_name,
+                                "date": m_date.isoformat(),
+                                "term": term,
+                                "days_remaining": (m_date - today).days,
+                            }
+                        )
+        milestones.sort(key=lambda x: str(x["date"]))
+
+        pending_tasks = deduplicator.list_pending(limit=20)
+        formatted_tasks = []
+        for p in pending_tasks:
+            ev = p.get("event", {})
+            formatted_tasks.append(
+                {
+                    "id": p.get("id"),
+                    "summary": ev.get("summary") or ev.get("description") or "Task / Assignment",
+                    "status": p.get("status"),
+                    "created": p.get("created"),
+                }
+            )
+
+        return {
+            "today": today.isoformat(),
+            "milestones": milestones[:10],
+            "tasks": formatted_tasks,
+        }
+    except Exception as exc:
+        return {
+            "today": datetime.now(UTC).date().isoformat(),
+            "milestones": [],
+            "tasks": [],
+            "error": str(exc),
+        }
+
+
+@app.post("/api/deadlines/say")
+async def api_deadlines_say(
+    req: SayDeadlinesRequest | None = None,
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Use Gemini AI to synthesize a voice-ready audio briefing script."""
+    try:
+        import src.timetable as tt
+        from src.academic_calendar import load_calendar
+        from src.utils import clock
+
+        today = clock.today_ist()
+        timetable = tt.load()
+        effective_today = tt.get_effective_slots(today, timetable) if timetable else []
+
+        schedule_summary = (
+            ", ".join(
+                [
+                    f"Period {s.period}: {s.course} in {s.room} ({s.override or 'Normal'})"
+                    for s in effective_today
+                ]
+            )
+            or "No scheduled classes today."
+        )
+
+        cal = load_calendar()
+        milestone_str = ""
+        if cal:
+            upcoming = []
+            for _term, term_dates in cal.terms.items():
+                for m_name, m_date in term_dates.items():
+                    if m_date >= today:
+                        upcoming.append(f"{m_name} on {m_date.strftime('%d %B %Y')}")
+            upcoming.sort()
+            milestone_str = "; ".join(upcoming[:5])
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key or genai is None:
+            script_fallback = (
+                f"Good day! Today you have: {schedule_summary}. "
+                f"Upcoming milestones: {milestone_str or 'None'}. "
+                "Make sure to stay ahead on your courses!"
+            )
+            return {"script": script_fallback}
+
+        default_query = "Give me my full briefing and say the deadlines"
+        user_query = req.query if req and req.query else default_query
+        prompt = (
+            f"You are the personal AI executive assistant for Tejaswin Amara (student at KLEF).\n"
+            f"Today is {today.strftime('%A, %d %B %Y')}.\n"
+            f"Today's schedule: {schedule_summary}\n"
+            f"Upcoming academic milestones: {milestone_str or 'None registered'}\n\n"
+            f"User request: {user_query}.\n\n"
+            "Provide a natural, energetic, spoken-style briefing script that covers "
+            "today's classes, room changes, and important approaching deadlines "
+            "in 3-4 spoken sentences."
+        )
+
+        client = genai.Client(api_key=api_key)
+        model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+        )
+        return {"script": response.text}
+    except Exception as exc:
+        logger.error(f"Error generating voice briefing: {exc}")
+        return {"script": f"Unable to generate AI briefing at this moment: {exc}"}
+
+
+@app.get("/api/monitoring/status")
+async def api_monitoring_status(
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Retrieve live monitoring status of Telegram chats and SPARK daemon."""
+    from src.config import settings
+
+    total_msg_res = await db.execute(select(func.count(Message.id)))
+    total_messages = total_msg_res.scalar() or 0
+
+    chats_res: Any = await db.execute(
+        select(Message.chat_name, func.count(Message.id)).group_by(Message.chat_name)
+    )
+    active_chats = [{"name": row[0], "message_count": row[1]} for row in chats_res.all()]
+
+    spark_db_path = settings.spark_db
+    spark_online = os.path.exists(spark_db_path)
+
+    return {
+        "status": "online" if spark_online else "idle",
+        "monitored_chat_ids": settings.allowed_chat_ids,
+        "total_monitored_chats": len(settings.allowed_chat_ids),
+        "total_saved_messages": total_messages,
+        "active_chats": active_chats,
+        "gemini_model": settings.gemini_model,
+        "spark_mode": settings.spark_mode,
+    }
