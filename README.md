@@ -51,8 +51,8 @@ graph TD
     Regex --> Timetable
     Gemini --> Timetable
     Timetable --> Decision
-    Decision -->|Auto-write (live)| GCal
-    Decision -->|Auto-write (live)| GTasks
+    Decision -->|Auto-write live| GCal
+    Decision -->|Auto-write live| GTasks
     Decision -->|Audit record| GSheets
     Decision -->|Confirmation / Review| TG_Bot
     Decision -->|Fallback| TG_Me
