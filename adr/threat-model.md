@@ -1,8 +1,8 @@
 # STRIDE Threat Model: ChatLens & SPARK PA Assistant
 
-* Version: 2.0.0
-* Date: 2026-10-15
-* Scope: SPARK PA Daemon (`src/`), Web Platform (`chatlens-v2/`), CI/CD & Deployments
+* Version: 2.1.0
+* Date: 2026-10-23
+* Scope: SPARK PA Daemon (`src/`), Governance Layer (`src/governance/`), Web Platform (`chatlens-v2/`), CI/CD & Deployments
 
 ---
 
@@ -88,3 +88,13 @@
 | **Information Disclosure** | Hardcoded secrets or tokens committed into git repository. | Critical | Pre-commit hooks (`gitleaks git --staged`) and CI scanning (`gitleaks git --redact --no-banner`). |
 | **Denial of Service** | CI pipeline execution loops. | Low | Concurrency group cancellation configured on push/PR updates. |
 | **Elevation of Privilege** | Container escape or root privileges inside production container. | High | Container runs as unprivileged user `appuser` (UID 10001) with read-only root where applicable. |
+
+### 2.6 Agent Governance & Semantic Vector Memory Layer (Microsoft AGT & Turbovec)
+| Category | Threat Description | Severity | Mitigation in Place |
+|---|---|---|---|
+| **Spoofing** | Adversary spoofing owner identity in group messages to bypass prompt injection filters. | Critical | Strict sender ID verification against `OWNER_CHAT_ID`; group messages tagged `UNTRUSTED_COMMUNITY` regardless of sender display name. |
+| **Tampering** | Forged or replayed inline button callbacks (`ok:<pid>`) approving destructive actions. | Critical | Cryptographic HMAC-SHA256 signature validation (`generate_state_token`) and strict 24-hour expiration TTL on all action payloads. |
+| **Repudiation** | Action authorization origin unverified or disputed. | Low | Immutable `governance_audit` SQLite table records event SHA-256 fingerprint, verdict, Telegram approver ID, and exact rollback diff. |
+| **Information Disclosure** | Student Aadhaar, phone numbers, roll numbers, or bot tokens leaked via Gemini or audit logs. | High | Deterministic `InputGuard.redact_pii` scrubs all sensitive identifiers before logging, LLM payload construction, or storage. |
+| **Denial of Service** | Prompt injection flooding designed to trigger false alarms and fill database disk. | Medium | Event fingerprint deduplication (`evt:<hash>`) and quarantine rate limiting. |
+| **Elevation of Privilege** | Indirect prompt injection embedded in classroom photos, blackboard notes, or audio notes. | High | Ephemeral in-memory download with immediate cleanup, secondary injection scanning on Gemini extracted summaries, and default `Decision.CONFIRM` for all media. |
