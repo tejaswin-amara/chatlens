@@ -769,8 +769,9 @@ async def test_firebase_auth_token_validation():
     # Invalid header format
     assert await get_current_user("Basic xyz") is None
 
-    # Offline mock token
-    user = await get_current_user("Bearer mock-test-token")
+    # Offline mock token is explicitly scoped to a test environment.
+    with patch.dict(os.environ, {"ENVIRONMENT": "test"}, clear=False):
+        user = await get_current_user("Bearer mock-test-token")
     assert user is not None
     assert user["uid"] == "test-user-123"
 
@@ -801,6 +802,32 @@ async def test_firebase_auth_token_validation():
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user("Bearer expired-token")
         assert exc_info.value.status_code == 401
+
+
+
+@pytest.mark.asyncio
+async def test_mock_firebase_token_is_rejected_outside_test_environment():
+    from fastapi import HTTPException
+    from firebase_auth import get_current_user
+
+    with (
+        patch("firebase_auth.HAS_FIREBASE", False),
+        patch.dict(os.environ, {"ENVIRONMENT": "production", "TESTING": "0"}, clear=False),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user("Bearer mock-test-token")
+    assert exc_info.value.status_code == 401
+
+
+def test_production_api_requires_auth_but_keeps_liveness_public(in_memory_db, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("REQUIRE_AUTH", "true")
+    monkeypatch.setenv("CHATLENS_ALLOWED_EMAILS", "owner@example.com")
+    monkeypatch.delenv("TESTING", raising=False)
+    client, _ = in_memory_db
+
+    assert client.get("/api/chats").status_code == 401
+    assert client.get("/api/healthz").status_code == 200
 
 
 @pytest.mark.asyncio

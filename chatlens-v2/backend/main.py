@@ -64,7 +64,11 @@ async def lifespan(app: FastAPI):
         logger.debug(f"Engine dispose warning: {exc}")
 
 
-app = FastAPI(title="ChatLens v2.0 Backend", lifespan=lifespan)
+app = FastAPI(
+    title="ChatLens v2.0 Backend",
+    lifespan=lifespan,
+    dependencies=[Depends(require_current_user)],
+)
 
 cors_origins_env = os.getenv("CORS_ORIGINS")
 allowed_origins = (
@@ -86,6 +90,17 @@ app.add_middleware(
 async def healthz() -> dict[str, str]:
     """Health and readiness probe."""
     return {"status": "ok", "version": "2.0.0"}
+
+
+@app.get("/api/auth/me")
+async def api_auth_me(
+    user: dict[str, Any] | None = Depends(require_current_user),
+) -> dict[str, Any]:
+    """Return the verified identity for the current API caller."""
+    return {
+        "authenticated": user is not None,
+        "email": user.get("email") if user is not None else None,
+    }
 
 
 @app.get("/api/status")

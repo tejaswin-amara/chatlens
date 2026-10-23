@@ -40,6 +40,14 @@ services:
     build:
       context: ./chatlens-v2/frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
+        NEXT_PUBLIC_REQUIRE_AUTH: ${REQUIRE_AUTH:-true}
     container_name: chatlens-frontend
     restart: unless-stopped
     logging: *default-logging
@@ -93,9 +101,14 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-52428800}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      REQUIRE_AUTH: ${REQUIRE_AUTH:-true}
+      CHATLENS_ALLOWED_EMAILS: ${CHATLENS_ALLOWED_EMAILS:-}
+      FIREBASE_CREDENTIALS_PATH: /run/secrets/firebase-admin.json
     volumes:
       - spark_data:/app/data:ro
       - uploads_data:/app/uploads
+      - ${FIREBASE_ADMIN_CREDENTIALS_FILE:-./secrets/firebase-admin.json}:/run/secrets/firebase-admin.json:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/healthz', timeout=3).getcode() == 200 else 1)"]
       interval: 15s

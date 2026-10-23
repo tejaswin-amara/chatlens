@@ -2,9 +2,17 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Menu, X, Search } from "lucide-react";
+import {
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  type User,
+} from "firebase/auth";
 
 import type { Chat, Message, ChatStats, GlobalStats, AiCardData, ToastData } from "@/types";
 import { useApi } from "@/hooks/useApi";
+import { auth, isFirebaseConfigured } from "@/lib/firebase";
 
 import Sidebar from "@/components/Sidebar";
 import ChatHeader from "@/components/ChatHeader";
@@ -20,12 +28,21 @@ import { WelcomePage } from "@/components/WelcomePage";
 import Toast from "@/components/Toast";
 
 const PAGE_SIZE = 100;
+const AUTH_REQUIRED =
+  process.env.NODE_ENV === "production" ||
+  process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
 
 export default function Home() {
   // ── Global state ──
   const [chats, setChats] = useState<Chat[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats>({ total_messages: 0, total_chats: 0 });
   const [globalSummary, setGlobalSummary] = useState<string | null>(null);
+
+  const [authChecked, setAuthChecked] = useState(!AUTH_REQUIRED);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authAccessGranted, setAuthAccessGranted] = useState(!AUTH_REQUIRED);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
 
   // ── Navigation ──
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -63,6 +80,48 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const api = useApi();
 
+  useEffect(() => {
+    if (!AUTH_REQUIRED) return;
+    if (!isFirebaseConfigured) {
+      setAuthChecked(true);
+      setAuthMessage(
+        "Configure all NEXT_PUBLIC_FIREBASE_* settings for the Firebase project used by this backend.",
+      );
+      return;
+    }
+    return onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      setAuthAccessGranted(false);
+      setAuthChecked(true);
+      setAuthMessage(null);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!AUTH_REQUIRED || !authChecked || !authUser || !isFirebaseConfigured) return;
+    let cancelled = false;
+    api
+      .validateSession()
+      .then((session) => {
+        if (cancelled) return;
+        if (!session.authenticated) {
+          setAuthAccessGranted(false);
+          setAuthMessage("The backend did not validate this Firebase session.");
+          return;
+        }
+        setAuthAccessGranted(true);
+        setAuthMessage(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setAuthAccessGranted(false);
+        setAuthMessage(error instanceof Error ? error.message : "Unable to verify API access.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, authUser, api]);
+
   // ── Toast helper ──
   const showToast = useCallback((message: string, type: ToastData["type"]) => {
     setToasts((prev) => [...prev, { id: crypto.randomUUID(), message, type }]);
@@ -72,14 +131,36 @@ export default function Home() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const handleSignIn = async () => {
+    setAuthSubmitting(true);
+    setAuthMessage(null);
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (error: unknown) {
+      setAuthMessage(error instanceof Error ? error.message : "Google sign-in failed.");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      setAuthAccessGranted(false);
+    } catch (error: unknown) {
+      setAuthMessage(error instanceof Error ? error.message : "Sign-out failed.");
+    }
+  };
+
   // ── Initial data load ──
   useEffect(() => {
+    if (AUTH_REQUIRED && !authAccessGranted) return;
     Promise.all([api.loadChats(), api.loadStats()]).then(([c, s]) => {
       setChats(c);
       setGlobalStats(s);
     });
     api.loadGlobalSummary().then(setGlobalSummary).catch((e) => setGlobalSummary(`Error: ${e.message}`));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authAccessGranted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Scroll to bottom on new content (when not searching) ──
   useEffect(() => {
@@ -186,20 +267,35 @@ export default function Home() {
   };
 
   // ── Export Chat as JSON / CSV via Backend API ──
-  const handleExportFormat = (format: "json" | "csv") => {
+  const handleExportFormat = async (format: "json" | "csv") => {
     if (!currentChat) {
       showToast("No chat selected to export", "info");
       return;
     }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
     const url = `${apiBase}/api/chats/${encodeURIComponent(currentChat)}/export?format=${format}`;
-    const a = document.createElement("a");
-    a.href = url;
-    a.setAttribute("download", `${currentChat.replace(/[^a-zA-Z0-9_-]/g, "_")}_export.${format}`);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast(`Exporting chat as ${format.toUpperCase()}...`, "success");
+    try {
+      const headers = new Headers();
+      if (AUTH_REQUIRED && auth.currentUser) {
+        headers.set("Authorization", `Bearer ${await auth.currentUser.getIdToken()}`);
+      }
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(body.detail || response.statusText);
+      }
+      const downloadUrl = URL.createObjectURL(await response.blob());
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `${currentChat.replace(/[^a-zA-Z0-9_-]/g, "_")}_export.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+      showToast(`Chat export downloaded as ${format.toUpperCase()}`, "success");
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Chat export failed", "error");
+    }
   };
 
   // ── AI actions ──
@@ -290,6 +386,63 @@ export default function Home() {
     );
   }
 
+  if (AUTH_REQUIRED && (!authChecked || !authAccessGranted)) {
+    const verifying = !authChecked;
+    const signedInButDenied = Boolean(authUser && authChecked);
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-brand-bg p-6 text-brand-text">
+        <section className="w-full max-w-md rounded-2xl border border-brand-border bg-brand-card p-8 shadow-2xl">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-primary/15 text-brand-primary">
+              <Search size={23} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold">ChatLens</h1>
+              <p className="text-sm text-brand-muted">Private chat analysis</p>
+            </div>
+          </div>
+          <h2 className="mb-2 text-lg font-semibold">
+            {verifying ? "Verifying your session" : signedInButDenied ? "Access not granted" : "Sign in to continue"}
+          </h2>
+          <p className="mb-5 text-sm leading-6 text-brand-muted">
+            {verifying
+              ? "Checking your Firebase session and access permissions."
+              : signedInButDenied
+                ? "Use an account listed in CHATLENS_ALLOWED_EMAILS, then switch to that account."
+                : "Sign in with the Google account authorized for this ChatLens instance."}
+          </p>
+          {authMessage && (
+            <p role="alert" className="mb-5 rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">
+              {authMessage}
+            </p>
+          )}
+          {!verifying && (
+            <div className="flex gap-3">
+              {!signedInButDenied ? (
+                <button
+                  type="button"
+                  onClick={() => void handleSignIn()}
+                  disabled={authSubmitting || !isFirebaseConfigured}
+                  className="flex-1 rounded-lg bg-brand-primary px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {authSubmitting ? "Signing in…" : "Sign in with Google"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  className="flex-1 rounded-lg border border-brand-border px-4 py-3 font-semibold"
+                >
+                  Sign out / switch account
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <div className="flex w-full h-full text-[15px]">
       {/* Mobile sidebar toggle */}
@@ -323,6 +476,18 @@ export default function Home() {
         />
       )}
 
+      {AUTH_REQUIRED && authUser && (
+        <div className="fixed right-4 top-3 z-50 flex max-w-[70vw] items-center gap-3 rounded-lg border border-brand-border bg-brand-card/95 px-3 py-2 text-xs text-brand-muted shadow-lg backdrop-blur">
+          <span className="max-w-48 truncate">{authUser.email}</span>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="rounded-md border border-brand-border px-2 py-1 font-medium text-brand-text hover:bg-white/5"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
       <main className="flex-1 flex flex-col min-w-0 bg-brand-bg relative">
         {currentChat ? (
           <>

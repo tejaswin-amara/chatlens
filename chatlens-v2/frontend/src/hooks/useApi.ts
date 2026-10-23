@@ -11,9 +11,20 @@ import type {
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+const AUTH_REQUIRED =
+  process.env.NODE_ENV === "production" ||
+  process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
 
 async function fetchJSON<T = unknown>(endpoint: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, opts);
+  const headers = new Headers(opts?.headers);
+  if (AUTH_REQUIRED && typeof window !== "undefined") {
+    const { auth } = await import("@/lib/firebase");
+    const user = auth.currentUser;
+    if (user) {
+      headers.set("Authorization", `Bearer ${await user.getIdToken()}`);
+    }
+  }
+  const res = await fetch(`${API_BASE}${endpoint}`, { ...opts, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(body.detail || body.error || res.statusText);
@@ -22,6 +33,11 @@ async function fetchJSON<T = unknown>(endpoint: string, opts?: RequestInit): Pro
 }
 
 export function useApi() {
+  const validateSession = useCallback(
+    () => fetchJSON<{ authenticated: boolean; email?: string | null }>("/api/auth/me"),
+    [],
+  );
+
   const loadChats = useCallback(() => fetchJSON<Chat[]>("/api/chats").catch(() => []), []);
 
   const loadStats = useCallback(
@@ -219,6 +235,7 @@ export function useApi() {
 
   return useMemo(
     () => ({
+      validateSession,
       loadChats,
       loadStats,
       loadGlobalSummary,
@@ -243,6 +260,7 @@ export function useApi() {
       loadMonitoringStatus,
     }),
     [
+      validateSession,
       loadChats,
       loadStats,
       loadGlobalSummary,

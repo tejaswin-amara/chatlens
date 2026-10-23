@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="banner-title banner-desc">
+  <title id="banner-title">ChatLens</title>
+  <desc id="banner-desc">Ask Gemini about Telegram and WhatsApp chats, with the SPARK Telegram to Google Workspace assistant.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0a0f24"/><stop offset="1" stop-color="#1a1f4a"/></linearGradient>
+    <radialGradient id="violet" cx="88%" cy="5%" r="55%"><stop offset="0" stop-color="#7c3aed" stop-opacity=".5"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></radialGradient>
+    <radialGradient id="cyan" cx="10%" cy="95%" r="50%"><stop offset="0" stop-color="#06b6d4" stop-opacity=".3"/><stop offset="1" stop-color="#06b6d4" stop-opacity="0"/></radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+    <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#fff" fill-opacity=".07"/></pattern>
+    <clipPath id="frame"><rect width="1280" height="320" rx="20"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)"><rect width="1280" height="320" fill="url(#bg)"/><rect width="1280" height="320" fill="url(#dots)"/><rect width="1280" height="320" fill="url(#violet)"/><rect width="1280" height="320" fill="url(#cyan)"/></g>
+  <g transform="translate(70 40)"><circle cx="110" cy="110" r="86" fill="#0d1330" stroke="url(#accent)" stroke-width="12"/><line x1="172" y1="172" x2="214" y2="214" stroke="url(#accent)" stroke-width="18" stroke-linecap="round"/><rect x="62" y="80" width="96" height="62" rx="16" fill="#eef1ff"/><polygon points="86,140 80,162 108,142" fill="#eef1ff"/><circle cx="88" cy="111" r="6" fill="#6366f1"/><circle cx="110" cy="111" r="6" fill="#06b6d4"/><circle cx="132" cy="111" r="6" fill="#8b5cf6"/></g>
+  <g font-family="Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif"><text x="330" y="150" font-size="84" font-weight="800" fill="#fff" letter-spacing="-1">ChatLens</text><rect x="334" y="172" width="96" height="5" rx="2.5" fill="url(#accent)"/><text x="332" y="220" font-size="24" fill="#cbd5e1">Ask Gemini about your Telegram and WhatsApp chats</text><text x="332" y="256" font-size="19" fill="#94a3b8">Includes SPARK, a headless Telegram to Google Workspace assistant</text></g>
+  <g><rect x="1050" y="56" width="170" height="48" rx="16" fill="#fff" fill-opacity=".06" stroke="#fff" stroke-opacity=".14"/><rect x="1068" y="72" width="104" height="7" rx="3.5" fill="#fff" fill-opacity=".3"/><rect x="1068" y="87" width="66" height="7" rx="3.5" fill="#fff" fill-opacity=".18"/><rect x="1070" y="122" width="150" height="48" rx="16" fill="url(#accent)" fill-opacity=".9"/><rect x="1088" y="138" width="92" height="7" rx="3.5" fill="#0a0f24" fill-opacity=".55"/><rect x="1088" y="153" width="58" height="7" rx="3.5" fill="#0a0f24" fill-opacity=".35"/><rect x="1050" y="188" width="160" height="48" rx="16" fill="#fff" fill-opacity=".06" stroke="#fff" stroke-opacity=".14"/><rect x="1068" y="204" width="96" height="7" rx="3.5" fill="#fff" fill-opacity=".3"/><rect x="1068" y="219" width="54" height="7" rx="3.5" fill="#fff" fill-opacity=".18"/></g>
+</svg>

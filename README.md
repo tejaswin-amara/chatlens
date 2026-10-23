@@ -1,5 +1,9 @@
 # ChatLens & SPARK PA Assistant
 
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="ChatLens: AI-powered Telegram and WhatsApp chat analysis with SPARK" width="100%">
+</p>
+
 [![Awesome Dev Pipeline v2.2.0](https://img.shields.io/badge/standard-Awesome%20Dev%20Pipeline%20v2.2.0-blue.svg)](adr/0001-awesome-dev-pipeline-adoption.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![Next.js 16](https://img.shields.io/badge/next.js-16%20App%20Router-black.svg)](https://nextjs.org/)
@@ -256,15 +260,27 @@ docker compose up -d
 ```
 Services exposed:
 - `chatlens-daemon`: Headless assistant background container
-- `chatlens-backend`: FastAPI REST API on `http://localhost:8000`
-- `chatlens-frontend`: Next.js Web UI on `http://localhost:3000`
+- `chatlens-backend`: FastAPI REST API bound to `http://127.0.0.1:8000` (protected in production)
+- `chatlens-frontend`: internal static web UI; use the Caddy URL at `https://localhost`
 - `postgres`: PostgreSQL + `pgvector` on `localhost:5432`
 - `redis`: Redis task broker on `localhost:6379`
 - `chatlens-celery`: Asynchronous task execution worker
 
 ---
 
-## 7. Verification & Quality Gates
+## 7. Production Access Control
+
+The ChatLens backend handles private conversation archives and must not be exposed without authentication. In production, every API route except `GET /api/healthz` requires a Firebase ID token and an email address listed in `CHATLENS_ALLOWED_EMAILS`. All allowlisted users can access the same configured chat database.
+
+1. In the Firebase Console, enable Google as a sign-in provider and register a web app.
+2. Fill all six `NEXT_PUBLIC_FIREBASE_*` variables in `.env` using that web app's configuration.
+3. Create a Firebase Admin service-account JSON for the same Firebase project. Store it at the path configured by `FIREBASE_ADMIN_CREDENTIALS_FILE` (default: `./secrets/firebase-admin.json`). The file is mounted read-only into the backend and must never be committed.
+4. Set `CHATLENS_ALLOWED_EMAILS` to a comma-separated list of permitted email addresses.
+5. Rebuild and start the stack with `docker compose up -d --build`.
+
+The `GET /api/auth/me` endpoint checks a signed-in user's session and allowlist access. The `/api/healthz` route is the only unauthenticated production API endpoint. The API fails closed when authentication is required but credentials, an ID token, or the email allowlist are invalid or missing. Keep service-account credentials out of source control and only allow trusted email addresses.
+
+## 8. Verification & Quality Gates
 
 Run the complete local verification suite:
 
@@ -293,7 +309,7 @@ gitleaks git --redact --no-banner
 
 ---
 
-## 8. License & Governance
+## 9. License & Governance
 * Built under **Awesome Dev Pipeline v2.2.0**.
 * Architectural decisions documented in [`adr/`](adr/).
 * Threat model documented in [`adr/threat-model.md`](adr/threat-model.md).
