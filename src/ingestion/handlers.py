@@ -316,6 +316,54 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     except Exception:
         sender_name = "Unknown"
 
+    sender_id = getattr(sender, "id", None) or getattr(msg, "sender_id", 0) or 0
+    is_owner = bool(settings.owner_chat_id and str(sender_id) == str(settings.owner_chat_id))
+
+    from src.governance.audit import audit_logger
+    from src.governance.guards import input_guard
+    from src.governance.policy_engine import ActionTier, PolicyVerdict, policy_engine
+
+    raw_date = getattr(msg, "date", None)
+    msg_ts = raw_date.timestamp() if raw_date and hasattr(raw_date, "timestamp") else time.time()
+    untrusted_input = input_guard.sanitize_and_wrap(
+        channel_id=chat_id,
+        sender_id=sender_id,
+        text=msg_text,
+        timestamp=msg_ts,
+        is_owner=is_owner,
+    )
+    event_id = audit_logger.generate_event_id(
+        chat_id, getattr(msg, "id", 0), untrusted_input.timestamp
+    )
+
+    if untrusted_input.quarantined:
+        logger.warning(
+            "untrusted_input_quarantined",
+            chat_id=chat_id,
+            msg_id=getattr(msg, "id", 0),
+            reason=untrusted_input.quarantine_reason,
+        )
+        audit_logger.log_action(
+            event_id=event_id,
+            untrusted_input=untrusted_input,
+            extracted_intent="INJECTION_BLOCKED",
+            risk_tier=ActionTier.TIER_2_HIGH_RISK,
+            policy_verdict=PolicyVerdict.QUARANTINED,
+            approver_id="SYSTEM_AUTO",
+            details=untrusted_input.quarantine_reason or "Prompt injection detected",
+        )
+        deduplicator.mark_processed(chat_id, msg.id, msg_text)
+        if settings.bot_token and settings.owner_chat_id:
+            alert = (
+                f"🛡️ **Security Alert: Quarantined Prompt Injection**\n"
+                f"• **Channel:** `{chat_name}` ({chat_id})\n"
+                f"• **Sender:** `{sender_name}` ({sender_id})\n"
+                f"• **Reason:** {untrusted_input.quarantine_reason}\n"
+                f"• **Filtered Snippet:** `{untrusted_input.content[:100]}`"
+            )
+            await asyncio.to_thread(bot.send, alert)
+        return
+
     if deduplicator.is_duplicate(chat_id, msg.id, msg_text):
         logger.debug("Skipping duplicate message", chat_id=chat_id, msg_id=msg.id)
         return
@@ -381,6 +429,16 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             )
         except Exception as e:
             logger.debug("Audit log failed for dry run", error=str(e))
+
+        audit_logger.log_action(
+            event_id=event_id,
+            untrusted_input=untrusted_input,
+            extracted_intent=parsed_event.intent,
+            risk_tier=policy_engine.classify_action_tier(parsed_event.intent, source or "unknown"),
+            policy_verdict=PolicyVerdict.REJECTED,
+            approver_id="SYSTEM_AUTO",
+            details="Dry run mode - external writes disabled",
+        )
 
         receipt = (
             f"🔍 **[DRY RUN] Event Processed:** `{parsed_event.intent}`\n"
@@ -457,6 +515,16 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         except Exception as e:
             logger.debug("Audit log failed for pending confirmation", error=str(e))
 
+        audit_logger.log_action(
+            event_id=event_id,
+            untrusted_input=untrusted_input,
+            extracted_intent=parsed_event.intent,
+            risk_tier=policy_engine.classify_action_tier(parsed_event.intent, source or "unknown"),
+            policy_verdict=PolicyVerdict.CONFIRMATION_PENDING,
+            approver_id="SYSTEM_AUTO",
+            details=f"Pending PID {pid}: {verdict.reason}",
+        )
+
     else:  # Decision.AUTO
         execution_status, details_list = await apply_event(
             parsed_event,
@@ -466,6 +534,16 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         if not execution_status.startswith("FAILED"):
             deduplicator.mark_processed(chat_id, msg.id, msg_text)
             deduplicator.mark_processed("system", "evt", evt_dedupe_key)
+
+        audit_logger.log_action(
+            event_id=event_id,
+            untrusted_input=untrusted_input,
+            extracted_intent=parsed_event.intent,
+            risk_tier=policy_engine.classify_action_tier(parsed_event.intent, source or "unknown"),
+            policy_verdict=PolicyVerdict.ALLOWED,
+            approver_id="SYSTEM_AUTO",
+            details=f"Auto applied: {execution_status}",
+        )
 
         receipt = (
             f"✅ **Action applied:** `{parsed_event.intent}`\n"
@@ -562,6 +640,15 @@ async def handle_bot_callback(query: dict) -> None:
 
     if action == "no":
         deduplicator.finish_pending(pid, "IGNORED")
+        from src.governance.audit import audit_logger
+        from src.governance.policy_engine import PolicyVerdict
+
+        audit_logger.update_verdict(
+            event_id=f"pending:{pid}",
+            verdict=PolicyVerdict.REJECTED,
+            approver_id=str(sender_id),
+            details="Rejected by human owner via Telegram inline callback",
+        )
         if msg_id:
             await asyncio.to_thread(bot.edit, int(msg_id), "❌ Action ignored.")
         return
@@ -588,6 +675,15 @@ async def handle_bot_callback(query: dict) -> None:
             await asyncio.to_thread(bot.edit, int(msg_id), result_text)
     else:
         deduplicator.finish_pending(pid, "APPROVED")
+        from src.governance.audit import audit_logger
+        from src.governance.policy_engine import PolicyVerdict
+
+        audit_logger.update_verdict(
+            event_id=f"pending:{pid}",
+            verdict=PolicyVerdict.ALLOWED,
+            approver_id=str(sender_id),
+            details=f"Approved by human owner via Telegram inline callback | {execution_status}",
+        )
         if msg_id:
             result_text = (
                 f"✅ Action applied: {parsed_event.intent}\n"

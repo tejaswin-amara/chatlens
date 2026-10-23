@@ -20,6 +20,7 @@ Exhaustively and empirically challenges:
 """
 
 import asyncio
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
@@ -271,6 +272,9 @@ async def test_callback_lifecycle_cmd_deadlines(monkeypatch):
 @pytest.mark.asyncio
 async def test_callback_lifecycle_cmd_status(monkeypatch):
     """Verify cmd:status lifecycle: exact answerCallbackQuery ID + exact status + 4 buttons."""
+    fixed_now = datetime(2026, 10, 23, 14, 0, 0, tzinfo=IST)
+    monkeypatch.setattr("src.utils.clock.now_ist", lambda: fixed_now)
+
     recorder = RequestRecorder()
     monkeypatch.setattr(bot, "_request", recorder.mock_request)
 
