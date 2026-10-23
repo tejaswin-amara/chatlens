@@ -133,7 +133,7 @@ stateDiagram-v2
     ValidateEvent --> ConfirmMode: Verdict passed and mode is confirm
     ValidateEvent --> LiveEligibility: Verdict passed and mode is live
 
-    DryMode --> AuditOnly: Log DRY_RUN receipt; no Calendar or Tasks writes
+    DryMode --> AuditOnly: Log DRY_RUN receipt with no Calendar or Tasks writes
     ValidationFailed --> ReviewOnly: Notify owner with validation reason
     ConfirmMode --> PendingOwner: Request explicit owner approval
 
