@@ -25,6 +25,7 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 INTEL_PATH = Path("data/academic_intelligence.json")
+INDEX_CACHE_PATH = Path("data/intel_index.tv")
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 3072
 
@@ -32,11 +33,22 @@ EMBEDDING_DIM = 3072
 class KnowledgeRetriever:
     """In-process semantic knowledge engine using TurboVec and Gemini."""
 
-    def __init__(self) -> None:
+    def __init__(self, cache_path: Path | None = None) -> None:
         self.chunks: list[str] = []
         self.index: Any = None
         self._client: genai.Client | None = None
+        self.cache_path = cache_path or INDEX_CACHE_PATH
         self._load_chunks()
+        self._load_cached_index()
+
+    def _load_cached_index(self) -> None:
+        """Attempt to load an existing Turbovec index from disk cache."""
+        if turbovec is not None and self.cache_path.exists():
+            try:
+                self.index = turbovec.TurboQuantIndex.load(str(self.cache_path))
+                logger.info("Loaded cached TurboVec index", path=str(self.cache_path))
+            except Exception as e:
+                logger.warning("Failed to load cached TurboVec index", error=str(e))
 
     def _get_client(self) -> genai.Client | None:
         if not self._client:
@@ -107,6 +119,12 @@ class KnowledgeRetriever:
             vectors = np.array(embeddings_list, dtype=np.float32)
             self.index = turbovec.TurboQuantIndex(dim=EMBEDDING_DIM, bit_width=4)
             self.index.add(vectors)
+            try:
+                self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+                self.index.sync(str(self.cache_path))
+                logger.info("Persisted TurboVec index", path=str(self.cache_path))
+            except Exception as e:
+                logger.debug("Could not persist TurboVec index to disk", error=str(e))
             logger.info("Built TurboVec knowledge index", chunks=len(self.chunks))
             return True
         except Exception as e:
@@ -151,6 +169,18 @@ class KnowledgeRetriever:
             tokens.add("s-10")
         if "s8" in tokens:
             tokens.add("s-8")
+        if "dsa" in tokens or "dsa3" in tokens:
+            tokens.update({"dsa", "dsa3", "25cs2103e"})
+        if "ossp" in tokens:
+            tokens.update({"ossp", "25cs2104e"})
+        if "ml" in tokens:
+            tokens.update({"ml", "25sc2107e"})
+        if "esd" in tokens:
+            tokens.update({"esd", "25ec2206e"})
+        if "dbse" in tokens:
+            tokens.update({"dbse", "25cs1302e"})
+        if "japanese" in tokens:
+            tokens.update({"japanese", "25fl2112e"})
 
         scored = []
         for chunk in self.chunks:

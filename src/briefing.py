@@ -13,6 +13,55 @@ def classes_needed(a: int, h: int, floor: int) -> int:
     return max(0, math.ceil((floor * h - 100 * a) / (100 - floor)))
 
 
+def format_bunk_calculator(attendance_rows: list[dict]) -> str:
+    """Format an interactive bunk buffer and attendance recovery calculator."""
+    if not attendance_rows:
+        return "⚠️ No attendance records available from KL ERP or Sheets."
+
+    lines = ["📊 **KL ERP Attendance & Bunk Margin Calculator**:\n"]
+    for row in attendance_rows:
+        course = row.get("course", "Unknown")
+        code = row.get("code") or ""
+        label = f"{course} ({code})" if code else course
+        a_val = row.get("attended")
+        h_val = row.get("held")
+        if a_val is None or h_val is None:
+            continue
+        try:
+            a = int(a_val)
+            h = int(h_val)
+        except ValueError:
+            continue
+
+        if h <= 0 or a > h:
+            continue
+
+        pct = (a / h) * 100
+        filled = min(10, max(0, int(pct / 10)))
+        bar = "█" * filled + "░" * (10 - filled)
+
+        # 75% margin (University Detention Floor)
+        if pct >= 75:
+            safe_75 = classes_can_skip(a, h, 75)
+            status_75 = f"🟢 Safe bunks (≥75%): **{safe_75}**"
+        else:
+            need_75 = classes_needed(a, h, 75)
+            status_75 = f"🔴 Attend next: **{need_75}** classes consecutively"
+
+        # 85% margin (Academic Distinction Benchmark)
+        if pct >= 85:
+            safe_85 = classes_can_skip(a, h, 85)
+            status_85 = f"Safe bunks (≥85%): **{safe_85}**"
+        else:
+            need_85 = classes_needed(a, h, 85)
+            status_85 = f"Need for 85%: **{need_85}**"
+
+        lines.append(f"• **{label}**: `[{bar}]` **{pct:.1f}%** ({a}/{h})")
+        lines.append(f"  └ {status_75} | {status_85}")
+
+    return "\n".join(lines)
+
+
 def next_run(now: datetime) -> datetime:
     if now.tzinfo is None:
         raise ValueError("now must be a timezone-aware datetime")

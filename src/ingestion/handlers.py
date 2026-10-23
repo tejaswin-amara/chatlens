@@ -2,6 +2,7 @@
 
 import asyncio
 import enum
+import time
 from datetime import timedelta
 
 from telethon import TelegramClient, events
@@ -369,6 +370,17 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         return
 
     parsed_event, source = await extract(client, msg)
+
+    if parsed_event and parsed_event.summary:
+        is_inj, inj_reason = input_guard.detect_injection(parsed_event.summary)
+        if is_inj:
+            logger.warning(
+                "extracted_summary_injection_quarantined",
+                reason=inj_reason,
+                chat_id=chat_id,
+                msg_id=getattr(msg, "id", 0),
+            )
+            return
 
     if not parsed_event or parsed_event.intent == "UNKNOWN":
         if settings.spark_mode != "dry":
@@ -778,7 +790,11 @@ async def handle_bot_command(msg: dict) -> None:
         "/help",
         "/today",
         "/tomorrow",
+        "/briefing",
+        "/digest",
         "/attendance",
+        "/bunk",
+        "/margins",
         "/deadlines",
         "/deadline",
         "/tasks",
@@ -786,6 +802,9 @@ async def handle_bot_command(msg: dict) -> None:
         "/marks",
         "/cgpa",
         "/fee",
+        "/quarantine",
+        "/quarantined",
+        "/quarantine_inspect",
         "/rescan",
         "/scan",
         "/undo",
@@ -797,7 +816,9 @@ async def handle_bot_command(msg: dict) -> None:
     if cmd.startswith("/") and cmd not in recognized_commands:
         import difflib
 
-        fuzzy_candidates = tuple(c for c in recognized_commands if c not in ("/", "/undo"))
+        fuzzy_candidates = tuple(
+            c for c in recognized_commands if c not in ("/", "/undo", "/bunk")
+        )
         close = difflib.get_close_matches(cmd, fuzzy_candidates, n=1, cutoff=0.75)
         if close:
             cmd = close[0]
@@ -808,7 +829,9 @@ async def handle_bot_command(msg: dict) -> None:
             "Academic & Schedule Commands:\n"
             "• `/today` — Today's classes, rooms & status\n"
             "• `/tomorrow` — Tomorrow's schedule & upcoming classes\n"
+            "• `/briefing` — Generate today's academic briefing\n"
             "• `/attendance` — Live attendance & safe bunk margins\n"
+            "• `/bunk` — Exact attendance bunk buffer calculator\n"
             "• `/deadlines` — Upcoming task deadlines & academic milestones\n"
             "• `/exam` — In-sem lab exams & project defence schedules\n"
             "• `/ask <question>` — Instant semantic answer (viva prep, Arduino code, rooms)\n"
@@ -816,6 +839,7 @@ async def handle_bot_command(msg: dict) -> None:
             "• `/marks` — In-sem internal marks & assessments\n"
             "• `/cgpa` — Official academic grades & transcript\n"
             "• `/fee` — Fee orders & payment receipts\n"
+            "• `/quarantine` — View isolated prompt injection attempts\n"
             "• `/rescan` — Deep-scan course group messages & files (past 7 days)\n"
             "• `/undo` — Revert last applied calendar override\n"
             "• `/help` — Show all available options\n\n"
@@ -1033,6 +1057,93 @@ async def handle_bot_command(msg: dict) -> None:
 
     elif cmd == "/undo":
         await handle_undo_command(msg)
+
+    elif cmd in ("/bunk", "/margins"):
+        from src.briefing import format_bunk_calculator
+        from src.erp import klu_erp
+
+        await asyncio.to_thread(bot.send, "⏳ Calculating attendance bunk margins from KL ERP...")
+        records = await klu_erp.get_attendance()
+        if records:
+            att_rows = [
+                {
+                    "course": r.get("course_name") or r.get("course_code"),
+                    "code": r.get("course_code", ""),
+                    "attended": r.get("attended"),
+                    "held": r.get("conducted"),
+                }
+                for r in records
+            ]
+            reply = format_bunk_calculator(att_rows)
+            await asyncio.to_thread(bot.send, reply)
+        else:
+            await asyncio.to_thread(bot.send, "⚠️ Could not retrieve attendance from KL ERP.")
+
+    elif cmd in ("/briefing", "/digest"):
+        from src.briefing import build_briefing, fetch_briefing_inputs
+        from src.utils import clock
+
+        await asyncio.to_thread(bot.send, "⏳ Compiling today's academic briefing...")
+        inputs = await fetch_briefing_inputs()
+        text_briefing = build_briefing(clock.now_ist(), *inputs)
+        await asyncio.to_thread(bot.send, text_briefing)
+
+    elif cmd in ("/quarantine", "/quarantined"):
+        from src.governance.audit import audit_logger
+        from src.governance.policy_engine import PolicyVerdict
+
+        records = audit_logger.get_audit_trail(limit=5, verdict=PolicyVerdict.QUARANTINED.value)
+        if not records:
+            await asyncio.to_thread(
+                bot.send, "🛡️ **Quarantine Console**: Zero quarantined messages. All clear!"
+            )
+        else:
+            lines = [f"🛡️ **Quarantine Console** ({len(records)} recent isolated events):\n"]
+            for r in records:
+                ev_short = r["event_id"][:8]
+                ts_str = time.strftime("%d %b %H:%M", time.localtime(r["timestamp"]))
+                lines.append(
+                    f"• **ID `{ev_short}`** ({ts_str})\n"
+                    f"  - Sender: `{r['sender_id']}` in Chat `{r['channel_id']}`\n"
+                    f"  - Reason: {r['details']}\n"
+                    f"  - Inspect: `/quarantine_inspect {r['event_id']}`"
+                )
+            await asyncio.to_thread(bot.send, "\n".join(lines))
+
+    elif cmd.startswith("/quarantine_inspect"):
+        from src.governance.audit import audit_logger
+
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await asyncio.to_thread(bot.send, "ℹ️ Usage: `/quarantine_inspect <event_id>`")
+        else:
+            target_id = parts[1].strip()
+            rec = None
+            if len(target_id) < 64:
+                all_rec = audit_logger.get_audit_trail(limit=50)
+                for r in all_rec:
+                    if r["event_id"].startswith(target_id):
+                        rec = r
+                        break
+            else:
+                rec = audit_logger.get_record(target_id)
+
+            if not rec:
+                await asyncio.to_thread(bot.send, f"⚠️ Quarantine record `{target_id}` not found.")
+            else:
+                ts_val = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(rec["timestamp"]))
+                info = (
+                    f"🔍 **Quarantine Record Inspection**\n\n"
+                    f"• **Event ID**: `{rec['event_id']}`\n"
+                    f"• **Timestamp**: `{ts_val}`\n"
+                    f"• **Trust Tier**: `{rec['source_trust_tier']}`\n"
+                    f"• **Verdict**: `{rec['policy_verdict']}`\n"
+                    f"• **Risk Tier**: `{rec['risk_tier']}`\n"
+                    f"• **Channel**: `{rec['channel_id']}` | **Sender**: `{rec['sender_id']}`\n"
+                    f"• **Details**: {rec['details']}\n"
+                    f"• **Raw Fingerprint**: `{rec['raw_fingerprint']}`"
+                )
+                await asyncio.to_thread(bot.send, info)
 
     else:
         reply_sent = False

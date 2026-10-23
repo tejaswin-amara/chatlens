@@ -149,3 +149,23 @@ async def test_fetch_briefing_inputs_uses_list_open_tasks():
         assert len(tasks) == 1
         assert tasks[0]["title"] == "Submit assignment"
         mock_tasks.assert_called_once()
+
+
+def test_format_bunk_calculator():
+    from src.briefing import format_bunk_calculator
+
+    # 1. Empty rows
+    assert "No attendance records" in format_bunk_calculator([])
+
+    # 2. Populated rows
+    rows = [
+        {"course": "DSA", "code": "25CS2103E", "attended": "18", "held": "20"},  # 90%
+        {"course": "ML", "code": "25SC2107E", "attended": "14", "held": "20"},   # 70%
+    ]
+    res = format_bunk_calculator(rows)
+    assert "DSA (25CS2103E)" in res
+    assert "90.0%" in res
+    assert "Safe bunks (≥75%): **4**" in res
+    assert "ML (25SC2107E)" in res
+    assert "70.0%" in res
+    assert "Attend next: **4** classes" in res

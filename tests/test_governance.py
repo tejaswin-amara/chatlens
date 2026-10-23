@@ -387,4 +387,61 @@ async def test_adversarial_injection_quarantined_in_pipeline(monkeypatch):
         rec = audit_logger.get_record(event_id)
         assert rec is not None
         assert rec["policy_verdict"] == "QUARANTINED"
+
+
+@pytest.mark.asyncio
+async def test_quarantine_console_commands(monkeypatch, tmp_path):
+    """Verify /quarantine and /quarantine_inspect display isolated records."""
+    test_db = tmp_path / "gov_cmd.db"
+    monkeypatch.setattr(settings, "spark_db", str(test_db))
+    monkeypatch.setattr(settings, "owner_chat_id", 12345)
+    monkeypatch.setattr(settings, "bot_token", "test_bot_token")
+
+    from src.governance.audit import GovernanceAuditLogger
+    from src.ingestion.handlers import handle_bot_command
+
+    custom_logger = GovernanceAuditLogger(str(test_db))
+    with patch("src.governance.audit.audit_logger", custom_logger):
+        # 1. When empty
+        bot_sends = []
+        with patch("src.notify.bot.bot.send", side_effect=bot_sends.append):
+            await handle_bot_command({"chat": {"id": 12345}, "text": "/quarantine"})
+            assert len(bot_sends) == 1
+            assert "Zero quarantined messages" in bot_sends[0]
+
+        # 2. Add quarantined event
+        untrusted = input_guard.sanitize_and_wrap(101, 202, "jailbreak system", is_owner=False)
+        ev_id = custom_logger.generate_event_id(101, 303, untrusted.timestamp)
+        custom_logger.log_action(
+            event_id=ev_id,
+            untrusted_input=untrusted,
+            extracted_intent="INJECTION_BLOCKED",
+            risk_tier=ActionTier.TIER_2_HIGH_RISK,
+            policy_verdict=PolicyVerdict.QUARANTINED,
+            approver_id="SYSTEM_AUTO",
+            details="Injection attempt detected",
+        )
+
+        # 3. List quarantine
+        bot_sends.clear()
+        with patch("src.notify.bot.bot.send", side_effect=bot_sends.append):
+            await handle_bot_command({"chat": {"id": 12345}, "text": "/quarantine"})
+            assert len(bot_sends) == 1
+            assert "Quarantine Console" in bot_sends[0]
+            assert ev_id[:8] in bot_sends[0]
+
+        # 4. Inspect quarantine
+        bot_sends.clear()
+        with patch("src.notify.bot.bot.send", side_effect=bot_sends.append):
+            await handle_bot_command({
+                "chat": {"id": 12345},
+                "text": f"/quarantine_inspect {ev_id[:8]}",
+            })
+            assert len(bot_sends) == 1
+            assert "Quarantine Record Inspection" in bot_sends[0]
+            assert ev_id in bot_sends[0]
+            assert "Injection attempt detected" in bot_sends[0]
+
+        rec = custom_logger.get_record(ev_id)
+        assert rec is not None
         assert rec["extracted_intent"] == "INJECTION_BLOCKED"
