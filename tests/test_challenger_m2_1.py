@@ -200,9 +200,7 @@ async def test_callback_lifecycle_cmd_attendance(monkeypatch):
             "ltps": "Lecture",
         }
     ]
-    monkeypatch.setattr(
-        "src.erp.klu_erp.get_attendance", AsyncMock(return_value=mock_records)
-    )
+    monkeypatch.setattr("src.erp.klu_erp.get_attendance", AsyncMock(return_value=mock_records))
 
     callback_id = "cb_query_att_99"
     query = {

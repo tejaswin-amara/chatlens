@@ -158,9 +158,7 @@ class GovernanceAuditLogger:
             logger.error("Failed to update governance audit verdict", error=str(e))
             return False
 
-    def get_audit_trail(
-        self, limit: int = 50, verdict: str | None = None
-    ) -> list[dict[str, Any]]:
+    def get_audit_trail(self, limit: int = 50, verdict: str | None = None) -> list[dict[str, Any]]:
         """Retrieve recent forensic audit records."""
         records = []
         try:

@@ -666,9 +666,7 @@ async def test_tier4_student_morning_boot_and_query_journey(
     assert "ChatLens & SPARK PA Menu" in mock_bot_send[0]["text"]
 
     # 3. Student taps Today button
-    await handle_bot_callback(
-        {"id": "journey_cb1", "from": {"id": 123456789}, "data": "cmd:today"}
-    )
+    await handle_bot_callback({"id": "journey_cb1", "from": {"id": 123456789}, "data": "cmd:today"})
     assert len(mock_bot_send) == 2
     today_reply = mock_bot_send[1]["text"]
     assert "🔴 [08:10 AM – 09:00 AM]: Database Systems Engineering" in today_reply

@@ -816,9 +816,7 @@ async def handle_bot_command(msg: dict) -> None:
     if cmd.startswith("/") and cmd not in recognized_commands:
         import difflib
 
-        fuzzy_candidates = tuple(
-            c for c in recognized_commands if c not in ("/", "/undo", "/bunk")
-        )
+        fuzzy_candidates = tuple(c for c in recognized_commands if c not in ("/", "/undo", "/bunk"))
         close = difflib.get_close_matches(cmd, fuzzy_candidates, n=1, cutoff=0.75)
         if close:
             cmd = close[0]
@@ -1045,7 +1043,7 @@ async def handle_bot_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, reply)
 
     elif cmd == "/ask":
-        query_text = text[len(cmd):].strip()
+        query_text = text[len(cmd) :].strip()
         if not query_text:
             msg_hint = "ℹ️ Please specify your question: `/ask <your question>`"
             await asyncio.to_thread(bot.send, msg_hint)

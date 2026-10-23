@@ -101,9 +101,9 @@ def test_run_daemon_syntax_valid_powershell_5_1():
 def test_run_daemon_no_legacy_get_process_commandline():
     """Verify scripts/run_daemon.ps1 does not use broken Get-Process.CommandLine."""
     content = SCRIPT_PATH.read_text(encoding="utf-8")
-    assert "Get-Process -Name \"python\"" not in content
+    assert 'Get-Process -Name "python"' not in content
     assert "Get-Process.CommandLine" not in content
-    assert "$_.CommandLine -match \"src\\.main\"" in content
+    assert '$_.CommandLine -match "src\\.main"' in content
     assert "Get-CimInstance Win32_Process" in content
 
 

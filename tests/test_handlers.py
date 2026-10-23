@@ -505,7 +505,6 @@ async def test_handle_bot_command_fuzzy_routing_valid_typos():
         assert "Upcoming Deadlines & Milestones" in mock_send.call_args[0][0]
 
 
-
 @pytest.mark.asyncio
 async def test_handle_bot_command_standalone_slash_menu_content():
     from src.config import settings
@@ -766,4 +765,3 @@ def test_format_day_schedule_missing_timetable():
     with patch("src.timetable.load", return_value=None):
         res = format_day_schedule(date(2026, 10, 23))
         assert res == "⚠️ Timetable file not found."
-

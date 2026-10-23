@@ -18,7 +18,17 @@ export const isFirebaseConfigured = Object.values(firebaseConfig).every(
 
 
 
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const fallbackConfig = {
+  apiKey: "dummy-key-for-build",
+  authDomain: "dummy.firebaseapp.com",
+  projectId: "dummy-project",
+  storageBucket: "dummy.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef",
+};
+
+const effectiveConfig = isFirebaseConfigured ? firebaseConfig : fallbackConfig;
+export const app = getApps().length > 0 ? getApp() : initializeApp(effectiveConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);

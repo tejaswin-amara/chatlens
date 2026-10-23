@@ -433,10 +433,12 @@ async def test_quarantine_console_commands(monkeypatch, tmp_path):
         # 4. Inspect quarantine
         bot_sends.clear()
         with patch("src.notify.bot.bot.send", side_effect=bot_sends.append):
-            await handle_bot_command({
-                "chat": {"id": 12345},
-                "text": f"/quarantine_inspect {ev_id[:8]}",
-            })
+            await handle_bot_command(
+                {
+                    "chat": {"id": 12345},
+                    "text": f"/quarantine_inspect {ev_id[:8]}",
+                }
+            )
             assert len(bot_sends) == 1
             assert "Quarantine Record Inspection" in bot_sends[0]
             assert ev_id in bot_sends[0]

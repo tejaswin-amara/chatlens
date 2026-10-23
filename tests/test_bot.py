@@ -294,4 +294,3 @@ def test_bot_answer_callback(mock_bot, mock_request):
     assert req.full_url.endswith("/answerCallbackQuery")
     payload = _extract_payload(mock_request)
     assert payload == {"callback_query_id": "cb_9876", "text": "Acknowledged"}
-

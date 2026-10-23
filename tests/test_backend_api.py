@@ -804,7 +804,6 @@ async def test_firebase_auth_token_validation():
         assert exc_info.value.status_code == 401
 
 
-
 @pytest.mark.asyncio
 async def test_mock_firebase_token_is_rejected_outside_test_environment():
     from fastapi import HTTPException

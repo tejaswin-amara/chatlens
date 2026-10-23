@@ -160,7 +160,7 @@ def test_format_bunk_calculator():
     # 2. Populated rows
     rows = [
         {"course": "DSA", "code": "25CS2103E", "attended": "18", "held": "20"},  # 90%
-        {"course": "ML", "code": "25SC2107E", "attended": "14", "held": "20"},   # 70%
+        {"course": "ML", "code": "25SC2107E", "attended": "14", "held": "20"},  # 70%
     ]
     res = format_bunk_calculator(rows)
     assert "DSA (25CS2103E)" in res

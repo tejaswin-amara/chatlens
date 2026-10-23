@@ -60,21 +60,21 @@ async def test_fuzzy_routing_rejection_mandate(monkeypatch):
             mock_send.assert_called_once()
             output = mock_send.call_args[0][0]
 
-            assert (
-                f'Received: "{test_cmd}"' in output
-            ), f"Failed for {test_cmd}: expected Received fallback"
-            assert (
-                "ChatLens & SPARK PA Menu" not in output
-            ), f"Failed for {test_cmd}: erroneously matched '/'"
-            assert (
-                "Academic & Schedule Commands:" not in output
-            ), f"Failed for {test_cmd}: erroneously matched '/'"
-            assert (
-                "Nothing to undo" not in output
-            ), f"Failed for {test_cmd}: erroneously matched '/undo'"
-            assert (
-                "Reverted room override" not in output
-            ), f"Failed for {test_cmd}: erroneously matched '/undo'"
+            assert f'Received: "{test_cmd}"' in output, (
+                f"Failed for {test_cmd}: expected Received fallback"
+            )
+            assert "ChatLens & SPARK PA Menu" not in output, (
+                f"Failed for {test_cmd}: erroneously matched '/'"
+            )
+            assert "Academic & Schedule Commands:" not in output, (
+                f"Failed for {test_cmd}: erroneously matched '/'"
+            )
+            assert "Nothing to undo" not in output, (
+                f"Failed for {test_cmd}: erroneously matched '/undo'"
+            )
+            assert "Reverted room override" not in output, (
+                f"Failed for {test_cmd}: erroneously matched '/undo'"
+            )
 
 
 @pytest.mark.asyncio

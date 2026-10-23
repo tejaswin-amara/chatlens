@@ -271,9 +271,7 @@ def test_simultaneous_room_override_injection_today_and_tomorrow(setup_test_env)
 
     # Validate Tomorrow:
     # 1. Period 2 OSSP is cancelled (icon 🔴, note '❌ Class cancelled')
-    assert (
-        "🔴 [09:00 AM – 09:50 AM]: Operating Systems & Systems Programming" in output_tomorrow
-    )
+    assert "🔴 [09:00 AM – 09:50 AM]: Operating Systems & Systems Programming" in output_tomorrow
     assert "* Note    : ❌ Class cancelled" in output_tomorrow
     # 2. Tomorrow must NOT have Friday's H-999 room override
     assert "H-999" not in output_tomorrow

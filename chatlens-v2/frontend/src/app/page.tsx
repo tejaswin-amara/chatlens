@@ -38,10 +38,14 @@ export default function Home() {
   const [globalStats, setGlobalStats] = useState<GlobalStats>({ total_messages: 0, total_chats: 0 });
   const [globalSummary, setGlobalSummary] = useState<string | null>(null);
 
-  const [authChecked, setAuthChecked] = useState(!AUTH_REQUIRED);
+  const [authChecked, setAuthChecked] = useState(!AUTH_REQUIRED || !isFirebaseConfigured);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authAccessGranted, setAuthAccessGranted] = useState(!AUTH_REQUIRED);
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(
+    AUTH_REQUIRED && !isFirebaseConfigured
+      ? "Configure all NEXT_PUBLIC_FIREBASE_* settings for the Firebase project used by this backend."
+      : null,
+  );
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
   // ── Navigation ──
@@ -81,14 +85,7 @@ export default function Home() {
   const api = useApi();
 
   useEffect(() => {
-    if (!AUTH_REQUIRED) return;
-    if (!isFirebaseConfigured) {
-      setAuthChecked(true);
-      setAuthMessage(
-        "Configure all NEXT_PUBLIC_FIREBASE_* settings for the Firebase project used by this backend.",
-      );
-      return;
-    }
+    if (!AUTH_REQUIRED || !isFirebaseConfigured) return;
     return onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       setAuthAccessGranted(false);

@@ -221,7 +221,7 @@ def test_empirical_lunch_break_transitions(lunch_h, lunch_m):
     # P1 through P5 must be ✅
     for p_idx in range(5):
         assert icons[p_idx][0] == "✅", (
-            f"Morning slot {p_idx+1} at lunch {lunch_h}:{lunch_m} not ✅"
+            f"Morning slot {p_idx + 1} at lunch {lunch_h}:{lunch_m} not ✅"
         )
 
     # P7 (Period index 5) must be 🟡 (next upcoming)
@@ -256,7 +256,7 @@ def test_empirical_after_all_classes_end(night_h, night_m):
 
     for idx, (icon, time_range, _name) in enumerate(icons):
         assert icon == "✅", (
-            f"Slot {idx+1} ({time_range}) at {night_h:02d}:{night_m:02d} was {icon}, expected ✅"
+            f"Slot {idx + 1} ({time_range}) at {night_h:02d}:{night_m:02d} was {icon}, expected ✅"
         )
 
 
@@ -290,7 +290,7 @@ def test_empirical_before_classes_start(early_h, early_m):
     # Remaining 7 slots must be ⬡
     for idx in range(1, len(icons)):
         assert icons[idx][0] == "⬡", (
-            f"Slot {idx+1} at {early_h:02d}:{early_m:02d} was {icons[idx][0]}, expected ⬡"
+            f"Slot {idx + 1} at {early_h:02d}:{early_m:02d} was {icons[idx][0]}, expected ⬡"
         )
 
 
@@ -304,35 +304,29 @@ def test_empirical_inter_period_breaks():
 
     # Break 1: 09:55 AM (between P2: 09:00-09:50 and P3: 10:00-10:50)
     now_b1 = datetime(2026, 7, 20, 9, 55, tzinfo=IST)
-    icons_b1 = _get_icons_from_output(
-        format_day_schedule(target_date, now_dt=now_b1, timetable=tt)
-    )
+    icons_b1 = _get_icons_from_output(format_day_schedule(target_date, now_dt=now_b1, timetable=tt))
     assert icons_b1[0][0] == "✅"  # P1
     assert icons_b1[1][0] == "✅"  # P2
     assert icons_b1[2][0] == "🟡"  # P3 next upcoming
-    assert icons_b1[3][0] == "⬡"   # P4
-    assert icons_b1[4][0] == "⬡"   # P5
+    assert icons_b1[3][0] == "⬡"  # P4
+    assert icons_b1[4][0] == "⬡"  # P5
 
     # Break 2: 11:45 AM (between P4: 10:50-11:40 and P5: 11:50-12:40)
     now_b2 = datetime(2026, 7, 20, 11, 45, tzinfo=IST)
-    icons_b2 = _get_icons_from_output(
-        format_day_schedule(target_date, now_dt=now_b2, timetable=tt)
-    )
+    icons_b2 = _get_icons_from_output(format_day_schedule(target_date, now_dt=now_b2, timetable=tt))
     assert icons_b2[0][0] == "✅"
     assert icons_b2[1][0] == "✅"
     assert icons_b2[2][0] == "✅"
     assert icons_b2[3][0] == "✅"  # P4
     assert icons_b2[4][0] == "🟡"  # P5 next upcoming
-    assert icons_b2[5][0] == "⬡"   # P7
+    assert icons_b2[5][0] == "⬡"  # P7
 
     # Break 3: 14:15 PM (between P7: 13:20-14:10 and P8: 14:20-15:10)
     now_b3 = datetime(2026, 7, 20, 14, 15, tzinfo=IST)
-    icons_b3 = _get_icons_from_output(
-        format_day_schedule(target_date, now_dt=now_b3, timetable=tt)
-    )
+    icons_b3 = _get_icons_from_output(format_day_schedule(target_date, now_dt=now_b3, timetable=tt))
     assert icons_b3[5][0] == "✅"  # P7
     assert icons_b3[6][0] == "🟡"  # P8 next upcoming
-    assert icons_b3[7][0] == "⬡"   # P9
+    assert icons_b3[7][0] == "⬡"  # P9
 
 
 # ==============================================================================
