@@ -1480,5 +1480,11 @@
     "seen": 1792844529.7421837,
     "ast_hash": "290bf8ebfb418e9ae6e2fed1da0da043",
     "semantic_hash": ""
+  },
+  ".agents/skills/no-mistakes/SKILL.md": {
+    "mtime": 1792845087.909759,
+    "seen": 1792845111.9847481,
+    "ast_hash": "7a678a6d25ca9d5efcb8e095ce3ff4fd",
+    "semantic_hash": ""
   }
 }
