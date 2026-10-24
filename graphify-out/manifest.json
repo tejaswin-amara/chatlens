@@ -1369,14 +1369,14 @@
   },
   "chatlens-v2/backend/migrations/001_content_hash.sql": {
     "mtime": 1792041500.8185153,
-    "seen": 1792746940.4633045,
-    "ast_hash": "",
+    "seen": 1792838003.3088355,
+    "ast_hash": "3e4b25a8b01e9cc163e828e2250404d9",
     "semantic_hash": ""
   },
   "chatlens-v2/backend/migrations/002_vector_768.sql": {
     "mtime": 1792052251.8976755,
-    "seen": 1792746940.4633062,
-    "ast_hash": "",
+    "seen": 1792838003.3088381,
+    "ast_hash": "a18e87aee2f2e8cdd40f39be92d234f2",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/components/ExamPrepModal.tsx": {
@@ -1387,8 +1387,8 @@
   },
   "docker/postgres/01-init-pgvector.sql": {
     "mtime": 1792167486.3943844,
-    "seen": 1792746940.4633477,
-    "ast_hash": "",
+    "seen": 1792838003.3088965,
+    "ast_hash": "4e0c5b054f510b150d5edcc1a243b3e1",
     "semantic_hash": ""
   },
   "benchmarks/benchmark_turbovec.py": {
