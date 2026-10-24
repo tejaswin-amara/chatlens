@@ -456,9 +456,9 @@
     "semantic_hash": ""
   },
   "src/ingestion/handlers.py": {
-    "mtime": 1792843376.2479045,
-    "seen": 1792844529.7421162,
-    "ast_hash": "5cff8123ee94ae9574cedb747ba461ec",
+    "mtime": 1792852526.7430904,
+    "seen": 1792853068.665654,
+    "ast_hash": "04bd3ddf3a2dd419ba817c2e499154e6",
     "semantic_hash": ""
   },
   "src/ingestion/telegram_client.py": {
@@ -468,9 +468,9 @@
     "semantic_hash": ""
   },
   "src/main.py": {
-    "mtime": 1792844081.0008428,
-    "seen": 1792844529.7421212,
-    "ast_hash": "66501324efcea5175798fd3c3fcdf91b",
+    "mtime": 1792852476.3427885,
+    "seen": 1792853068.6656659,
+    "ast_hash": "6109001df61ebca01e74573fc73aa6c5",
     "semantic_hash": ""
   },
   "src/notify/bot.py": {
