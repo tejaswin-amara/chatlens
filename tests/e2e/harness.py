@@ -391,7 +391,7 @@ class E2EClient:
         elif not FRONTEND_OUT.exists() and (rel_path == "" or rel_path == "index.html"):
             mock_html = (
                 b"<!doctype html><html><head><title>ChatLens</title></head>"
-                b"<body><div id=\"root\">ChatLens SPA</div></body></html>"
+                b'<body><div id="root">ChatLens SPA</div></body></html>'
             )
             return E2EResponse(
                 status_code=200,

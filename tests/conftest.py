@@ -23,7 +23,7 @@ def ensure_frontend_out_fixture():
         static_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "index.html").write_text(
             "<!doctype html><html><head><title>ChatLens</title></head>"
-            "<body><div id=\"root\">ChatLens</div></body></html>",
+            '<body><div id="root">ChatLens</div></body></html>',
             encoding="utf-8",
         )
         (static_dir / "main.js").write_text("console.log('chatlens');", encoding="utf-8")
