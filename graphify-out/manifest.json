@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/package.json": {
-    "mtime": 1792838415.3226633,
-    "seen": 1792838542.0134726,
-    "ast_hash": "a5615bb3a3e4bdbdd576c593ecd1774e",
+    "mtime": 1792839468.960145,
+    "seen": 1792839479.7330933,
+    "ast_hash": "38c515854577a95b37cc999e778c197c",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/postcss.config.mjs": {
@@ -678,9 +678,9 @@
     "semantic_hash": ""
   },
   "tests/test_bot.py": {
-    "mtime": 1792751805.606117,
-    "seen": 1792837918.1242335,
-    "ast_hash": "541a30dbebf3e27fc7d9c3b759246ed9",
+    "mtime": 1792839444.3737228,
+    "seen": 1792839457.5341957,
+    "ast_hash": "d8786963a60af965513fff1b28aa8ee1",
     "semantic_hash": ""
   },
   "tests/test_briefing.py": {
@@ -720,9 +720,9 @@
     "semantic_hash": ""
   },
   "tests/test_challenger_m2_1.py": {
-    "mtime": 1792751805.6040595,
-    "seen": 1792837918.1242418,
-    "ast_hash": "fb951b3f6f9b0a56e4d2c643f2b5b2aa",
+    "mtime": 1792839444.3742764,
+    "seen": 1792839457.5361328,
+    "ast_hash": "d80d2b8b741572558496c69d08c9c63b",
     "semantic_hash": ""
   },
   "tests/test_challenger_m2_m3.py": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1792838526.7365174,
-    "seen": 1792838542.0862544,
-    "ast_hash": "19c9848e8619eee47e5e4f9f2d99096c",
+    "mtime": 1792839444.372602,
+    "seen": 1792839457.5497496,
+    "ast_hash": "05758b4404bbc5d01442b5cc797634cd",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1206,9 +1206,9 @@
     "semantic_hash": ""
   },
   "chatlens-v2/backend/requirements.txt": {
-    "mtime": 1792729057.5103881,
-    "seen": 1792744976.7029207,
-    "ast_hash": "57bafc09215ebe930b48b16ed0edfca9",
+    "mtime": 1792839468.9595468,
+    "seen": 1792839479.7696552,
+    "ast_hash": "b1e13c25c3913bb27c885a16f58bb280",
     "semantic_hash": ""
   },
   "chatlens-v2/docker-compose.yml": {
@@ -1370,13 +1370,13 @@
   "chatlens-v2/backend/migrations/001_content_hash.sql": {
     "mtime": 1792041500.8185153,
     "seen": 1792839259.8096664,
-    "ast_hash": "3e4b25a8b01e9cc163e828e2250404d9",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "chatlens-v2/backend/migrations/002_vector_768.sql": {
     "mtime": 1792052251.8976755,
     "seen": 1792839259.8096688,
-    "ast_hash": "a18e87aee2f2e8cdd40f39be92d234f2",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/components/ExamPrepModal.tsx": {
@@ -1388,7 +1388,7 @@
   "docker/postgres/01-init-pgvector.sql": {
     "mtime": 1792167486.3943844,
     "seen": 1792839259.8097363,
-    "ast_hash": "4e0c5b054f510b150d5edcc1a243b3e1",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "benchmarks/benchmark_turbovec.py": {
@@ -1449,6 +1449,12 @@
     "mtime": 1792750523.029735,
     "seen": 1792837918.124376,
     "ast_hash": "87b6e496b506e6ab4ea984944c17483b",
+    "semantic_hash": ""
+  },
+  ".github/workflows/temporary-dependency-lock-refresh.yml": {
+    "mtime": 1792839468.9584527,
+    "seen": 1792839479.7633102,
+    "ast_hash": "e374039bc2608a0e5c54b42e95420062",
     "semantic_hash": ""
   }
 }
