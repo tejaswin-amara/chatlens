@@ -333,3 +333,63 @@ async def test_daemon_clean_client_disconnect():
         code = await guard(run_daemon(client=client, stop_event=stop_event, handle_signals=False))
         assert code == 0
         assert client.disconnect_awaited is True
+
+
+@pytest.mark.asyncio
+async def test_run_reminders_dispatches_due_items(mock_valid_settings):
+    from src.main import run_reminders
+    from src.utils import clock
+
+    fake_item = {
+        "id": 99,
+        "event": {
+            "course_name": "Test Course",
+            "course_code": "TC101",
+            "period": "10:00 - 11:00",
+            "summary": "Midterm Exam",
+            "target_date": clock.today_ist().strftime("%Y-%m-%d"),
+            "intent": "EXAM_DEADLINE",
+        },
+        "status": "PENDING",
+    }
+    with (
+        patch("src.utils.deduplication.deduplicator.list_pending", return_value=[fake_item]),
+        patch("src.utils.deduplication.deduplicator.meta_get", return_value=None),
+        patch("src.utils.deduplication.deduplicator.meta_set") as mock_set,
+        patch("src.notify.bot.bot.send") as mock_send,
+        patch("asyncio.sleep", side_effect=asyncio.CancelledError),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await guard(run_reminders())
+
+        mock_send.assert_called_once()
+        assert "Test Course" in mock_send.call_args[0][0]
+        assert "Midterm Exam" in mock_send.call_args[0][0]
+        mock_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_reminders_debounces_already_reminded(mock_valid_settings):
+    from src.main import run_reminders
+    from src.utils import clock
+
+    fake_item = {
+        "id": 99,
+        "event": {
+            "course_name": "Test Course",
+            "summary": "Midterm Exam",
+            "target_date": clock.today_ist().strftime("%Y-%m-%d"),
+        },
+        "status": "PENDING",
+    }
+    with (
+        patch("src.utils.deduplication.deduplicator.list_pending", return_value=[fake_item]),
+        patch("src.utils.deduplication.deduplicator.meta_get", return_value="1792850000"),
+        patch("src.notify.bot.bot.send") as mock_send,
+        patch("asyncio.sleep", side_effect=asyncio.CancelledError),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await guard(run_reminders())
+
+        mock_send.assert_not_called()
+
