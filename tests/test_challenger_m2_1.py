@@ -58,6 +58,9 @@ def setup_test_env(tmp_path, monkeypatch):
     monkeypatch.setattr(
         settings, "bot_token", MagicMock(get_secret_value=lambda: "bot123:mock_challenger_token")
     )
+    # The singleton BotClient captures its base URL at import time, before this
+    # fixture replaces settings.bot_token. Give the mocked client a test-only URL.
+    monkeypatch.setattr(bot, "base_url", "https://api.telegram.org/botbot123:mock_challenger_token")
     monkeypatch.setattr(settings, "spark_timetable", DEFAULT_TIMETABLE_PATH)
     monkeypatch.setattr("src.utils.deduplication.deduplicator", test_dedup)
     monkeypatch.setattr("src.ingestion.handlers.deduplicator", test_dedup)
