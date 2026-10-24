@@ -576,9 +576,9 @@
     "semantic_hash": ""
   },
   "tests/conftest.py": {
-    "mtime": 1792839024.0097191,
-    "seen": 1792839259.809821,
-    "ast_hash": "abef90b8a50d6c3a3910aca68e4fe2e9",
+    "mtime": 1792839367.731749,
+    "seen": 1792839397.0577052,
+    "ast_hash": "3f93310f2f9a0bc53d12cdc1ec15744e",
     "semantic_hash": ""
   },
   "tests/e2e/__init__.py": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "tests/e2e/harness.py": {
-    "mtime": 1792838967.7897131,
-    "seen": 1792839259.809826,
-    "ast_hash": "433f8f495543f1206986e23ea2427f25",
+    "mtime": 1792839367.732765,
+    "seen": 1792839397.0577104,
+    "ast_hash": "851c4d4895cbb0d70bfd4c5fdeac8a89",
     "semantic_hash": ""
   },
   "tests/e2e/test_tier1_features.py": {
@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792837978.0932,
-    "seen": 1792837986.6830084,
-    "ast_hash": "3e3ada2db1016aee7941f8e62113c0b7",
+    "mtime": 1792839281.4456842,
+    "seen": 1792839397.0578604,
+    "ast_hash": "6b122449d28e891cf8bf5066e0acfcea",
     "semantic_hash": ""
   },
   "SECURITY.md": {
