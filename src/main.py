@@ -128,6 +128,53 @@ async def run_heartbeat() -> None:
         await asyncio.sleep(900)
 
 
+async def run_reminders() -> None:
+    """Proactively check for upcoming same-day academic deadlines and assessments every 60s."""
+    import asyncio
+
+    from src.notify.bot import bot
+    from src.utils import clock
+    from src.utils.deduplication import deduplicator
+
+    while True:
+        try:
+            today_str = clock.today_ist().strftime("%Y-%m-%d")
+            now = clock.now_ist()
+
+            for item in deduplicator.list_pending(limit=20):
+                ev = item.get("event", {})
+                if isinstance(ev, dict) and "event" in ev:
+                    ev = ev["event"]
+
+                t_date = ev.get("target_date")
+                if t_date == today_str or (not t_date and item.get("status") == "PENDING"):
+                    item_id = item.get("id")
+                    meta_key = f"reminded:pending:{item_id}:{today_str}"
+                    if not deduplicator.meta_get(meta_key):
+                        c_name = ev.get("course_name") or ev.get("course_code") or "Academic Notice"
+                        period = ev.get("period") or "Today"
+                        summary = ev.get("summary") or "Assessment / Deadline"
+                        intent = ev.get("intent", "NOTICE")
+
+                        text = (
+                            f"⏰ **Upcoming Academic Reminder!**\n\n"
+                            f"• **Course:** {c_name} (`{ev.get('course_code') or 'N/A'}`)\n"
+                            f"• **Time / Period:** {period}\n"
+                            f"• **Notice:** {summary}\n\n"
+                            f"🚀 *Action Required: {intent} active today!*"
+                        )
+                        if settings.bot_token and settings.owner_chat_id:
+                            await asyncio.to_thread(bot.send, text)
+                        deduplicator.meta_set(meta_key, str(now.timestamp()))
+                        logger.info("Proactive reminder dispatched", item_id=item_id, course=c_name)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug("Reminder check cycle error", error=str(e))
+
+        await asyncio.sleep(60)
+
+
 BACKOFF_START, BACKOFF_MAX = 2.0, 60.0
 
 
@@ -209,6 +256,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
     jobs = [
         asyncio.create_task(supervise("briefing", run_briefing, stop_event)),
         asyncio.create_task(supervise("heartbeat", run_heartbeat, stop_event)),
+        asyncio.create_task(supervise("reminders", run_reminders, stop_event)),
     ]
     if settings.bot_token and settings.owner_chat_id:
         jobs.append(asyncio.create_task(supervise("bot_poll", bot_callback_poll, stop_event)))

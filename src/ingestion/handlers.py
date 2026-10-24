@@ -925,10 +925,32 @@ async def handle_bot_command(msg: dict) -> None:
 
     elif cmd == "/today":
         from src.utils import clock
+        from src.utils.deduplication import deduplicator
 
         today = clock.today_ist()
+        today_str = today.strftime("%Y-%m-%d")
         now = clock.now_ist()
         schedule_text = format_day_schedule(today, now_dt=now)
+
+        # Check for any active deadlines/tasks for today
+        active_today = []
+        for item in deduplicator.list_pending(limit=20):
+            ev = item.get("event", {})
+            if isinstance(ev, dict) and "event" in ev:
+                ev = ev["event"]
+            t_date = ev.get("target_date")
+            if t_date == today_str or (not t_date and item.get("status") == "PENDING"):
+                active_today.append(ev)
+
+        if active_today:
+            deadlines_block = ["\n\n🚨 **Active Deadlines & Assessments (from course chats)**:"]
+            for ev in active_today:
+                c_name = ev.get("course_name") or ev.get("course_code") or "Academic Notice"
+                period = f" [{ev.get('period')}]" if ev.get("period") else ""
+                summary = ev.get("summary") or "Assessment / Task"
+                deadlines_block.append(f"• ⏰{period} **{c_name}**: {summary}")
+            schedule_text += "\n".join(deadlines_block)
+
         await asyncio.to_thread(bot.send, schedule_text)
 
     elif cmd == "/tomorrow":
@@ -1098,11 +1120,18 @@ async def handle_bot_command(msg: dict) -> None:
                         day_str = ""
                     lines.append(f"• **{m_label}**: `{m_date.strftime('%d %b %Y')}` ({day_str})")
             if pending_items:
-                lines.append("\n📝 **Pending Tasks & Class Deadlines**:")
+                lines.append("\n📝 **Course Announcements & Deadlines (from Telegram chats)**:")
                 for item in pending_items:
                     ev = item.get("event", {})
+                    if isinstance(ev, dict) and "event" in ev:
+                        ev = ev["event"]
                     summary = ev.get("summary") or ev.get("description") or "Assignment / Task"
-                    lines.append(f"• **{summary}** (Status: `{item.get('status')}`)")
+                    c_name = ev.get("course_name") or ev.get("course_code") or ""
+                    c_prefix = f"**{c_name}**: " if c_name else ""
+                    dt_str = f" [{ev.get('target_date')}]" if ev.get("target_date") else ""
+                    time_str = f" ({ev.get('period')})" if ev.get("period") else ""
+                    status_str = f" (Status: `{item.get('status')}`)"
+                    lines.append(f"• {c_prefix}{summary}{dt_str}{time_str}{status_str}")
 
         await asyncio.to_thread(bot.send, "\n".join(lines))
 
@@ -1385,7 +1414,7 @@ async def catch_up_chats(client: TelegramClient, days: int = 7, full_rescan: boo
                     deduplicator.update_chat_state(chat_id, messages[0].id)
                 continue
 
-            if last_id is None:
+            if last_id is None or full_rescan:
                 messages = await client.get_messages(chat_id, limit=200)
                 msgs_to_process = list(reversed(messages))
             else:
