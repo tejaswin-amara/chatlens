@@ -17,18 +17,28 @@ build/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # Node & Next.js Build Artifacts
 node_modules/
 .next/
 out/
 .firebase/
-
+*.tsbuildinfo
+next-env.d.ts
 
 # Databases & State
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
 spark.db*
 
 # IDE & Editor Folders

@@ -167,8 +167,10 @@ async def test_erp_client_fetch_page_session_recovery():
 
 
 @pytest.mark.asyncio
-async def test_erp_client_get_marks_session_recovery():
+async def test_erp_client_get_marks_session_recovery(tmp_path, monkeypatch):
     """Verify get_marks transparently recovers when POST returns expired session."""
+    db_file = str(tmp_path / "test_spark.db")
+    monkeypatch.setattr(settings, "spark_db", db_file)
     client = KLUERPClient(username="test_user", password="test_password")
 
     marks_html = """

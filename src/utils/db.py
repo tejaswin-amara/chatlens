@@ -4,8 +4,8 @@ import sqlite3
 from src.config import settings
 
 
-def get_connection():
-    conn = sqlite3.connect(settings.spark_db, isolation_level=None)
+def get_connection(db_path: str | None = None):
+    conn = sqlite3.connect(db_path or settings.spark_db, isolation_level=None)
     conn.execute("PRAGMA busy_timeout = 5000")
     return contextlib.closing(conn)
 

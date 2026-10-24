@@ -10,6 +10,7 @@ import io
 import os
 import sqlite3
 import sys
+import threading
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -66,20 +67,24 @@ def in_memory_db():
     )
     Base.metadata.create_all(engine)
 
+    db_lock = threading.Lock()
+
     def override_get_db():
-        session = Session(engine)
-        try:
-            yield AsyncSessionMock(session)
-        finally:
-            session.close()
+        with db_lock:
+            session = Session(engine)
+            try:
+                yield AsyncSessionMock(session)
+            finally:
+                session.close()
 
     @asynccontextmanager
     async def override_async_session_local():
-        session = Session(engine)
-        try:
-            yield AsyncSessionMock(session)
-        finally:
-            session.close()
+        with db_lock:
+            session = Session(engine)
+            try:
+                yield AsyncSessionMock(session)
+            finally:
+                session.close()
 
     main.app.dependency_overrides[get_db] = override_get_db
 
@@ -714,19 +719,23 @@ def test_concurrent_imports_and_duplicate_collision(in_memory_db):
         )
 
     # Execute 5 parallel uploads simultaneously using ThreadPoolExecutor
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(do_import) for _ in range(5)]
-        responses = [f.result() for f in futures]
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(do_import) for _ in range(5)]
+            responses = [f.result() for f in futures]
 
-    for r in responses:
-        assert r.status_code == 200
+        for r in responses:
+            assert r.status_code == 200
 
-    # Ensure message count in database is exactly 2 (zero duplicates despite 5 concurrent uploads)
-    with Session(engine) as s:
-        count = s.scalar(
-            select(func.count(Message.id)).where(Message.chat_name == "concurrent_chat")
-        )
-        assert count == 2
+        # Ensure message count in DB is exactly 2 (zero duplicates despite 5 concurrent uploads)
+        with Session(engine) as s:
+            count = s.scalar(
+                select(func.count(Message.id)).where(Message.chat_name == "concurrent_chat")
+            )
+            assert count == 2
+    finally:
+        for p in Path("uploads").glob("*concurrent_chat.txt"):
+            p.unlink(missing_ok=True)
 
 
 def test_api_status_probe(in_memory_db):

@@ -244,7 +244,7 @@ def test_spark_status_bridge_pending_column_bug(tmp_path: Path):
     The column is 'created', NOT 'ts'!
     This causes get_spark_status() to fail silently and always return empty pending rows!
     """
-    db_file = tmp_path / "spark_test.db"
+    db_file = tmp_path / "spark_pending_adversarial.db"
     conn = sqlite3.connect(str(db_file))
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("""

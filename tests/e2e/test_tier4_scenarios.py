@@ -95,10 +95,15 @@ def test_scenario_3_chat_upload_and_analysis_lifecycle(e2e_client: E2EClient) ->
     files = {"file": ("timetable_notice.txt", io.BytesIO(chat_raw), "text/plain")}
 
     task_uuid = str(uuid.uuid4())
-    mock_task = MagicMock()
-    mock_task.id = task_uuid
+    captured_paths: list[str] = []
 
-    with patch.object(main.parse_file_task, "delay", return_value=mock_task):
+    def mock_delay(file_path: str, platform: str) -> MagicMock:
+        captured_paths.append(file_path)
+        mock_task = MagicMock()
+        mock_task.id = task_uuid
+        return mock_task
+
+    with patch.object(main.parse_file_task, "delay", side_effect=mock_delay):
         # 1. Upload chat file
         upload_res = e2e_client.post("/api/upload/whatsapp", files=files)
         assert upload_res.status_code == 200
@@ -106,23 +111,27 @@ def test_scenario_3_chat_upload_and_analysis_lifecycle(e2e_client: E2EClient) ->
         assert upload_data.get("status") == "processing"
         assert upload_data.get("task_id") == task_uuid
 
-    # 2. Poll task status to completion
-    mock_result = MagicMock()
-    mock_result.ready.return_value = True
-    mock_result.status = "SUCCESS"
-    mock_result.result = {"status": "done", "count": 2}
+    try:
+        # 2. Poll task status to completion
+        mock_result = MagicMock()
+        mock_result.ready.return_value = True
+        mock_result.status = "SUCCESS"
+        mock_result.result = {"status": "done", "count": 2}
 
-    with patch("main.celery.result.AsyncResult", return_value=mock_result):
-        poll_res = e2e_client.get(f"/api/tasks/{task_uuid}")
-        assert poll_res.status_code == 200
-        poll_data = poll_res.json()
-        assert poll_data.get("status") == "SUCCESS"
-        assert poll_data.get("count") == 2
+        with patch("main.celery.result.AsyncResult", return_value=mock_result):
+            poll_res = e2e_client.get(f"/api/tasks/{task_uuid}")
+            assert poll_res.status_code == 200
+            poll_data = poll_res.json()
+            assert poll_data.get("status") == "SUCCESS"
+            assert poll_data.get("count") == 2
 
-    # 3. Query system stats endpoint
-    stats_res = e2e_client.get("/api/stats")
-    assert stats_res.status_code == 200
-    assert "total_messages" in stats_res.json()
+        # 3. Query system stats endpoint
+        stats_res = e2e_client.get("/api/stats")
+        assert stats_res.status_code == 200
+        assert "total_messages" in stats_res.json()
+    finally:
+        for p in captured_paths:
+            Path(p).unlink(missing_ok=True)
 
 
 def test_scenario_4_spark_daemon_restart_and_state_recovery(

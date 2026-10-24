@@ -1,4 +1,3 @@
-import os
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -78,15 +77,11 @@ def test_spark_rules_canonical():
     assert RegexParser.canonical_course(None, None) == (None, None)
 
 
-def test_spark_rules_dedupe():
-    db_path = "test_spark.db"
-    if os.path.exists(db_path):
-        os.remove(db_path)
+def test_spark_rules_dedupe(tmp_path):
+    db_path = str(tmp_path / "test_spark.db")
     from src.utils.deduplication import MessageDeduplicator
 
-    dedup = MessageDeduplicator()
-    dedup.db_path = db_path
-    dedup._init_db()
+    dedup = MessageDeduplicator(db_path=db_path)
 
     chat_id = 123
     msg_id = 456
@@ -100,9 +95,6 @@ def test_spark_rules_dedupe():
     assert not dedup.is_duplicate(chat_id, msg_id, text2)
     dedup.mark_processed(chat_id, msg_id, text2)
     assert dedup.is_duplicate(chat_id, msg_id, text2)
-
-    if os.path.exists(db_path):
-        os.remove(db_path)
 
 
 def test_spark_rules_calendar():

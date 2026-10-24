@@ -6,6 +6,7 @@ Records event fingerprints, policy verdicts, human approvers, and rollback diffs
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import sqlite3
@@ -25,12 +26,24 @@ class GovernanceAuditLogger:
     """Append-only forensic governance audit trail stored in SQLite."""
 
     def __init__(self, db_path: str | None = None) -> None:
-        self.db_path = db_path or settings.spark_db
+        self._db_path = db_path
+        self._initialized_dbs: set[str] = set()
         self._ensure_schema()
+
+    @property
+    def db_path(self) -> str:
+        return self._db_path or settings.spark_db
+
+    @db_path.setter
+    def db_path(self, val: str | None) -> None:
+        self._db_path = val
 
     def _ensure_schema(self) -> None:
         """Create governance_audit table and indexes if not present."""
-        with get_connection() as conn:
+        target_db = self.db_path
+        if target_db in self._initialized_dbs:
+            return
+        with get_connection(target_db) as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS governance_audit (
@@ -60,6 +73,11 @@ class GovernanceAuditLogger:
                 CREATE INDEX IF NOT EXISTS idx_gov_audit_fingerprint
                 ON governance_audit (raw_fingerprint)
             """)
+        self._initialized_dbs.add(target_db)
+
+    def _get_conn(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+        self._ensure_schema()
+        return get_connection(self.db_path)
 
     @staticmethod
     def generate_event_id(channel_id: int | str, msg_id: int | str, timestamp: float) -> str:
@@ -94,7 +112,7 @@ class GovernanceAuditLogger:
         )
 
         try:
-            with get_connection() as conn:
+            with self._get_conn() as conn:
                 conn.execute(
                     """
                     INSERT INTO governance_audit (
@@ -144,7 +162,7 @@ class GovernanceAuditLogger:
         """Record human approval or rejection on a pending action."""
         verdict_str = verdict.value if isinstance(verdict, PolicyVerdict) else str(verdict)
         try:
-            with get_connection() as conn:
+            with self._get_conn() as conn:
                 cursor = conn.execute(
                     """
                     UPDATE governance_audit
@@ -162,7 +180,7 @@ class GovernanceAuditLogger:
         """Retrieve recent forensic audit records."""
         records = []
         try:
-            with get_connection() as conn:
+            with self._get_conn() as conn:
                 conn.row_factory = sqlite3.Row
                 if verdict:
                     query = (
@@ -184,7 +202,7 @@ class GovernanceAuditLogger:
     def get_record(self, event_id: str) -> dict[str, Any] | None:
         """Fetch a specific audit record by event ID."""
         try:
-            with get_connection() as conn:
+            with self._get_conn() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(
                     "SELECT * FROM governance_audit WHERE event_id = ?",

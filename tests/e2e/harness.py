@@ -15,6 +15,7 @@ import os
 import re
 import sqlite3
 import sys
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -438,20 +439,24 @@ def setup_in_memory_backend_db():
     )
     Base.metadata.create_all(engine)
 
+    db_lock = threading.Lock()
+
     def override_get_db():
-        session = Session(engine)
-        try:
-            yield AsyncSessionMock(session)
-        finally:
-            session.close()
+        with db_lock:
+            session = Session(engine)
+            try:
+                yield AsyncSessionMock(session)
+            finally:
+                session.close()
 
     @asynccontextmanager
     async def override_async_session_local():
-        session = Session(engine)
-        try:
-            yield AsyncSessionMock(session)
-        finally:
-            session.close()
+        with db_lock:
+            session = Session(engine)
+            try:
+                yield AsyncSessionMock(session)
+            finally:
+                session.close()
 
     main.app.dependency_overrides[get_db] = override_get_db
     return engine, override_get_db, override_async_session_local

@@ -12,16 +12,33 @@ from src.config import settings
 class MessageDeduplicator:
     def __init__(self, ttl_seconds: int = 86400 * 7, db_path: str | None = None) -> None:
         self.ttl_seconds = ttl_seconds
-        self.db_path = db_path or settings.spark_db
-        self._init_db()
+        self._db_path = db_path
+        self._initialized = False
 
-    def _get_conn(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+    @property
+    def db_path(self) -> str:
+        return self._db_path or settings.spark_db
+
+    @db_path.setter
+    def db_path(self, val: str | None) -> None:
+        self._db_path = val
+        self._initialized = False
+
+    def _get_raw_conn(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path, isolation_level=None)
         conn.execute("PRAGMA busy_timeout = 5000")
         return contextlib.closing(conn)
 
+    def _ensure_db(self) -> None:
+        if not self._initialized:
+            self._init_db()
+
+    def _get_conn(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+        self._ensure_db()
+        return self._get_raw_conn()
+
     def _init_db(self) -> None:
-        with self._get_conn() as conn:
+        with self._get_raw_conn() as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.executescript(
                 """
