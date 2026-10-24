@@ -235,61 +235,32 @@ writes must stay limited to the explicitly approved policy cases. These rules do
 current course parser, timetable, ERP integration, or timezone portable without customization.
 ## 5. Configuration & Environment Variables
 
-
-
 For local SPARK development, start with [`.env.example`](.env.example). The table below documents the daemon settings in `src/config.py`; defaults are code defaults unless noted otherwise.
 
-
-
 | Variable | Code default | Notes |
-
 |---|---|---|
-
 | `TELEGRAM_API_ID` | `0` | Required at startup; obtain from Telegram's developer portal |
-
 | `TELEGRAM_API_HASH` | Empty | Required at startup; treat as a credential |
-
 | `TELEGRAM_SESSION_STRING` | Empty | Required at startup; contains session credentials |
-
 | `GOOGLE_CREDENTIALS_BASE64` | Empty | Required at startup; base64-encoded Google credentials |
-
 | `GOOGLE_CALENDAR_ID` | `primary` | Target Google Calendar |
-
 | `GOOGLE_SHEET_ID` | Unset | Spreadsheet used by Sheets logging and attendance features |
-
 | `GEMINI_API_KEY` | Empty | Required at startup |
-
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Model used for residual extraction; verify any replacement model before deployment |
-
 | `GEMINI_DAILY_BUDGET` | `50` | Daily budget for Gemini requests |
-
 | `SPARK_MODE` | `dry` for direct execution; `confirm` if unset in Compose | `dry`, `confirm`, or `live`; see Section 3 before enabling writes |
-
 | `SPARK_CHAT_IDS` | Empty | Required at startup; comma-separated allowlist of permitted chat/channel IDs |
-
 | `SPARK_DB` | `spark.db` | SQLite database path; Compose sets `/app/data/spark.db` on its persistent volume |
-
 | `SPARK_MEDIA` | `false` | Media extraction is disabled unless explicitly enabled |
-
 | `SPARK_TIMETABLE` | `data/timetable_T04.toml` | Active timetable file; see Section 4 for other institution-specific assumptions |
-
 | `BOT_TOKEN` | Unset | Required when `SPARK_MODE` is `confirm` or `live` |
-
 | `OWNER_CHAT_ID` | Unset | Owner's private Telegram chat ID; required in `confirm` or `live` |
-
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`; avoid DEBUG in production because it can contain message details |
-
 | `SENTRY_DSN` | Unset | Optional exception monitoring |
-
 | `ERP_USERNAME` | Deployment-specific fallback in source | Set explicitly for the target ERP account; do not rely on the current fallback |
-
 | `ERP_PASSWORD` | Empty | Required for ERP features that authenticate to the portal; never commit the value |
 
-
-
 The root `.env.example` also shows platform-related settings. For the **full Docker Compose stack**, use [`.env.production.example`](.env.production.example) instead: replace its placeholders, configure `POSTGRES_*` and `DATABASE_URL` for the Compose `postgres` service, set Firebase web/admin credentials, and configure `CHATLENS_ALLOWED_EMAILS`. If a database password contains URL-reserved characters, percent-encode it in `DATABASE_URL`.
-
-
 
 **Do not run production Compose with sample values.** The Compose service supplies `SPARK_MODE=confirm` when `SPARK_MODE` is not set, which differs from the direct Python default of `dry`. In `confirm` or `live`, the Telegram bot token and owner chat ID must be configured.
 
