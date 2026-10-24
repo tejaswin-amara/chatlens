@@ -209,9 +209,8 @@ and update the relevant sources together:
 | Course names, official codes, and text aliases | `src/parsing/regex_parser.py`, `src/timetable/__init__.py` | Supported courses, official IDs, aliases, and canonical names |
 | Period numbers, period times, room formats, and section assumptions | `src/timetable/__init__.py`, `src/parsing/regex_parser.py` | Actual timetable periods, breaks, rooms, sections, and parsing patterns |
 | Active term schedule | TOML file selected by `SPARK_TIMETABLE` (current default: `data/timetable_T04.toml`) | Term, validity dates, course slots, rooms, and faculty |
-| Time zone and date interpretation | `src/utils/clock.py` | The institution's time zone and consistent handling of incoming timestamps |
 | Official academic milestones | `src/academic_calendar.py` and `data/calendar_2026_27.toml` | Exam dates, fee deadlines, last instruction day, and other protected dates |
-| Runtime and container timezone | `src/utils/clock.py` and `Dockerfile` | IST is currently hard-coded; update both the Python clock and container settings before using another timezone |
+| Time zone and date interpretation | `src/utils/clock.py` and `Dockerfile` | IST is currently hard-coded in Python and the container image; update both and test timestamp conversion before using another timezone |
 | ERP account settings | `src/config.py` (`ERP_USERNAME`, `ERP_PASSWORD`) | Configure the target account explicitly; do not reuse the current deployment-specific username fallback |
 
 Some values are currently **defined in code**, not controlled by `.env` alone. Changing
@@ -235,7 +234,7 @@ writes must stay limited to the explicitly approved policy cases. These rules do
 current course parser, timetable, ERP integration, or timezone portable without customization.
 ## 5. Configuration & Environment Variables
 
-For local SPARK development, start with [`.env.example`](.env.example). The table below documents the daemon settings in `src/config.py`; defaults are code defaults unless noted otherwise.
+For local SPARK development, copy [`.env.example`](.env.example) to `.env`, replace its sample values, and never commit the real configuration file. The table below documents daemon settings in `src/config.py`; defaults are code defaults unless noted otherwise.
 
 | Variable | Code default | Notes |
 |---|---|---|
@@ -257,10 +256,10 @@ For local SPARK development, start with [`.env.example`](.env.example). The tabl
 | `OWNER_CHAT_ID` | Unset | Owner's private Telegram chat ID; required in `confirm` or `live` |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`; avoid DEBUG in production because it can contain message details |
 | `SENTRY_DSN` | Unset | Optional exception monitoring |
-| `ERP_USERNAME` | Deployment-specific fallback in source | Set explicitly for the target ERP account; do not rely on the current fallback |
-| `ERP_PASSWORD` | Empty | Required for ERP features that authenticate to the portal; never commit the value |
+| `ERP_USERNAME` | Deployment-specific fallback in source | Not listed in `.env.example`; set explicitly for the target ERP account and do not rely on the current fallback |
+| `ERP_PASSWORD` | Empty | Not listed in `.env.example`; set for ERP features that authenticate to the portal and never commit the value |
 
-The root `.env.example` also shows platform-related settings. For the **full Docker Compose stack**, use [`.env.production.example`](.env.production.example) instead: replace its placeholders, configure `POSTGRES_*` and `DATABASE_URL` for the Compose `postgres` service, set Firebase web/admin credentials, and configure `CHATLENS_ALLOWED_EMAILS`. If a database password contains URL-reserved characters, percent-encode it in `DATABASE_URL`.
+The root `.env.example` also shows platform-related settings. It currently omits `ERP_USERNAME` and `ERP_PASSWORD`, although the daemon supports both. For the **full Docker Compose stack**, use [`.env.production.example`](.env.production.example) instead: replace its placeholders, configure `POSTGRES_*` and `DATABASE_URL` for the Compose `postgres` service, set Firebase web/admin credentials, and configure `CHATLENS_ALLOWED_EMAILS`. If a database password contains URL-reserved characters, percent-encode it in `DATABASE_URL`.
 
 **Do not run production Compose with sample values.** The Compose service supplies `SPARK_MODE=confirm` when `SPARK_MODE` is not set, which differs from the direct Python default of `dry`. In `confirm` or `live`, the Telegram bot token and owner chat ID must be configured.
 
@@ -330,7 +329,7 @@ Services in `compose.yaml`:
 | `postgres` | PostgreSQL with `pgvector`; host port `5432` is bound to `127.0.0.1` |
 | `redis` | Redis broker and result backend; host port `6379` is bound to `127.0.0.1` |
 
-With a local `DOMAIN=localhost` configuration, open `https://localhost`. For a public deployment, use the configured domain and ensure DNS and firewall rules point to this host.
+With a local `DOMAIN=localhost` configuration, open `https://localhost`; Caddy may use a locally issued certificate that your browser does not yet trust. For a public deployment, use the configured domain and ensure DNS and firewall rules point to this host.
 
 ## 7. Production Access Control
 
