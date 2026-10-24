@@ -14,3 +14,8 @@ tenacity==9.1.4
 telethon==1.45.0
 firebase-admin>=6.5.0
 aiosqlite>=0.20.0
+
+# Explicitly constrain vulnerable transitive dependencies flagged by OSV.
+anyio==4.14.2
+certifi==2026.10.19
+idna==3.15
