@@ -32,10 +32,10 @@ jobs:
       - name: Refresh Python dependency lock
         run: uv lock --upgrade-package anyio --upgrade-package certifi --upgrade-package idna --upgrade-package opentelemetry-api
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: "chatlens-v2/frontend/package-lock.json"
 
@@ -67,5 +67,9 @@ jobs:
             exit 0
           fi
           git commit -m "fix(deps): refresh vulnerable dependency lockfiles"
+          # Another repository automation may advance master while locks are resolving.
+          # Rebase this lock-only commit instead of dropping either change set.
+          git fetch origin master
+          git rebase origin/master
           git push origin HEAD:master
           gh workflow run ci.yml --ref master
