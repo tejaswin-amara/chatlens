@@ -1,2 +1,0 @@
-One-time trigger to regenerate uv.lock and the frontend npm package-lock after dependency remediation.
-Retry after synchronizing with concurrent master updates.

@@ -97,7 +97,7 @@ jobs:
 
       # The offline E2E harness exercises routes against the built static export.
       # Jobs have isolated filesystems, so the separate frontend job cannot supply it.
-      - name: Set up Node.js 20 for static-export E2E tests
+      - name: Set up Node.js 24 for static-export E2E tests
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -134,7 +134,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
