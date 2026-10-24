@@ -576,9 +576,9 @@
     "semantic_hash": ""
   },
   "tests/conftest.py": {
-    "mtime": 1792837978.2625768,
-    "seen": 1792837986.660731,
-    "ast_hash": "63c6b573b3436e164ef643a1b10d39f9",
+    "mtime": 1792839024.0097191,
+    "seen": 1792839259.809821,
+    "ast_hash": "abef90b8a50d6c3a3910aca68e4fe2e9",
     "semantic_hash": ""
   },
   "tests/e2e/__init__.py": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "tests/e2e/harness.py": {
-    "mtime": 1792837978.2625768,
-    "seen": 1792837986.6616046,
-    "ast_hash": "f40ee764e8126696347ee0ebf85d79e8",
+    "mtime": 1792838967.7897131,
+    "seen": 1792839259.809826,
+    "ast_hash": "433f8f495543f1206986e23ea2427f25",
     "semantic_hash": ""
   },
   "tests/e2e/test_tier1_features.py": {
@@ -1369,14 +1369,14 @@
   },
   "chatlens-v2/backend/migrations/001_content_hash.sql": {
     "mtime": 1792041500.8185153,
-    "seen": 1792838003.3088355,
-    "ast_hash": "",
+    "seen": 1792839259.8096664,
+    "ast_hash": "3e4b25a8b01e9cc163e828e2250404d9",
     "semantic_hash": ""
   },
   "chatlens-v2/backend/migrations/002_vector_768.sql": {
     "mtime": 1792052251.8976755,
-    "seen": 1792838003.3088381,
-    "ast_hash": "",
+    "seen": 1792839259.8096688,
+    "ast_hash": "a18e87aee2f2e8cdd40f39be92d234f2",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/components/ExamPrepModal.tsx": {
@@ -1387,8 +1387,8 @@
   },
   "docker/postgres/01-init-pgvector.sql": {
     "mtime": 1792167486.3943844,
-    "seen": 1792838003.3088965,
-    "ast_hash": "",
+    "seen": 1792839259.8097363,
+    "ast_hash": "4e0c5b054f510b150d5edcc1a243b3e1",
     "semantic_hash": ""
   },
   "benchmarks/benchmark_turbovec.py": {

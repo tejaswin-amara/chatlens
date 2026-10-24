@@ -388,6 +388,19 @@ class E2EClient:
                 content=content,
                 text=content.decode("utf-8", errors="replace"),
             )
+        elif not FRONTEND_OUT.exists() and (rel_path == "" or rel_path == "index.html"):
+            mock_html = (
+                b"<!doctype html><html><head><title>ChatLens</title></head>"
+                b"<body><div id=\"root\">ChatLens SPA</div></body></html>"
+            )
+            return E2EResponse(
+                status_code=200,
+                headers=CaseInsensitiveHeaderDict(
+                    {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache"}
+                ),
+                content=mock_html,
+                text=mock_html.decode("utf-8"),
+            )
 
         # 404 handler
         not_found_file = FRONTEND_OUT / "404.html"
