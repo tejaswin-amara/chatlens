@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/package.json": {
-    "mtime": 1792750523.0235417,
-    "seen": 1792837918.1241245,
-    "ast_hash": "3bbcca4445d5ee8e7b015bb38820709a",
+    "mtime": 1792838415.3226633,
+    "seen": 1792838542.0134726,
+    "ast_hash": "a5615bb3a3e4bdbdd576c593ecd1774e",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/postcss.config.mjs": {
@@ -324,9 +324,9 @@
     "semantic_hash": ""
   },
   "pyproject.toml": {
-    "mtime": 1792303059.5380962,
-    "seen": 1792744976.7027886,
-    "ast_hash": "095437bbe01d90387e6c93862c3aefcf",
+    "mtime": 1792838284.7169127,
+    "seen": 1792838542.0294237,
+    "ast_hash": "01775f479989c0dcb1b53e74a6f342c2",
     "semantic_hash": ""
   },
   "scripts/check_adrs.py": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1792750523.014805,
-    "seen": 1792837918.1243136,
-    "ast_hash": "c77d5ae129e9358f794c1d2896486638",
+    "mtime": 1792838526.7365174,
+    "seen": 1792838542.0862544,
+    "ast_hash": "19c9848e8619eee47e5e4f9f2d99096c",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -1370,13 +1370,13 @@
   "chatlens-v2/backend/migrations/001_content_hash.sql": {
     "mtime": 1792041500.8185153,
     "seen": 1792838003.3088355,
-    "ast_hash": "3e4b25a8b01e9cc163e828e2250404d9",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "chatlens-v2/backend/migrations/002_vector_768.sql": {
     "mtime": 1792052251.8976755,
     "seen": 1792838003.3088381,
-    "ast_hash": "a18e87aee2f2e8cdd40f39be92d234f2",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/components/ExamPrepModal.tsx": {
@@ -1388,7 +1388,7 @@
   "docker/postgres/01-init-pgvector.sql": {
     "mtime": 1792167486.3943844,
     "seen": 1792838003.3088965,
-    "ast_hash": "4e0c5b054f510b150d5edcc1a243b3e1",
+    "ast_hash": "",
     "semantic_hash": ""
   },
   "benchmarks/benchmark_turbovec.py": {

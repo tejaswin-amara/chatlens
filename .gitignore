@@ -73,3 +73,5 @@ graphify-out/cache/
 # Local Firebase service-account credentials
 secrets/
 *firebase-admin*.json
+
+*.rebuild.lock
