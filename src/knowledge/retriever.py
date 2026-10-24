@@ -23,6 +23,7 @@ from google import genai
 
 from src.config import settings
 from src.utils.logging import get_logger
+from src.utils.redaction import redact_pii
 
 logger = get_logger(__name__)
 
@@ -258,7 +259,8 @@ class KnowledgeRetriever:
 
     def answer_stream(self, query: str) -> Generator[str, None, None]:
         """Generate a streaming response via Gemini Interactions API for low TTFT."""
-        relevant_chunks = self.search(query, top_k=3)
+        safe_query = redact_pii(query)
+        relevant_chunks = self.search(safe_query, top_k=3)
         context = "\n\n---\n\n".join(relevant_chunks)
 
         client = self._get_client()
@@ -269,7 +271,7 @@ class KnowledgeRetriever:
         prompt = (
             f"You are a concise academic personal assistant for student section S-10.\n"
             f"Context from course files and exam schedules:\n{context}\n\n"
-            f"Question: {query}\n\n"
+            f"Question: {safe_query}\n\n"
             f"Answer accurately and directly using the context above. Zero filler words."
         )
 
@@ -287,7 +289,8 @@ class KnowledgeRetriever:
 
     def answer(self, query: str) -> str:
         """Generate a concise, grounded answer using Gemini and retrieved knowledge."""
-        relevant_chunks = self.search(query, top_k=3)
+        safe_query = redact_pii(query)
+        relevant_chunks = self.search(safe_query, top_k=3)
         context = "\n\n---\n\n".join(relevant_chunks)
 
         client = self._get_client()
@@ -297,7 +300,7 @@ class KnowledgeRetriever:
         prompt = (
             f"You are a concise academic personal assistant for student section S-10.\n"
             f"Context from course files and exam schedules:\n{context}\n\n"
-            f"Question: {query}\n\n"
+            f"Question: {safe_query}\n\n"
             f"Answer accurately and directly using the context above. Zero filler words."
         )
 

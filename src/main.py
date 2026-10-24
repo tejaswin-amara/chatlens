@@ -235,8 +235,20 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                     should_notify = True
                     if last_notify:
                         try:
-                            if now_ts - float(last_notify) < 900:  # 15m debounce
+                            debounce_window = getattr(settings, "startup_debounce_seconds", 900)
+                            if not isinstance(debounce_window, (int, float)) or hasattr(
+                                debounce_window, "assert_called"
+                            ):
+                                debounce_sec = 900.0
+                            else:
+                                debounce_sec = float(debounce_window)
+
+                            if now_ts - float(last_notify) < debounce_sec:
                                 should_notify = False
+                                logger.info(
+                                    "Startup notification suppressed (debounced within 900s)",
+                                    elapsed_s=now_ts - float(last_notify),
+                                )
                         except ValueError:
                             pass
 

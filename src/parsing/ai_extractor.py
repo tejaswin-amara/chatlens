@@ -11,6 +11,7 @@ from src.config import settings
 from src.parsing.schemas import ExtractedAcademicEvent
 from src.utils import clock
 from src.utils.logging import get_logger
+from src.utils.redaction import redact_pii
 
 logger = get_logger(__name__)
 
@@ -72,15 +73,11 @@ class AIExtractor:
         text = re.sub(r"\b\d{6}[ -]?[1-8]\d{6}\b", "[RRN Redacted]", text)
         text = re.sub(r"\b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b", "[Aadhaar Redacted]", text)
         text = re.sub(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b", "[MyNumber Redacted]", text)
-        # Redact phone numbers, emails and URLs
+        # Deterministic PII redaction conforming to [R-BAN-4]
+        text = redact_pii(text)
+        # Redact emails and URLs
         text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", text)
         text = re.sub(r"https?://\S+", "[URL]", text)
-        # Redact phones: simple regex
-        text = re.sub(
-            r"(?<!\d)(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)",
-            "[PHONE]",
-            text,
-        )
         return text
 
     def _get_client(self) -> genai.Client:

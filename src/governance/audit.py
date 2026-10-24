@@ -18,6 +18,7 @@ from src.governance.guards import UntrustedInput
 from src.governance.policy_engine import ActionTier, PolicyVerdict
 from src.utils.db import get_connection
 from src.utils.logging import get_logger
+from src.utils.redaction import redact_pii
 
 logger = get_logger(__name__)
 
@@ -137,7 +138,7 @@ class GovernanceAuditLogger:
                         verdict_str,
                         str(approver_id),
                         rollback_str,
-                        details,
+                        redact_pii(details),
                     ),
                 )
             logger.info(

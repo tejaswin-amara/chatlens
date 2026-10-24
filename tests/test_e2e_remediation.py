@@ -42,6 +42,7 @@ def isolate_test_environment(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "spark_timetable", DEFAULT_TIMETABLE_PATH)
     monkeypatch.setattr("src.utils.deduplication.deduplicator", test_dedup)
     monkeypatch.setattr("src.ingestion.handlers.deduplicator", test_dedup)
+    test_dedup.meta_set("consent:123", "1")
 
     yield test_dedup
 

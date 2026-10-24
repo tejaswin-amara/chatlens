@@ -8,9 +8,18 @@ from src.notify.bot import BotClient, BotError
 @pytest.fixture
 def mock_bot(monkeypatch):
     # send() needs a configured destination even in credential-free CI tests.
-    from src.notify.bot import settings
+    import contextlib
+    import time
+
+    from src.notify.bot import rate_limiter, settings
+    from src.utils.deduplication import deduplicator
 
     monkeypatch.setattr(settings, "owner_chat_id", 123456789)
+    with contextlib.suppress(Exception):
+        deduplicator.meta_set("consent:999888", "1")
+    rate_limiter._chat_buckets.clear()
+    rate_limiter.global_bucket.tokens = rate_limiter.global_bucket.capacity
+    rate_limiter.global_bucket.last_update = time.time()
     return BotClient(token="bot123:test_token")
 
 

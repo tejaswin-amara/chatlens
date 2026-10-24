@@ -13,6 +13,7 @@ from tenacity import (
 from src.config import settings
 from src.utils import clock
 from src.utils.logging import get_logger
+from src.utils.redaction import redact_pii
 from src.workspace.auth import GoogleWorkspaceAuth, workspace_auth
 
 logger = get_logger(__name__)
@@ -93,11 +94,11 @@ class SheetsLogger:
         now_iso = clock.now_ist().isoformat()
         row_values = [
             now_iso,
-            source_sender,
-            message_text[:300],
+            redact_pii(source_sender),
+            redact_pii(message_text[:300]),
             intent,
             execution_status,
-            extra_details,
+            redact_pii(extra_details),
         ]
 
         result = (

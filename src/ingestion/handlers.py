@@ -20,6 +20,7 @@ from src.timetable import (
 from src.timetable import (
     format_day_schedule,
 )
+from src.utils.circuit_breaker import workspace_circuit_breaker
 from src.utils.deduplication import deduplicator
 from src.utils.logging import get_logger
 from src.workspace.calendar_sync import calendar_sync
@@ -116,7 +117,10 @@ def _get_sender_name(sender: object) -> str:
     first = getattr(sender, "first_name", "") or ""
     last = getattr(sender, "last_name", "") or ""
     name = f"{first} {last}".strip()
-    return name or getattr(sender, "title", "") or getattr(sender, "username", "") or "Unknown"
+    raw = name or getattr(sender, "title", "") or getattr(sender, "username", "") or "Unknown"
+    from src.utils.redaction import redact_pii
+
+    return redact_pii(raw)
 
 
 async def apply_event(
@@ -126,6 +130,28 @@ async def apply_event(
 ) -> tuple[str, list[str]]:
     details_list = []
     execution_status = "SUCCESS"
+
+    requires_workspace = (
+        (parsed_event.intent == "ROOM_OVERRIDE" and parsed_event.room)
+        or parsed_event.intent in ("CLASS_CANCELLED", "HOLIDAY")
+        or (parsed_event.intent in ("EXAM_DEADLINE", "TASK") or parsed_event.action_required)
+    )
+
+    if requires_workspace and not workspace_circuit_breaker.can_execute():
+        logger.warning(
+            "Workspace circuit breaker is OPEN; queueing event in pending",
+            intent=parsed_event.intent,
+        )
+        import json
+
+        event_dict = (
+            parsed_event.model_dump()
+            if hasattr(parsed_event, "model_dump")
+            else parsed_event.__dict__
+        )
+        deduplicator.add_pending(json.dumps(event_dict, default=str))
+        return "QUEUED_CIRCUIT_BREAKER", ["Queued in pending (circuit breaker active)"]
+
     try:
         if parsed_event.intent == "ROOM_OVERRIDE" and parsed_event.room:
             import src.timetable as tt
@@ -264,9 +290,37 @@ async def apply_event(
                 )
                 details_list.append("Google Task Created")
 
+        if requires_workspace:
+            workspace_circuit_breaker.record_success()
+
     except Exception as e:
         execution_status = f"FAILED: {e}"
         logger.error("Workspace sync error", error=str(e))
+        if workspace_circuit_breaker.is_rate_limit_error(e):
+            should_notify = workspace_circuit_breaker.record_error(e)
+            import json
+
+            event_dict = (
+                parsed_event.model_dump()
+                if hasattr(parsed_event, "model_dump")
+                else parsed_event.__dict__
+            )
+            deduplicator.add_pending(json.dumps(event_dict, default=str))
+            details_list.append("Queued in pending (downstream rate limit)")
+            if should_notify:
+                from src.notify.bot import bot
+
+                alert_msg = (
+                    "🚨 **Circuit Breaker Tripped**\n"
+                    "Google Workspace API (Calendar/Tasks) returned quota errors (403/429).\n"
+                    "Downstream writes paused for 5 minutes; events queued in pending."
+                )
+                try:
+                    await asyncio.to_thread(bot.send, alert_msg)
+                except Exception as alert_err:
+                    logger.error(
+                        "Failed to notify owner of circuit breaker trip", error=str(alert_err)
+                    )
 
     from src.workspace.sheets_logger import sheets_logger
 
@@ -776,13 +830,18 @@ _active_client: TelegramClient | None = None
 async def handle_bot_command(msg: dict) -> None:
     from src.config import settings
     from src.notify.bot import bot
+    from src.utils.deduplication import deduplicator
 
     chat_id = msg.get("chat", {}).get("id") or msg.get("from", {}).get("id")
-    if settings.owner_chat_id and (not chat_id or str(chat_id) != str(settings.owner_chat_id)):
-        return
-
     text = (msg.get("text") or "").strip()
     cmd = text.split()[0].lower().split("@")[0] if text else ""
+    sender_id = msg.get("from", {}).get("id") or chat_id
+
+    if cmd in ("/", "/start") and sender_id:
+        deduplicator.meta_set(f"consent:{sender_id}", str(time.time()))
+
+    if settings.owner_chat_id and (not chat_id or str(chat_id) != str(settings.owner_chat_id)):
+        return
 
     recognized_commands = (
         "/",

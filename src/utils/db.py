@@ -17,8 +17,11 @@ def get_connection(db_path: str | None = None):
 def record_write(kind: str, event_id: str, prior_json: str) -> None:
     import time
 
+    from src.utils.redaction import redact_pii
+
+    safe_prior = redact_pii(prior_json)
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO writes (ts, kind, event_id, prior_json) VALUES (?, ?, ?, ?)",
-            (time.time(), kind, event_id, prior_json),
+            (time.time(), kind, event_id, safe_prior),
         )
