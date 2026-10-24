@@ -6,7 +6,9 @@ Uses TurboQuant 4-bit vector quantization for low-memory in-process search.
 
 from __future__ import annotations
 
+import heapq
 import json
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
@@ -30,12 +32,60 @@ EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 3072
 
 
+class ContiguousVectorBuffer:
+    """Contiguous SIMD-friendly vector buffer with precomputed norms and top-k min-heap."""
+
+    def __init__(self, dim: int = EMBEDDING_DIM) -> None:
+        self.dim = dim
+        self.vectors: np.ndarray = np.empty((0, dim), dtype=np.float32)
+        self.norms: np.ndarray = np.empty((0, 1), dtype=np.float32)
+        self.unit_vectors: np.ndarray = np.empty((0, dim), dtype=np.float32)
+
+    def set_vectors(self, vectors: np.ndarray) -> None:
+        if len(vectors) == 0:
+            return
+        self.vectors = np.ascontiguousarray(vectors, dtype=np.float32)
+        norms = np.linalg.norm(self.vectors, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        self.norms = np.ascontiguousarray(norms, dtype=np.float32)
+        self.unit_vectors = np.ascontiguousarray(self.vectors / self.norms, dtype=np.float32)
+
+    def search_top_k(self, query_vec: np.ndarray, k: int = 3) -> list[tuple[float, int]]:
+        """Cosine similarity with precomputed norms and early-exit top-K min-heap."""
+        if len(self.unit_vectors) == 0:
+            return []
+        q = np.ascontiguousarray(query_vec, dtype=np.float32).reshape(-1)
+        q_norm = np.linalg.norm(q)
+        if q_norm > 0:
+            q = q / q_norm
+
+        # SIMD dot product via OpenBLAS/MKL matrix-vector multiply
+        scores = self.unit_vectors @ q
+
+        if len(scores) <= k:
+            return sorted([(float(scores[i]), i) for i in range(len(scores))], reverse=True)
+
+        # Min-heap of size K for early-exit top-K pruning
+        top_k_heap: list[tuple[float, int]] = []
+        for i in range(k):
+            top_k_heap.append((float(scores[i]), i))
+        heapq.heapify(top_k_heap)
+
+        for i in range(k, len(scores)):
+            s = float(scores[i])
+            if s > top_k_heap[0][0]:
+                heapq.heapreplace(top_k_heap, (s, i))
+
+        return sorted(top_k_heap, key=lambda x: x[0], reverse=True)
+
+
 class KnowledgeRetriever:
     """In-process semantic knowledge engine using TurboVec and Gemini."""
 
     def __init__(self, cache_path: Path | None = None) -> None:
         self.chunks: list[str] = []
         self.index: Any = None
+        self.vector_buffer = ContiguousVectorBuffer(dim=EMBEDDING_DIM)
         self._client: genai.Client | None = None
         self.cache_path = cache_path or INDEX_CACHE_PATH
         self._load_chunks()
@@ -46,6 +96,8 @@ class KnowledgeRetriever:
         if turbovec is not None and self.cache_path.exists():
             try:
                 self.index = turbovec.TurboQuantIndex.load(str(self.cache_path))
+                if hasattr(self.index, "prepare"):
+                    self.index.prepare()
                 logger.info("Loaded cached TurboVec index", path=str(self.cache_path))
             except Exception as e:
                 logger.warning("Failed to load cached TurboVec index", error=str(e))
@@ -116,9 +168,12 @@ class KnowledgeRetriever:
             if not embeddings_list:
                 return False
 
-            vectors = np.array(embeddings_list, dtype=np.float32)
+            vectors = np.ascontiguousarray(embeddings_list, dtype=np.float32)
+            self.vector_buffer.set_vectors(vectors)
             self.index = turbovec.TurboQuantIndex(dim=EMBEDDING_DIM, bit_width=4)
             self.index.add(vectors)
+            if hasattr(self.index, "prepare"):
+                self.index.prepare()
             try:
                 self.cache_path.parent.mkdir(parents=True, exist_ok=True)
                 self.index.sync(str(self.cache_path))
@@ -147,7 +202,7 @@ class KnowledgeRetriever:
                     )
                     if not res.embeddings or not res.embeddings[0].values:
                         return []
-                    q_vec = np.array([res.embeddings[0].values], dtype=np.float32)
+                    q_vec = np.ascontiguousarray([res.embeddings[0].values], dtype=np.float32)
                     _, indices = self.index.search(q_vec, k=min(top_k, len(self.chunks)))
                     matched = [
                         self.chunks[idx] for idx in indices[0] if 0 <= idx < len(self.chunks)
@@ -160,7 +215,7 @@ class KnowledgeRetriever:
                         error=str(e),
                     )
 
-        # Lexical fallback: word overlap with regex tokenization
+        # Lexical fallback: word overlap with regex tokenization and min-heap top-K pruning
         import re
 
         raw_tokens = re.findall(r"\w+", query.lower())
@@ -193,8 +248,42 @@ class KnowledgeRetriever:
                 score += 10
             if score > 0:
                 scored.append((score, chunk))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [c for _, c in scored[:top_k]] or self.chunks[:top_k]
+
+        if not scored:
+            return self.chunks[:top_k]
+
+        # Early-exit top-K pruning with min-heap O(N log K)
+        top_items = heapq.nlargest(top_k, scored, key=lambda x: x[0])
+        return [c for _, c in top_items]
+
+    def answer_stream(self, query: str) -> Generator[str, None, None]:
+        """Generate a streaming response via Gemini Interactions API for low TTFT."""
+        relevant_chunks = self.search(query, top_k=3)
+        context = "\n\n---\n\n".join(relevant_chunks)
+
+        client = self._get_client()
+        if not client:
+            yield context or "No relevant knowledge found."
+            return
+
+        prompt = (
+            f"You are a concise academic personal assistant for student section S-10.\n"
+            f"Context from course files and exam schedules:\n{context}\n\n"
+            f"Question: {query}\n\n"
+            f"Answer accurately and directly using the context above. Zero filler words."
+        )
+
+        try:
+            stream = client.models.generate_content_stream(
+                model=settings.gemini_model,
+                contents=prompt,
+            )
+            for chunk in stream:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            logger.error("Failed to generate streaming answer from retriever", error=str(e))
+            yield context
 
     def answer(self, query: str) -> str:
         """Generate a concise, grounded answer using Gemini and retrieved knowledge."""

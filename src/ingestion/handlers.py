@@ -790,6 +790,8 @@ async def handle_bot_command(msg: dict) -> None:
         "/help",
         "/today",
         "/tomorrow",
+        "/timetable",
+        "/schedule",
         "/briefing",
         "/digest",
         "/attendance",
@@ -827,6 +829,7 @@ async def handle_bot_command(msg: dict) -> None:
             "Academic & Schedule Commands:\n"
             "• `/today` — Today's classes, rooms & status\n"
             "• `/tomorrow` — Tomorrow's schedule & upcoming classes\n"
+            "• `/timetable` — Official weekly course timetable & rooms\n"
             "• `/briefing` — Generate today's academic briefing\n"
             "• `/attendance` — Live attendance & safe bunk margins\n"
             "• `/bunk` — Exact attendance bunk buffer calculator\n"
@@ -877,6 +880,19 @@ async def handle_bot_command(msg: dict) -> None:
         tomorrow = clock.today_ist() + datetime.timedelta(days=1)
         schedule_text = format_day_schedule(tomorrow, now_dt=None)
         await asyncio.to_thread(bot.send, schedule_text)
+
+    elif cmd in ("/timetable", "/schedule"):
+        from src.utils import clock
+
+        today = clock.today_ist()
+        now = clock.now_ist()
+        schedule_text = format_day_schedule(today, now_dt=now)
+        reply = (
+            f"📅 **Official Academic Timetable (KLEF T04 - S-10)**\n\n"
+            f"{schedule_text}\n\n"
+            f"💡 *Use `/today` or `/tomorrow` for live classes or `/exam` for lab dates.*"
+        )
+        await asyncio.to_thread(bot.send, reply)
 
     elif cmd == "/attendance":
         from src.erp import klu_erp
@@ -1050,18 +1066,64 @@ async def handle_bot_command(msg: dict) -> None:
         else:
             from src.knowledge.retriever import knowledge_retriever
 
-            answer_text = await asyncio.to_thread(knowledge_retriever.answer, query_text)
-            await asyncio.to_thread(bot.send, f"💡 **Academic Intel Answer**:\n\n{answer_text}")
+            initial_res = await asyncio.to_thread(bot.send, "💭 *Thinking...*")
+            msg_id = (
+                initial_res.get("result", {}).get("message_id")
+                if isinstance(initial_res, dict)
+                else None
+            )
+
+            ask_chunks: list[str] = []
+            last_edit_ts = time.time()
+            try:
+                for chunk_text in knowledge_retriever.answer_stream(query_text):
+                    ask_chunks.append(chunk_text)
+                    now_ts = time.time()
+                    if msg_id and (now_ts - last_edit_ts >= 0.35):
+                        current_str = "".join(ask_chunks)
+                        await asyncio.to_thread(
+                            bot.edit, msg_id, f"💡 **Academic Intel Answer**:\n\n{current_str}"
+                        )
+                        last_edit_ts = now_ts
+
+                final_answer = "".join(ask_chunks).strip()
+                if msg_id:
+                    await asyncio.to_thread(
+                        bot.edit, msg_id, f"💡 **Academic Intel Answer**:\n\n{final_answer}"
+                    )
+                else:
+                    await asyncio.to_thread(
+                        bot.send, f"💡 **Academic Intel Answer**:\n\n{final_answer}"
+                    )
+            except Exception as e:
+                logger.warning("Streaming ask failed, falling back to static", error=str(e))
+                answer_text = await asyncio.to_thread(knowledge_retriever.answer, query_text)
+                if msg_id:
+                    await asyncio.to_thread(
+                        bot.edit, msg_id, f"💡 **Academic Intel Answer**:\n\n{answer_text}"
+                    )
+                else:
+                    await asyncio.to_thread(
+                        bot.send, f"💡 **Academic Intel Answer**:\n\n{answer_text}"
+                    )
 
     elif cmd == "/undo":
         await handle_undo_command(msg)
 
     elif cmd in ("/bunk", "/margins"):
-        from src.briefing import format_bunk_calculator
-        from src.erp import klu_erp
+        import json
 
-        await asyncio.to_thread(bot.send, "⏳ Calculating attendance bunk margins from KL ERP...")
-        records = await klu_erp.get_attendance()
+        from src.briefing import format_bunk_calculator
+        from src.utils.deduplication import deduplicator
+
+        cached_att = deduplicator.meta_get("erp_attendance_cache")
+        records = None
+        if cached_att:
+            try:
+                records = json.loads(cached_att)
+            except Exception:
+                records = None
+
         if records:
             att_rows = [
                 {
@@ -1074,8 +1136,30 @@ async def handle_bot_command(msg: dict) -> None:
             ]
             reply = format_bunk_calculator(att_rows)
             await asyncio.to_thread(bot.send, reply)
+            from src.erp import klu_erp
+
+            asyncio.create_task(klu_erp.get_attendance())
         else:
-            await asyncio.to_thread(bot.send, "⚠️ Could not retrieve attendance from KL ERP.")
+            from src.erp import klu_erp
+
+            await asyncio.to_thread(
+                bot.send, "⏳ Calculating attendance bunk margins from KL ERP..."
+            )
+            records = await klu_erp.get_attendance()
+            if records:
+                att_rows = [
+                    {
+                        "course": r.get("course_name") or r.get("course_code"),
+                        "code": r.get("course_code", ""),
+                        "attended": r.get("attended"),
+                        "held": r.get("conducted"),
+                    }
+                    for r in records
+                ]
+                reply = format_bunk_calculator(att_rows)
+                await asyncio.to_thread(bot.send, reply)
+            else:
+                await asyncio.to_thread(bot.send, "⚠️ Could not retrieve attendance from KL ERP.")
 
     elif cmd in ("/briefing", "/digest"):
         from src.briefing import build_briefing, fetch_briefing_inputs
@@ -1148,15 +1232,38 @@ async def handle_bot_command(msg: dict) -> None:
         if not text.startswith("/"):
             from src.knowledge.retriever import knowledge_retriever
 
-            intel_answer = await asyncio.to_thread(knowledge_retriever.answer, text)
-            if (
-                intel_answer
-                and "Information not provided" not in intel_answer
-                and len(intel_answer.strip()) > 5
-            ):
-                await asyncio.to_thread(bot.send, f"💡 {intel_answer}")
-                reply_sent = True
-        elif settings.gemini_api_key.get_secret_value():
+            initial_res = await asyncio.to_thread(bot.send, "💭 *Thinking...*")
+            msg_id = (
+                initial_res.get("result", {}).get("message_id")
+                if isinstance(initial_res, dict)
+                else None
+            )
+
+            intel_chunks: list[str] = []
+            intel_last_edit_ts = time.time()
+            try:
+                for chunk_text in knowledge_retriever.answer_stream(text):
+                    intel_chunks.append(chunk_text)
+                    intel_now_ts = time.time()
+                    if msg_id and (intel_now_ts - intel_last_edit_ts >= 0.35):
+                        await asyncio.to_thread(bot.edit, msg_id, f"💡 {''.join(intel_chunks)}")
+                        intel_last_edit_ts = intel_now_ts
+
+                final_answer = "".join(intel_chunks).strip()
+                if (
+                    final_answer
+                    and "Information not provided" not in final_answer
+                    and len(final_answer) > 5
+                ):
+                    if msg_id:
+                        await asyncio.to_thread(bot.edit, msg_id, f"💡 {final_answer}")
+                    else:
+                        await asyncio.to_thread(bot.send, f"💡 {final_answer}")
+                    reply_sent = True
+            except Exception as e:
+                logger.debug("Streaming intel answer failed", error=str(e))
+
+        if not reply_sent and settings.gemini_api_key.get_secret_value():
             try:
                 from google import genai
 
@@ -1165,13 +1272,34 @@ async def handle_bot_command(msg: dict) -> None:
                     "You are the helpful personal college assistant for Tejaswin Amara (KLEF).\n"
                     f"Answer this query concisely in 1-3 sentences:\n\n{text}"
                 )
-                res = await asyncio.to_thread(
-                    client.models.generate_content,
+                initial_res = await asyncio.to_thread(bot.send, "💭 *Thinking...*")
+                msg_id = (
+                    initial_res.get("result", {}).get("message_id")
+                    if isinstance(initial_res, dict)
+                    else None
+                )
+                stream = client.models.generate_content_stream(
                     model=settings.gemini_model,
                     contents=prompt,
                 )
-                if res and res.text:
-                    await asyncio.to_thread(bot.send, f"🤖 {res.text.strip()}")
+                gemini_chunks: list[str] = []
+                gemini_last_edit_ts = time.time()
+                for chunk in stream:
+                    if chunk.text:
+                        gemini_chunks.append(chunk.text)
+                        gemini_now_ts = time.time()
+                        if msg_id and (gemini_now_ts - gemini_last_edit_ts >= 0.35):
+                            await asyncio.to_thread(
+                                bot.edit, msg_id, f"🤖 {''.join(gemini_chunks)}"
+                            )
+                            gemini_last_edit_ts = gemini_now_ts
+
+                final_text = "".join(gemini_chunks).strip()
+                if final_text:
+                    if msg_id:
+                        await asyncio.to_thread(bot.edit, msg_id, f"🤖 {final_text}")
+                    else:
+                        await asyncio.to_thread(bot.send, f"🤖 {final_text}")
                     reply_sent = True
             except Exception as e:
                 logger.warning("Gemini command reply failed", error=str(e))

@@ -26,7 +26,11 @@ class MessageDeduplicator:
 
     def _get_raw_conn(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path, isolation_level=None)
-        conn.execute("PRAGMA busy_timeout = 5000")
+        conn.execute("PRAGMA busy_timeout = 5000;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
+        conn.execute("PRAGMA journal_size_limit = 67108864;")
+        conn.execute("PRAGMA cache_size = -32000;")
+        conn.execute("PRAGMA temp_store = MEMORY;")
         return contextlib.closing(conn)
 
     def _ensure_db(self) -> None:

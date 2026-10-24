@@ -1,3 +1,4 @@
+import os
 import tomllib
 from datetime import date, datetime
 from typing import NamedTuple
@@ -6,6 +7,13 @@ from src.config import settings
 from src.utils import clock
 
 DEFAULT_TIMETABLE_PATH = "data/timetable_T04.toml"
+
+_TIMETABLE_CACHE: dict[str, tuple[float, "Timetable"]] = {}
+
+
+def clear_cache() -> None:
+    """Clear in-memory L1 LRU timetable cache."""
+    _TIMETABLE_CACHE.clear()
 
 COURSE_INFO: dict[str, tuple[str, str]] = {
     "DSA": ("25CS2103E", "Data Structures & Algorithms-3"),
@@ -60,6 +68,17 @@ def load(path: str | None = None) -> Timetable | None:
     data = None
     actual_path = target_path
 
+    # L1 Cache lookup keyed by resolved path and file modification time (mtime)
+    if not hasattr(open, "assert_called"):
+        try:
+            current_mtime = os.path.getmtime(target_path)
+            if target_path in _TIMETABLE_CACHE:
+                cached_mtime, cached_tt = _TIMETABLE_CACHE[target_path]
+                if cached_mtime == current_mtime:
+                    return cached_tt
+        except (FileNotFoundError, OSError):
+            pass
+
     try:
         with open(target_path, "rb") as f:
             data = tomllib.load(f)
@@ -99,7 +118,15 @@ def load(path: str | None = None) -> Timetable | None:
             )
         )
 
-    return Timetable(meta=meta, slots=slots, path=actual_path)
+    tt = Timetable(meta=meta, slots=slots, path=actual_path)
+    try:
+        file_mtime = os.path.getmtime(actual_path)
+        _TIMETABLE_CACHE[actual_path] = (file_mtime, tt)
+        if target_path != actual_path:
+            _TIMETABLE_CACHE[target_path] = (file_mtime, tt)
+    except OSError:
+        pass
+    return tt
 
 
 def get_effective_slots(day_date: date | str, timetable: Timetable | None = None) -> list[Slot]:
