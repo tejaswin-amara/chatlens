@@ -179,46 +179,41 @@ overrides with an authoritative timetable and regex-derived tasks/deadlines can 
 Holiday/cancellation and Gemini-derived events require explicit owner approval.
 ---
 
-## 4. Domain Constants & Invariants
+## 4. Deployment-Specific Data & Safe Customization
 
-### 4.1 Canonical Courses & Aliases
-| Key | Course Name | Official Code | Recognized Aliases |
-|---|---|---|---|
-| `DSA` | Data Structures & Algorithms-3 | `25CS2103E` | `DSA`, `DATA STRUCTURES`, `DSA3`, `DSA-3` |
-| `OSSP` | Operating Systems & Systems Programming | `25CS2104E` | `OSSP`, `OPERATING SYSTEMS` |
-| `ML` | Machine Learning | `25SC2107E` | `ML`, `MLNG`, `MACHINE LEARNING` |
-| `ESD` | Embedded System Design & IoT | `25EC2206E` | `ESD`, `EBSD`, `IOT`, `EMBEDDED SYSTEM` |
-| `DBSE` | Database Systems Engineering | `25CS1302E` | `DBSE`, `DATABASE SYSTEMS` |
-| `JAPANESE` | Japanese Language Proficiency-2 | `25FL2112E` | `JAPANESE`, `JPN`, `FLP-2` |
+Academic data is **not universal**. Course identifiers, aliases, section names, room formats, class
+periods, term dates, and time zones vary by institution and academic year. The values currently in
+this repository are for its example deployment and must not be treated as portable defaults.
 
-### 4.2 Standard Academic Periods (IST)
-> [!NOTE]
-> All periods are strictly Indian Standard Time (`Asia/Kolkata`, UTC+05:30). **There is no P6 period.**
+Before using the SPARK daemon for another institution or term, review the current implementation
+and update the relevant sources together:
 
-| Period | Start Time | End Time |
+| Concern | Current source of truth | What to verify |
 |---|---|---|
-| **P1** | 08:10 | 09:00 |
-| **P2** | 09:00 | 09:50 |
-| **P3** | 10:00 | 10:50 |
-| **P4** | 10:50 | 11:40 |
-| **P5** | 11:50 | 12:40 |
-| **P7** | 13:20 | 14:10 |
-| **P8** | 14:20 | 15:10 |
-| **P9** | 15:10 | 16:00 |
+| Course names, official codes, and text aliases | `src/parsing/regex_parser.py`, `src/timetable/__init__.py` | Supported courses, official IDs, aliases, and canonical names |
+| Period numbers, period times, room formats, and section assumptions | `src/timetable/__init__.py`, `src/parsing/regex_parser.py` | Actual timetable periods, breaks, rooms, sections, and parsing patterns |
+| Active term schedule | TOML file selected by `SPARK_TIMETABLE` (current default: `data/timetable_T04.toml`) | Term, validity dates, course slots, rooms, and faculty |
+| Time zone and date interpretation | `src/utils/clock.py` | The institution's time zone and consistent handling of incoming timestamps |
+| Official academic milestones | `src/academic_calendar.py` and the academic-calendar data file it loads | Exam dates, fee deadlines, last instruction day, and other protected dates |
 
-### 4.3 SPARK_MODE Decision Matrix
-| Extracted Intent | Extraction Source | Timetable Verdict | `dry` | `confirm` | `live` |
-|---|---|---|---|---|---|
-| `ROOM_OVERRIDE` | Regex | OK | No write (audit) | Owner ✅ required | **Auto-write** |
-| `ROOM_OVERRIDE` | Regex | Failed | Review alert | Review alert | Review alert |
-| `ROOM_OVERRIDE` | Gemini | Any | No write (audit) | Owner ✅ required | Owner ✅ required |
-| `TASK` / `EXAM_DEADLINE` | Regex | N/A | No write (audit) | Owner ✅ required | **Auto-write** |
-| `TASK` / `EXAM_DEADLINE` | Gemini | N/A | No write (audit) | Owner ✅ required | Owner ✅ required |
-| `HOLIDAY` | Regex / Gemini | N/A | No write (audit) | Owner ✅ required | Owner ✅ required |
-| `CLASS_CANCELLED` | Regex / Gemini | Any | No write (audit) | Owner ✅ required | Owner ✅ required |
+Some values are currently **defined in code**, not controlled by `.env` alone. Changing
+`SPARK_TIMETABLE` does not automatically update the regex course aliases, period-time mappings,
+room/section assumptions, time zone, or academic-milestone rules. Verify these dependencies before
+claiming another deployment is supported.
 
----
+### Customization checklist
 
+1. Use an authoritative timetable and academic calendar for the target institution and term.
+2. Update the corresponding code/data sources; keep identifiers, parsing rules, time windows, and
+   validation logic consistent.
+3. Update or add regression tests for course detection, date interpretation, period mapping,
+   timetable validation, and milestone-conflict handling.
+4. Run the verification suite in Section 8. Keep `SPARK_MODE=dry` until the target deployment's
+   valid, invalid, ambiguous, and approval-required cases have been tested.
+
+The safety policy is intended to remain consistent across deployments: community messages are
+untrusted input, timetable/calendar mismatches must not be silently applied, and live automatic
+writes must stay limited to the explicitly approved policy cases.
 ## 5. Configuration & Environment Variables
 
 Create a `.env` file in the repository root based on `.env.example`:
