@@ -122,7 +122,7 @@ sequenceDiagram
             D->>DB: Mark message processed after handling
         end
     end
-``````
+```
 
 ---
 
