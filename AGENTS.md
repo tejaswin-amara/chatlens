@@ -1,7 +1,7 @@
 # AGENTS.md — SPARK PA daemon (`src/`)
 
 ## What this is
-Headless Telegram → Google Workspace assistant for one KLEF student (IST, `Asia/Kolkata`).
+Headless Telegram → Google Workspace academic assistant. The current deployment is institution-specific (IST); verify academic data and date/time assumptions before reusing it elsewhere.
 Entry point: `python -m src.main`. A read-only Telethon listener watches an allowlist of chats,
 classifies each message (regex first, Gemini only for the residual), validates room changes against
 the timetable, then writes to Google Calendar, Tasks and Sheets and reports to the owner through a
@@ -9,7 +9,7 @@ Telegram bot.
 
 Legacy, do not modify unless a task says so: `chatlens/` (v1 Flask app), `chatlens-v2/` (web app),
 root `requirements.txt` (v1 only), `_next/`, `docs/`, `index.html`, `.nojekyll`, `scratch/`.
-`data/calendar_2026_27.toml` is verified against the official PDF: read it, never edit it.
+Treat the configured timetable and official academic-calendar data as deployment-specific sources of truth; verify changes against authoritative institutional documents.
 
 ## Commands
 - Setup: `uv sync --all-extras --dev` (Python 3.12 or newer)
@@ -29,8 +29,9 @@ root `requirements.txt` (v1 only), `_next/`, `docs/`, `index.html`, `.nojekyll`,
 3. Only chats listed in `SPARK_CHAT_IDS` are processed. An empty allowlist refuses to start.
 4. No secrets in code, logs or fixtures. Message text, sender names and chat titles appear only in
    DEBUG logs; INFO logs carry ids, intent, status and latency.
-5. All dates and times are IST. Telegram messages never change academic-calendar dates (exams, last
-   instruction day, detention list, fee deadlines); conflicts are flagged, not applied.
+5. Date/time handling follows the timezone defined in `src/utils/clock.py` (currently IST). Telegram
+   messages never change official academic-calendar dates (exams, last instruction day, detention
+   list, fee deadlines); conflicts are flagged, not applied.
 6. Tests never touch the network, Telegram, Google or Gemini. Mock at the adapter boundary, as in
    `tests/test_handlers.py`. No network call at import time.
 7. Never reintroduce Google Keep (enterprise-only API) or any Postgres, Celery or Redis dependency
@@ -51,19 +52,23 @@ root `requirements.txt` (v1 only), `_next/`, `docs/`, `index.html`, `.nojekyll`,
 `OWNER_CHAT_ID`, `GEMINI_DAILY_BUDGET`, `SPARK_MEDIA`, `SPARK_TIMETABLE`. Use these exact names as
 pydantic aliases in `src/config.py` and keep `.env.example` in sync.
 
-## Domain constants (do not regress; `tests/test_spark_rules.py` pins them)
-| Key | Course | Code |
-|---|---|---|
-| DSA | Data Structures & Algorithms-3 (also written DSA3, DSA-3) | 25CS2103E |
-| OSSP | Operating Systems & Systems Programming | 25CS2104E |
-| ML | Machine Learning | 25SC2107E |
-| ESD | Embedded System Design & IoT | 25EC2206E |
-| DBSE | Database Systems Engineering | 25CS1302E |
-| JAPANESE | Japanese Language Proficiency-2 | 25FL2112E |
+## Instance-specific academic data
+Course names, official codes, aliases, period numbering and times, room/section formats, term dates,
+and time zones are deployment-specific. Do not present the current values as universal defaults or
+copy them to another institution without verification.
 
-Periods (IST, there is no P6): P1 08:10–09:00, P2 09:00–09:50, P3 10:00–10:50, P4 10:50–11:40,
-P5 11:50–12:40, P7 13:20–14:10, P8 14:20–15:10, P9 15:10–16:00. Rooms look like `H-005`, `HC-15C`,
-`H301A`, `H006`, `H107A`.
+Current implementation locations:
+- Course aliases and course codes: `src/parsing/regex_parser.py`
+- Course metadata, period-time mapping, period parsing, and timetable behavior: `src/timetable/__init__.py`
+- Active-term timetable: the TOML file selected by `SPARK_TIMETABLE` (current default:
+  `data/timetable_T04.toml`)
+- Date/time handling: `src/utils/clock.py` (current deployment uses IST)
+- Academic milestone rules/data: `src/academic_calendar.py` and its academic-calendar data file
+
+Treat institution-published calendars and timetables as the authority. Do not silently change
+official dates or periods. When modifying deployment-specific academic data or parsing rules, update
+the relevant tests in `tests/` and verify both valid and conflicting/ambiguous notices. Changing
+`SPARK_TIMETABLE` alone does not make the parser, period mappings, or timezone portable.
 
 ## SQLite state (`SPARK_DB`, default `spark.db`, WAL mode)
 Tables are created on demand. Existing: `seen(key PRIMARY KEY, ts)`. Tasks add: `chat_state`,
