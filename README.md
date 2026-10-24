@@ -84,7 +84,7 @@ sequenceDiagram
     else Input clean
         L->>DB: Check message fingerprint in seen
         alt Duplicate within 24 hours
-            L-->>L: Skip duplicate
+            L-->>TG: Drop duplicate
         else New message
             L->>P: Extract event
             alt Deterministic regex match
@@ -102,10 +102,12 @@ sequenceDiagram
             else Decision is REVIEW
                 D->>DB: Record review outcome
                 D->>W: Append audit row to Sheets
+                D->>DB: Mark message processed
                 D-->>O: Notify owner without an apply button
             else Decision is CONFIRM
                 D->>DB: Store pending event
                 D->>W: Append audit row to Sheets
+                D->>DB: Mark message and event fingerprint processed
                 D-->>O: Send Apply / Ignore buttons
                 O->>D: Submit owner callback
                 alt Owner approves
@@ -118,8 +120,8 @@ sequenceDiagram
             else Decision is AUTO
                 D->>W: Apply allowlisted Calendar or Tasks mutation
                 D->>DB: Persist prior state for undo
+                D->>DB: Mark message and event fingerprint processed on success
             end
-            D->>DB: Mark message processed after handling
         end
     end
 ```
@@ -167,7 +169,7 @@ stateDiagram-v2
     PendingOwner --> Dismissed: Owner rejects or request expires
     AutoWrite --> Executed: Apply allowed Calendar or Tasks mutation
     Executed --> CanUndo: Persist prior state and write receipt
-    CanUndo --> Undone: Owner invokes /undo for the latest recorded write
+    CanUndo --> Undone: Owner invokes /undo for the latest outstanding write
 
     Quarantined --> [*]
     AuditOnly --> [*]
