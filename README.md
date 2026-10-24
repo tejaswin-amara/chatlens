@@ -268,7 +268,7 @@ The root `.env.example` also shows platform-related settings. It currently omits
 ### 6.1 Prerequisites
 - Python 3.12 or newer
 - `uv` (Astral Python package manager)
-- Node.js 20.9+ and `npm` (required by the installed Next.js 16 release)
+- Node.js 24.12+ and `npm` (required by the resolved Firebase and Vitest dependency engines)
 - Docker & Docker Compose (optional for full platform orchestration)
 
 ### 6.2 Local Installation
