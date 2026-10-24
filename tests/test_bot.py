@@ -6,7 +6,11 @@ from src.notify.bot import BotClient, BotError
 
 
 @pytest.fixture
-def mock_bot():
+def mock_bot(monkeypatch):
+    # send() needs a configured destination even in credential-free CI tests.
+    from src.notify.bot import settings
+
+    monkeypatch.setattr(settings, "owner_chat_id", 123456789)
     return BotClient(token="bot123:test_token")
 
 
