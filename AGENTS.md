@@ -44,6 +44,8 @@ Treat the configured timetable and official academic-calendar data as deployment
    current models). One message per call, redacted, counted against `GEMINI_DAILY_BUDGET`, media
    only when `SPARK_MEDIA` is true. A 4xx or quota error is never retried.
 10. Every write path is idempotent and records prior state so `/undo` can revert it.
+11. Universal Outbound Formatting: Every user-facing bot message must adhere to `docs/MESSAGE_FORMATTING_RULES.md` and render through `src/formatting/templates.py`. Never output raw database dumps, bare URLs, or unstructured text.
+12. Anti-Ban Compliance (`R-BAN-1`–`R-BAN-5`): Outbound messaging strictly respects leaky-bucket rate limits, 15-minute startup debounce, read-only group ingestion, allowlisted chat boundaries, and circuit breaker backoff.
 
 ## Environment variables
 `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_SESSION_STRING`, `GOOGLE_CREDENTIALS_BASE64`,
@@ -64,6 +66,9 @@ Current implementation locations:
   `data/timetable_T04.toml`)
 - Date/time handling: `src/utils/clock.py` (current deployment uses IST)
 - Academic milestone rules/data: `src/academic_calendar.py` and its academic-calendar data file
+- Message templates and link safety: `src/formatting/templates.py`, `src/formatting/markdown_safety.py`
+- Message design standards: `docs/MESSAGE_FORMATTING_RULES.md`
+- Background workers & lifecycle: `src/main.py` (`run_reminders`, `briefing_loop`, `heartbeat_loop`, `bot_callback_poll`)
 
 Treat institution-published calendars and timetables as the authority. Do not silently change
 official dates or periods. When modifying deployment-specific academic data or parsing rules, update

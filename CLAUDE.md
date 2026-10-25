@@ -16,3 +16,5 @@
 - Gemini: `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). Never pass temperature/top_p/top_k.
 - Tests: Mock at adapter boundaries. Zero network calls at test or import time.
 - Style: Smallest working diff, standard library first, ruff line length 100.
+- Outbound UI: All Telegram bot outputs route through `src.formatting.templates` adhering to `docs/MESSAGE_FORMATTING_RULES.md`.
+- Anti-Ban: Enforce `R-BAN-1`–`R-BAN-5` (rate limits, 15-min restart debounce, read-only groups).
