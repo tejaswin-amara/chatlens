@@ -74,3 +74,5 @@ secrets/
 *firebase-admin*.json
 
 *.rebuild.lock
+# Graphify transient generation artifacts
+graphify-out/.graphify_labels.pending.json
