@@ -180,8 +180,8 @@
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/app/layout.tsx": {
-    "mtime": 1792908342.8844411,
-    "seen": 1792908389.318143,
+    "mtime": 1792908781.6500227,
+    "seen": 1792908786.263963,
     "ast_hash": "12eaed21fd9c865d25eb3c1466f5f660",
     "semantic_hash": ""
   },
@@ -1073,12 +1073,6 @@
     "ast_hash": "aa6419b50b3cecb076998e3cc9cfa7ec",
     "semantic_hash": ""
   },
-  ".github/dependabot.yml": {
-    "mtime": 1792044418.4678323,
-    "seen": 1792744976.7029014,
-    "ast_hash": "3333867e21fdf0636179b641482742cc",
-    "semantic_hash": ""
-  },
   ".github/pull_request_template.md": {
     "mtime": 1792303431.6355774,
     "seen": 1792744976.7029023,
@@ -1122,8 +1116,8 @@
     "semantic_hash": ""
   },
   "PROJECT.md": {
-    "mtime": 1792907935.7240934,
-    "seen": 1792908063.7970188,
+    "mtime": 1792908781.647859,
+    "seen": 1792908786.284367,
     "ast_hash": "3ac71b094648d7fcf2fcdd27bd891f54",
     "semantic_hash": ""
   },
@@ -1345,13 +1339,13 @@
   },
   "chatlens-v2/backend/migrations/001_content_hash.sql": {
     "mtime": 1792041500.8185153,
-    "seen": 1792908063.7968144,
+    "seen": 1792908818.1381261,
     "ast_hash": "3e4b25a8b01e9cc163e828e2250404d9",
     "semantic_hash": ""
   },
   "chatlens-v2/backend/migrations/002_vector_768.sql": {
     "mtime": 1792052251.8976755,
-    "seen": 1792908063.7968159,
+    "seen": 1792908818.1381278,
     "ast_hash": "a18e87aee2f2e8cdd40f39be92d234f2",
     "semantic_hash": ""
   },
@@ -1363,7 +1357,7 @@
   },
   "docker/postgres/01-init-pgvector.sql": {
     "mtime": 1792167486.3943844,
-    "seen": 1792908063.7968583,
+    "seen": 1792908818.138169,
     "ast_hash": "4e0c5b054f510b150d5edcc1a243b3e1",
     "semantic_hash": ""
   },
