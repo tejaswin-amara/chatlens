@@ -797,4 +797,3 @@ async def test_handle_bot_command_button_emojis_and_aliases():
             mock_send.assert_called_once()
             output = mock_send.call_args[0][0]
             assert expected_substr in output, f"Failed for input: {input_text}"
-

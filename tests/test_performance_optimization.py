@@ -84,9 +84,7 @@ def test_deterministic_slash_commands(monkeypatch) -> None:
         handle_bot_command({"chat": {"id": owner_id}, "from": {"id": owner_id}, "text": "/today"})
     )
     assert len(sent) == 2
-    has_today = any(
-        k in sent[-1] for k in ("S-10", "scheduled classes", "Regular instruction")
-    )
+    has_today = any(k in sent[-1] for k in ("S-10", "scheduled classes", "Regular instruction"))
     assert has_today
 
     # 3. /tomorrow
