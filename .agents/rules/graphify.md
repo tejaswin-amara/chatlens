@@ -1,14 +1,13 @@
 ---
 trigger: always_on
-description: Consult the graphify knowledge graph at graphify-out/ for codebase and architecture questions.
+description: Use Graphify locally for focused codebase and architecture exploration when available.
 ---
 
-## graphify
+## Graphify
 
-This project has a graphify knowledge graph at graphify-out/.
+Graphify output under `graphify-out/` is generated local tooling data and is intentionally not committed.
 
-Rules:
-- For codebase or architecture questions, when `graphify-out/graph.json` exists, first run `graphify query "<question>"` (CLI) or `query_graph` (MCP). Use `graphify path "<A>" "<B>"` / `shortest_path` for relationships and `graphify explain "<concept>"` / `get_node` for focused concepts. These return a scoped subgraph, usually much smaller than `GRAPH_REPORT.md` or raw grep output.
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- If `graphify-out/graph.json` exists locally, use `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` for focused architecture exploration.
+- If the graph is absent and the Graphify CLI or MCP is available, generate/update it locally before relying on graph-based conclusions.
+- If Graphify is unavailable, work directly from the tracked repository tree, entry points, tests, and configuration; do not assume a graph exists.
+- Keep generated Graphify output out of commits. Commit source rules or workflows only, not the generated index/report/visualization.

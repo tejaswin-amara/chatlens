@@ -63,14 +63,12 @@ scratch/
 uploads/
 error_output.txt
 .agents/teamwork/
-graphify-out/cache/
-# Generated browser visualization; rebuild locally with Graphify when needed.
-graphify-out/graph.html
 
 # Local Firebase service-account credentials
 secrets/
 *firebase-admin*.json
 
 *.rebuild.lock
-# Graphify transient generation artifacts
-graphify-out/.graphify_labels.pending.json
+
+# Graphify output is reproducible local tooling data, not source code.
+graphify-out/
