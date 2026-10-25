@@ -1092,15 +1092,15 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1792837978.0914557,
-    "seen": 1792837986.681832,
-    "ast_hash": "e730c1ded87b8db0e73839e7ec6f2ac8",
+    "mtime": 1792905170.2732868,
+    "seen": 1792905304.2872949,
+    "ast_hash": "183fd0ab9027858fdbf1742a950056a9",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1792043901.9372234,
-    "seen": 1792744976.702905,
-    "ast_hash": "bd58dbb6f6a54d8aaeb2e23e9caade9a",
+    "mtime": 1792905178.837669,
+    "seen": 1792905304.2872975,
+    "ast_hash": "040bce3d4b02cb8877fb8d630e5ce8aa",
     "semantic_hash": ""
   },
   "CODE_OF_CONDUCT.md": {
@@ -1122,15 +1122,15 @@
     "semantic_hash": ""
   },
   "PROJECT.md": {
-    "mtime": 1792735988.8472192,
-    "seen": 1792744976.7029085,
-    "ast_hash": "da968e44e3fe5accfa3318d340c556ad",
+    "mtime": 1792905155.9257784,
+    "seen": 1792905304.2873037,
+    "ast_hash": "5fcddaf61fd16cae99fcf469b6f59f51",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792839838.9813914,
-    "seen": 1792844529.7422402,
-    "ast_hash": "61a8817189fa2669791145d39de2f9be",
+    "mtime": 1792905254.5179062,
+    "seen": 1792905304.287305,
+    "ast_hash": "b568f5605c63f91f00773a0396f1380a",
     "semantic_hash": ""
   },
   "SECURITY.md": {
