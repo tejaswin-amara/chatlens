@@ -67,11 +67,7 @@ def attribute_course(
     # 1. Direct match by provided course_name or code
     combined = f"{course_name or ''} {course_code or ''}".upper()
     for key, meta in COURSE_METADATA.items():
-        if (
-            key in combined
-            or meta["code"].upper() in combined
-            or meta["name"].upper() in combined
-        ):
+        if key in combined or meta["code"].upper() in combined or meta["name"].upper() in combined:
             return key, meta["name"], meta["code"], meta["emoji"]
 
     # 2. Text heuristics match
@@ -90,9 +86,7 @@ def attribute_course(
     return "GENERAL", "Academic Notice", "", "📌"
 
 
-def calculate_urgency(
-    target_date_str: str | None, today_date: date
-) -> tuple[str, int]:
+def calculate_urgency(target_date_str: str | None, today_date: date) -> tuple[str, int]:
     """Calculate human-readable badge and sort priority weight.
 
     Priority:

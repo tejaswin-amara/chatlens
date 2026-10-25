@@ -30,11 +30,13 @@ graph TD
     subgraph Daemon["SPARK PA Daemon (src/)"]
         Listener["Telethon Listener<br/>(Strictly Read-Only)"]
         Dedupe["SHA-256 Deduplicator<br/>(SQLite WAL spark.db)"]
-        Regex["Tier-1 Deterministic<br/>Regex Parser"]
+        Regex["Tier-1 Deterministic<br/>Regex Parser (<100µs)"]
         Gemini["Tier-2 Residual Extractor<br/>(gemini-3.5-flash-lite)"]
-        Timetable["Timetable Validator<br/>(SPARK_TIMETABLE)"]
+        Timetable["Timetable Validator<br/>(L1 Cached TOML)"]
         Decision["Decision Engine<br/>(dry / confirm / live)"]
-        Scheduler["Daily Briefing & Heartbeat<br/>(07:15 IST; periodic heartbeat)"]
+        Formatting["Formatting & Design Engine<br/>(src/formatting/templates.py)"]
+        AntiBan["Anti-Ban & Rate Limiter<br/>(R-BAN-1 to R-BAN-5)"]
+        Scheduler["Background Workers<br/>(Briefing 07:15 IST, Heartbeat,<br/>Reminders, Callback Poll)"]
     end
 
     subgraph Workspace["Google Workspace & Storage"]
@@ -53,8 +55,11 @@ graph TD
     Decision -->|Auto-write live| GCal
     Decision -->|Auto-write live| GTasks
     Decision -->|Audit record| GSheets
-    Decision -->|Confirmation / Review| TG_Bot
-    Decision -->|Fallback| TG_Me
+    Decision --> Formatting
+    Scheduler --> Formatting
+    Formatting --> AntiBan
+    AntiBan -->|Outbound Notification| TG_Bot
+    AntiBan -->|Fallback| TG_Me
     TG_Bot -->|Inline Callback /undo| Decision
 ```
 
@@ -193,6 +198,51 @@ stateDiagram-v2
 | Input is quarantined by the security guard | Block; alert owner when messaging is configured | Block; alert owner when messaging is configured | Block; alert owner when messaging is configured |
 
 **Safety invariants:** Telegram group/channel ingestion is read-only. `dry` can write audit records to SQLite or Sheets but never mutates Calendar or Tasks. Validation failures in `confirm` and `live` never expose an apply action. In `live`, only regex-derived room overrides with an authoritative timetable and regex-derived tasks/deadlines can auto-write. Gemini-derived events, holidays, and class cancellations require explicit owner approval when writes are enabled.
+
+### 3.2 Universal Message Formatting & Design System
+
+All outbound bot communications are governed by the formatting contracts defined in [`docs/MESSAGE_FORMATTING_RULES.md`](docs/MESSAGE_FORMATTING_RULES.md) and executed through the centralized presentation engine in `src/formatting/templates.py`:
+
+1. **The 4-Part Message Anatomy**:
+   - **Header Block**: Visual emoji indicator and bold command title with italicized temporal/section context (e.g. `⏰ **Upcoming Deadlines & Academic Intel**` \n `📅 *Sunday, 25 Oct 2026*`).
+   - **Body & Card Hierarchy**: Bulleted top-level entries (`•`) with structured tree connectors (`  └ `) and 3-space indented properties (`     • Key: Value`).
+   - **Badges & Visual States**: High-contrast, semantic status indicators (`⚠️ Overdue`, `🚨 Due Today!`, `⏳ Due in X days`, `📌 Action Item`, `🟢 Safe`, `🟡 Borderline`, `🔴 Critical`).
+   - **Footer & Navigation**: Contextual tip in italics (`💡 *Tip: ...*`) paired with a persistent 2x2 inline keyboard grid.
+
+2. **Link Sanitization & Markdown Safety** (`src/formatting/markdown_safety.py`):
+   - Bare URLs are automatically intercepted, categorized, and converted into semantic chips (`🔗 [Google Drive Folder](url)`, `🔗 [Google Form](url)`, `🔗 [CodeTantra Portal](url)`).
+   - Unbalanced markdown delimiters (`*`, `` ` ``, `[`, `]`) are safely normalized to eliminate Telegram API `400 Bad Request` parser drops.
+
+3. **Course Notice Consolidation & Semantic Grouping**:
+   - Fragmentary announcements spanning multiple chat messages (e.g. repetitive MOOCS certificate reminders) are deduplicated, attributed to their canonical course codes (`25SC2107E`, `25CS2103E`, etc.), and formatted as coherent subject cards.
+
+### 3.3 Telegram Platform Compliance & Anti-Ban Architecture
+
+SPARK operates on personal user sessions and automated bot interfaces, strictly enforcing five non-negotiable anti-ban invariants (`R-BAN-1` through `R-BAN-5`):
+
+- **[R-BAN-1] Leaky-Bucket Rate Limiter**: All outbound network calls to Telegram are throttled via an adaptive token bucket (`src/utils/rate_limiter.py`). Bursts are capped to prevent `FloodWaitError` and automated MTProto account restrictions.
+- **[R-BAN-2] Contact Consent & Interaction Scoping**: Group ingestion is strictly read-only. The daemon never posts, reacts, or forwards inside public groups or channel feeds. Outbound delivery is restricted to direct 1:1 conversation with the owner bot or Saved Messages (`"me"`).
+- **[R-BAN-3] Startup & Restart Debounce**: System notifications and startup receipts enforce a mandatory 15-minute cooldown persisted in SQLite `meta` (`last_startup_notify_ts`), preventing notification floods during crash loops or supervisor restarts.
+- **[R-BAN-4] Monitored Chat Scope Boundary**: The Telethon listener only processes messages from chats explicitly allowlisted in `SPARK_CHAT_IDS`. Empty or unconfigured chat lists immediately refuse startup (exit code 2).
+- **[R-BAN-5] Circuit Breaker & Safe Degradation**: Consecutive API errors trigger exponential backoff. If Telegram Bot API delivery fails, the daemon automatically falls back to MTProto Saved Messages or fails closed without crashing the ingestion worker.
+
+### 3.4 Interactive Bot Interface & Proactive Reminders
+
+The bot client (`src/notify/bot.py`) and command dispatcher (`src/ingestion/handlers.py`) provide comprehensive student assistance:
+
+- **Command Directory**:
+  - `/today`: Complete 4-slot day schedule with real-time slot indicators (`✅ Done`, `🔴 Live`, `🟡 Next`, `⬡ Upcoming`).
+  - `/tomorrow`: Upcoming day schedule with classroom, faculty, section, and type metadata.
+  - `/deadlines`: Consolidated view of overdue tasks, today's due items, active deadlines, and action items.
+  - `/attendance`: Visual attendance cards with threshold alerts (`🟢 Safe`, `🟡 Borderline`, `🔴 Critical`) and margin calculations.
+  - `/status`: System health card with uptime, model name, monitored chat count, ERP identity, and operational mode.
+  - `/marks`, `/cgpa`, `/fee`: Instant academic records querying ERP endpoints.
+  - `/rescan`: On-demand catch-up rescan of monitored course channels.
+  - `/undo`: Atomic reversion of the most recent Google Calendar or Google Tasks write.
+  - `/`: Standalone trigger outputting the complete interactive command menu.
+- **Quick-Action Navigation**: Every outgoing message includes an interactive 2x2 inline button grid (`[ 📅 Today ] [ 📊 Attendance ]` / `[ ⏰ Deadlines ] [ 🟢 Status ]`), allowing one-tap navigation without typing.
+- **Proactive Assessment Reminders**: A dedicated background worker (`run_reminders` in `src/main.py`) continuously scans pending academic events and dispatches pre-class reminder cards to the student on the morning of quizzes, lab evaluations, and assignment deadlines.
+
 ---
 
 ## 4. Deployment-Specific Data & Safe Customization
@@ -360,6 +410,13 @@ For focused checks:
 ```bash
 # Python tests (integration tests requiring Docker are excluded by the pytest configuration)
 uv run pytest -q -W error::RuntimeWarning
+
+# Message design system, handlers, and E2E bot remediation tests
+uv run pytest -q tests/test_templates.py tests/test_handlers.py tests/test_e2e_remediation.py
+
+# Python style and type safety
+uv run ruff check src tests scripts
+uv run mypy src
 
 # Prompt fixture / implementation drift
 uv run pytest -q tests/test_prompt_drift.py

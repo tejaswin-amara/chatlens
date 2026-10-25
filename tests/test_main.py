@@ -392,4 +392,3 @@ async def test_run_reminders_debounces_already_reminded(mock_valid_settings):
             await guard(run_reminders())
 
         mock_send.assert_not_called()
-

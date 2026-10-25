@@ -40,18 +40,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     erp_username: str = Field(default="2520090104", alias="ERP_USERNAME")
     erp_password: SecretStr = Field(default=SecretStr(""), alias="ERP_PASSWORD")
-    telegram_user_rate_limit_rps: float = Field(
-        default=1.0, alias="TELEGRAM_USER_RATE_LIMIT_RPS"
-    )
+    telegram_user_rate_limit_rps: float = Field(default=1.0, alias="TELEGRAM_USER_RATE_LIMIT_RPS")
     telegram_group_rate_limit_rpm: float = Field(
         default=20.0, alias="TELEGRAM_GROUP_RATE_LIMIT_RPM"
     )
     telegram_global_rate_limit_rps: float = Field(
         default=25.0, alias="TELEGRAM_GLOBAL_RATE_LIMIT_RPS"
     )
-    circuit_breaker_error_threshold: int = Field(
-        default=3, alias="CIRCUIT_BREAKER_ERROR_THRESHOLD"
-    )
+    circuit_breaker_error_threshold: int = Field(default=3, alias="CIRCUIT_BREAKER_ERROR_THRESHOLD")
     circuit_breaker_cooldown_seconds: int = Field(
         default=300, alias="CIRCUIT_BREAKER_COOLDOWN_SECONDS"
     )

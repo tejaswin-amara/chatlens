@@ -15,6 +15,7 @@ def clear_cache() -> None:
     """Clear in-memory L1 LRU timetable cache."""
     _TIMETABLE_CACHE.clear()
 
+
 COURSE_INFO: dict[str, tuple[str, str]] = {
     "DSA": ("25CS2103E", "Data Structures & Algorithms-3"),
     "OSSP": ("25CS2104E", "Operating Systems & Systems Programming"),
