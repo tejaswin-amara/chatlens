@@ -1,4 +1,4 @@
-"""Empirical verification and stress harness for security and resilience invariants.
+"""Regression tests for privacy, ERP session handling, prompt injection, and resilience.
 
 Verifies:
 1. Prompt injection defense across PI-01 to PI-10 canaries.
@@ -32,7 +32,7 @@ from src.utils.logging import _scrub_secrets
 from src.workspace.auth import GoogleWorkspaceAuth
 from src.workspace.sheets_logger import SheetsLogger
 
-sys.path.append(str(Path(__file__).parent.parent / "chatlens-v2" / "backend"))
+sys.path.append(str(Path(__file__).resolve().parents[2] / "chatlens-v2" / "backend"))
 try:
     from analyzer import _redact_forbidden_ids  # type: ignore
 except ImportError:
@@ -43,7 +43,7 @@ except ImportError:
 # 1. Prompt Injection Defenses
 # ==============================================================================
 def test_empirical_prompt_injection_canaries_suite():
-    fixture_path = Path(__file__).parent / "fixtures" / "prompt_injection_cases.json"
+    fixture_path = Path(__file__).resolve().parents[1] / "fixtures" / "prompt_injection_cases.json"
     with open(fixture_path, encoding="utf-8") as f:
         canary_cases = json.load(f)
 

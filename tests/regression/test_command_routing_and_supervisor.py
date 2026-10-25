@@ -27,7 +27,7 @@ import pytest
 from src.config import settings
 from src.ingestion.handlers import handle_bot_command
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "run_daemon.ps1"
 PID_FILE = REPO_ROOT / "logs" / "spark_daemon.pid"
 

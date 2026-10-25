@@ -50,13 +50,13 @@ DEFAULT_BUTTONS_EXPECTED = [
 @pytest.fixture(autouse=True)
 def setup_test_env(tmp_path, monkeypatch):
     """Isolate SQLite database, credentials, and settings."""
-    test_db = str(tmp_path / "challenger_m2_1.db")
+    test_db = str(tmp_path / "bot_callbacks.db")
     test_dedup = MessageDeduplicator(db_path=test_db)
 
     monkeypatch.setattr(settings, "spark_db", test_db)
     monkeypatch.setattr(settings, "owner_chat_id", OWNER_ID)
     monkeypatch.setattr(
-        settings, "bot_token", MagicMock(get_secret_value=lambda: "bot123:mock_challenger_token")
+        settings, "bot_token", MagicMock(get_secret_value=lambda: "bot123:mock_test_token")
     )
     # The singleton BotClient captures its base URL at import time, before this
     # fixture replaces settings.bot_token. Give the mocked client a test-only URL.

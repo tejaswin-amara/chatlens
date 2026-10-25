@@ -36,7 +36,7 @@ from src.main import run_daemon
 from src.utils.deduplication import MessageDeduplicator
 from tests.test_main import FakeTelegramClient, guard
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "run_daemon.ps1"
 
 

@@ -44,7 +44,7 @@ STATS_LINE_REGEX = re.compile(
 @pytest.fixture(autouse=True)
 def setup_test_env(tmp_path, monkeypatch):
     """Isolate SQLite database, credentials, and settings."""
-    test_db = str(tmp_path / "challenger_spark.db")
+    test_db = str(tmp_path / "schedule_formatting.db")
     test_dedup = MessageDeduplicator(db_path=test_db)
 
     monkeypatch.setattr(settings, "spark_db", test_db)

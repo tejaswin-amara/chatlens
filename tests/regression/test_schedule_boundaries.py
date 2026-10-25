@@ -1,4 +1,4 @@
-"""Empirical Challenger 2 test suite for Milestone 1.
+"""Regression tests for schedule boundaries and status transitions.
 
 Exhaustively stress-tests:
 1. Exact period boundaries: start minute, mid minute, end minute, +1 minute, -1 minute.
