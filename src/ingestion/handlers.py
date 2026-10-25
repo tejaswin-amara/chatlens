@@ -553,13 +553,18 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     elif decision == Decision.CONFIRM:
         execution_status = "PENDING_CONFIRMATION"
         details_list = ["Awaiting owner"]
-        wrapper = {"event": parsed_event.model_dump(), "source": source}
+        wrapper = {
+            "event": parsed_event.model_dump(),
+            "source": source,
+            "chat_id": chat_id,
+        }
         pid = deduplicator.add_pending(json.dumps(wrapper))
 
         text = (
-            f"Review needed for {parsed_event.intent}\n"
-            f"{parsed_event.summary}\n"
-            f"Reason: {verdict.reason}"
+            f"🔔 **Review needed for {parsed_event.intent}**\n\n"
+            f"• **Notice**: {parsed_event.summary}\n"
+            f"• **Reason**: {verdict.reason}\n\n"
+            f"👉 *Tap Apply to execute, or Ignore to dismiss.*"
         )
         buttons = [
             {"text": "✅ Apply", "callback_data": f"ok:{pid}"},
@@ -949,18 +954,16 @@ async def handle_bot_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, reply)
 
     elif cmd == "/status":
+        from src.formatting.templates import render_status_card
         from src.utils import clock
 
-        now_str = clock.now_ist().strftime("%Y-%m-%d %H:%M:%S IST")
-        reply = (
-            f"🟢 **ChatLens PA Status** ({now_str})\n\n"
-            f"• **SPARK Mode**: `{settings.spark_mode}`\n"
-            f"• **Telegram**: Active ({len(settings.allowed_chat_ids)} monitored course chats)\n"
-            f"• **Gemini AI**: `{settings.gemini_model}` (Active & Connected)\n"
-            f"• **KL ERP Bridge**: Configured (`{settings.erp_username}`)\n"
-            f"• **Google Workspace**: Connected\n"
-            f"• **Owner**: `{settings.owner_chat_id}`\n"
-            f"• **Status**: 🚀 Live & Listening in Real-Time"
+        reply = render_status_card(
+            now_dt=clock.now_ist(),
+            spark_mode=settings.spark_mode,
+            chat_count=len(settings.allowed_chat_ids),
+            model_name=settings.gemini_model,
+            erp_user=settings.erp_username,
+            owner_chat_id=settings.owner_chat_id or "N/A",
         )
         await asyncio.to_thread(bot.send, reply)
 
@@ -1130,6 +1133,7 @@ async def handle_bot_command(msg: dict) -> None:
 
     elif cmd in ("/deadlines", "/deadline", "/tasks"):
         from src.academic_calendar import load_calendar
+        from src.formatting.templates import get_standard_navigation_buttons, render_deadlines_card
         from src.utils import clock
         from src.utils.deduplication import deduplicator
 
@@ -1143,38 +1147,10 @@ async def handle_bot_command(msg: dict) -> None:
                         milestones_list.append((m_date, f"{m_name} ({term})"))
         milestones_list.sort(key=lambda x: x[0])
 
-        pending_items = deduplicator.list_pending(limit=5)
-
-        lines = [f"⏰ **Upcoming Deadlines & Milestones** (as of {today.strftime('%d %b %Y')}):\n"]
-        if not milestones_list and not pending_items:
-            lines.append("🎉 No upcoming deadlines registered in calendar or task tracker.")
-        else:
-            if milestones_list:
-                lines.append("📅 **Academic Calendar Milestones**:")
-                for m_date, m_label in milestones_list[:6]:
-                    days_left = (m_date - today).days
-                    if days_left == 0:
-                        day_str = "today!"
-                    elif days_left > 0:
-                        day_str = f"in {days_left} days"
-                    else:
-                        day_str = ""
-                    lines.append(f"• **{m_label}**: `{m_date.strftime('%d %b %Y')}` ({day_str})")
-            if pending_items:
-                lines.append("\n📝 **Course Announcements & Deadlines (from Telegram chats)**:")
-                for item in pending_items:
-                    ev = item.get("event", {})
-                    if isinstance(ev, dict) and "event" in ev:
-                        ev = ev["event"]
-                    summary = ev.get("summary") or ev.get("description") or "Assignment / Task"
-                    c_name = ev.get("course_name") or ev.get("course_code") or ""
-                    c_prefix = f"**{c_name}**: " if c_name else ""
-                    dt_str = f" [{ev.get('target_date')}]" if ev.get("target_date") else ""
-                    time_str = f" ({ev.get('period')})" if ev.get("period") else ""
-                    status_str = f" (Status: `{item.get('status')}`)"
-                    lines.append(f"• {c_prefix}{summary}{dt_str}{time_str}{status_str}")
-
-        await asyncio.to_thread(bot.send, "\n".join(lines))
+        pending_items = deduplicator.list_pending(limit=25)
+        reply = render_deadlines_card(today, milestones_list, pending_items)
+        buttons = get_standard_navigation_buttons()
+        await asyncio.to_thread(bot.send, reply, buttons=buttons)
 
     elif cmd in ("/exam", "/exams", "/viva"):
         reply = (

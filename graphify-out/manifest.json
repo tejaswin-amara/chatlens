@@ -456,9 +456,9 @@
     "semantic_hash": ""
   },
   "src/ingestion/handlers.py": {
-    "mtime": 1792852526.7430904,
-    "seen": 1792853068.665654,
-    "ast_hash": "04bd3ddf3a2dd419ba817c2e499154e6",
+    "mtime": 1792903714.089142,
+    "seen": 1792904161.163946,
+    "ast_hash": "7c7066a3f78c5a1ff3a46dbf67de5f0f",
     "semantic_hash": ""
   },
   "src/ingestion/telegram_client.py": {
@@ -468,9 +468,9 @@
     "semantic_hash": ""
   },
   "src/main.py": {
-    "mtime": 1792852476.3427885,
-    "seen": 1792853068.6656659,
-    "ast_hash": "6109001df61ebca01e74573fc73aa6c5",
+    "mtime": 1792903725.1114645,
+    "seen": 1792904161.1639528,
+    "ast_hash": "5f25f9d7d5921d747ad7193b71f3ca78",
     "semantic_hash": ""
   },
   "src/notify/bot.py": {
@@ -576,9 +576,9 @@
     "semantic_hash": ""
   },
   "tests/conftest.py": {
-    "mtime": 1792839367.731749,
-    "seen": 1792839397.0577052,
-    "ast_hash": "3f93310f2f9a0bc53d12cdc1ec15744e",
+    "mtime": 1792902765.0133688,
+    "seen": 1792902879.534683,
+    "ast_hash": "67517b3d580b858cebfa1dd77a9bd65e",
     "semantic_hash": ""
   },
   "tests/e2e/__init__.py": {
@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "tests/test_handlers.py": {
-    "mtime": 1792751805.6131098,
-    "seen": 1792837918.1242545,
-    "ast_hash": "08378d558db49ca0efec53af3a34c898",
+    "mtime": 1792902843.319029,
+    "seen": 1792902879.534726,
+    "ast_hash": "bbb58ecdf8663664ccac8bcee402c671",
     "semantic_hash": ""
   },
   "tests/test_logging_privacy.py": {
@@ -1485,6 +1485,36 @@
     "mtime": 1792845087.909759,
     "seen": 1792845111.9847481,
     "ast_hash": "7a678a6d25ca9d5efcb8e095ce3ff4fd",
+    "semantic_hash": ""
+  },
+  "src/formatting/__init__.py": {
+    "mtime": 1792903486.0815244,
+    "seen": 1792904161.1639314,
+    "ast_hash": "8bece82a12d96c046c28373736a8e874",
+    "semantic_hash": ""
+  },
+  "src/formatting/markdown_safety.py": {
+    "mtime": 1792903852.7780576,
+    "seen": 1792904161.1639342,
+    "ast_hash": "8cf9c3804c69ffc5731559a6a4c2327b",
+    "semantic_hash": ""
+  },
+  "src/formatting/templates.py": {
+    "mtime": 1792904095.2849445,
+    "seen": 1792904161.163936,
+    "ast_hash": "eec3f39a24e392e3700b7d1962ace2e7",
+    "semantic_hash": ""
+  },
+  "tests/test_templates.py": {
+    "mtime": 1792903823.2329025,
+    "seen": 1792904161.16406,
+    "ast_hash": "68fe4d3e1d4eaea41b3a2a2be1412aee",
+    "semantic_hash": ""
+  },
+  "docs/MESSAGE_FORMATTING_RULES.md": {
+    "mtime": 1792903567.1622834,
+    "seen": 1792904161.1641693,
+    "ast_hash": "46e022d9aab37e40f8d8d88b2eabb838",
     "semantic_hash": ""
   }
 }

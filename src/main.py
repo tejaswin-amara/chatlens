@@ -156,12 +156,14 @@ async def run_reminders() -> None:
                         summary = ev.get("summary") or "Assessment / Deadline"
                         intent = ev.get("intent", "NOTICE")
 
-                        text = (
-                            f"⏰ **Upcoming Academic Reminder!**\n\n"
-                            f"• **Course:** {c_name} (`{ev.get('course_code') or 'N/A'}`)\n"
-                            f"• **Time / Period:** {period}\n"
-                            f"• **Notice:** {summary}\n\n"
-                            f"🚀 *Action Required: {intent} active today!*"
+                        from src.formatting.templates import render_proactive_reminder
+
+                        text = render_proactive_reminder(
+                            course_name=c_name,
+                            course_code=ev.get("course_code"),
+                            period=period,
+                            summary=summary,
+                            intent=intent,
                         )
                         if settings.bot_token and settings.owner_chat_id:
                             await asyncio.to_thread(bot.send, text)
