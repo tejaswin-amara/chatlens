@@ -38,7 +38,7 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| E2E | E2E Testing Track | Build opaque-box test suite (Tiers 1–4) and publish `TEST_READY.md` | none | DONE |
+| E2E | E2E Testing Track | Build opaque-box test suite (Tiers 1–4) in `tests/test_e2e_remediation.py` | none | DONE |
 | 1 | Schedule Formatting & §0 Operating Rules | F1.1 - F1.7: Unified schedule formatter, `/tomorrow` command, status icons, stats line | none | DONE |
 | 2 | Interactive Buttons & Autocomplete | F2.1 - F2.5: Quick-action buttons, `cmd:<action>` callbacks, `setMyCommands`, standalone `/`, fuzzy routing | M1 | DONE |
 | 3 | Startup Debounce & Persistence Runner | F3.1 - F3.3: 15-min debounce verification, `meta` table store, `scripts/run_daemon.ps1` overhaul | M2 | DONE |

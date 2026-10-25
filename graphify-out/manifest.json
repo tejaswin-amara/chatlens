@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/app/layout.tsx": {
-    "mtime": 1792729657.7591288,
-    "seen": 1792744976.7027664,
-    "ast_hash": "88afb4dac746403f6541bc6e33b7b63c",
+    "mtime": 1792908342.8844411,
+    "seen": 1792908389.318143,
+    "ast_hash": "12eaed21fd9c865d25eb3c1466f5f660",
     "semantic_hash": ""
   },
   "chatlens-v2/frontend/src/app/page.tsx": {
@@ -426,8 +426,8 @@
     "semantic_hash": ""
   },
   "src/config.py": {
-    "mtime": 1792905663.4737248,
-    "seen": 1792905723.637258,
+    "mtime": 1792907518.1760938,
+    "seen": 1792907524.7563431,
     "ast_hash": "f9afe82b6312a4b84fa6f74a1f26999d",
     "semantic_hash": ""
   },
@@ -504,8 +504,8 @@
     "semantic_hash": ""
   },
   "src/timetable/__init__.py": {
-    "mtime": 1792905663.475095,
-    "seen": 1792905723.637308,
+    "mtime": 1792907518.1788535,
+    "seen": 1792907524.7586753,
     "ast_hash": "99b5a281f729ebba81e5575b9539c6a6",
     "semantic_hash": ""
   },
@@ -786,8 +786,8 @@
     "semantic_hash": ""
   },
   "tests/test_handlers.py": {
-    "mtime": 1792905663.475095,
-    "seen": 1792905723.637413,
+    "mtime": 1792907518.180021,
+    "seen": 1792907524.7687035,
     "ast_hash": "92a40eb126a80fa35df4c9260d534a66",
     "semantic_hash": ""
   },
@@ -798,8 +798,8 @@
     "semantic_hash": ""
   },
   "tests/test_main.py": {
-    "mtime": 1792905663.475095,
-    "seen": 1792905723.6374176,
+    "mtime": 1792907518.1810896,
+    "seen": 1792907524.768864,
     "ast_hash": "fca64729481330be1c2de8d74e4556d2",
     "semantic_hash": ""
   },
@@ -1116,15 +1116,15 @@
     "semantic_hash": ""
   },
   "PONYTAIL-DEBT.md": {
-    "mtime": 1792905685.6794257,
-    "seen": 1792905723.6375396,
+    "mtime": 1792907994.3698475,
+    "seen": 1792908063.7970178,
     "ast_hash": "dff28e842892db9a72286b865a916714",
     "semantic_hash": ""
   },
   "PROJECT.md": {
-    "mtime": 1792905155.9257784,
-    "seen": 1792905304.2873037,
-    "ast_hash": "5fcddaf61fd16cae99fcf469b6f59f51",
+    "mtime": 1792907935.7240934,
+    "seen": 1792908063.7970188,
+    "ast_hash": "3ac71b094648d7fcf2fcdd27bd891f54",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1137,18 +1137,6 @@
     "mtime": 1792041500.7308433,
     "seen": 1792744976.7029102,
     "ast_hash": "cec4c9b8735d38199fa33e678e69b5c2",
-    "semantic_hash": ""
-  },
-  "TEST_INFRA.md": {
-    "mtime": 1792733956.0420744,
-    "seen": 1792744976.702911,
-    "ast_hash": "a7c6c4620724ce8061d8c4d57c6af788",
-    "semantic_hash": ""
-  },
-  "TEST_READY.md": {
-    "mtime": 1792733969.0959535,
-    "seen": 1792744976.702912,
-    "ast_hash": "ce3152163c61805c8e80363c1b27a7bf",
     "semantic_hash": ""
   },
   "adr/0001-awesome-dev-pipeline-adoption.md": {
@@ -1259,18 +1247,6 @@
     "ast_hash": "5b8383b85f64891bbd85aeb7b2ad5300",
     "semantic_hash": ""
   },
-  "docs/audits/chatlens-remediation-plan.md": {
-    "mtime": 1792726844.660231,
-    "seen": 1792744976.7029283,
-    "ast_hash": "0a658b9247af9e3edffe7cbf1d907d35",
-    "semantic_hash": ""
-  },
-  "docs/audits/chatlens-system-audit.md": {
-    "mtime": 1792726914.967233,
-    "seen": 1792744976.7029293,
-    "ast_hash": "059be6ae29591bf1cdb57e88c66d6a81",
-    "semantic_hash": ""
-  },
   "evals/prompt.txt": {
     "mtime": 1792257892.0725937,
     "seen": 1792744976.7029302,
@@ -1369,13 +1345,13 @@
   },
   "chatlens-v2/backend/migrations/001_content_hash.sql": {
     "mtime": 1792041500.8185153,
-    "seen": 1792844529.742043,
+    "seen": 1792908063.7968144,
     "ast_hash": "3e4b25a8b01e9cc163e828e2250404d9",
     "semantic_hash": ""
   },
   "chatlens-v2/backend/migrations/002_vector_768.sql": {
     "mtime": 1792052251.8976755,
-    "seen": 1792844529.7420442,
+    "seen": 1792908063.7968159,
     "ast_hash": "a18e87aee2f2e8cdd40f39be92d234f2",
     "semantic_hash": ""
   },
@@ -1387,7 +1363,7 @@
   },
   "docker/postgres/01-init-pgvector.sql": {
     "mtime": 1792167486.3943844,
-    "seen": 1792844529.7420864,
+    "seen": 1792908063.7968583,
     "ast_hash": "4e0c5b054f510b150d5edcc1a243b3e1",
     "semantic_hash": ""
   },
@@ -1476,8 +1452,8 @@
     "semantic_hash": ""
   },
   "tests/test_performance_optimization.py": {
-    "mtime": 1792905663.475095,
-    "seen": 1792905723.6374226,
+    "mtime": 1792907518.182789,
+    "seen": 1792907524.7692847,
     "ast_hash": "bbb91a50c9fb8bd2a06fb4c455357fef",
     "semantic_hash": ""
   },
@@ -1500,8 +1476,8 @@
     "semantic_hash": ""
   },
   "src/formatting/templates.py": {
-    "mtime": 1792905663.4766157,
-    "seen": 1792905723.637273,
+    "mtime": 1792907518.17718,
+    "seen": 1792907524.7569304,
     "ast_hash": "a3e6af9d1952fcaace4d63fb0b74e738",
     "semantic_hash": ""
   },
