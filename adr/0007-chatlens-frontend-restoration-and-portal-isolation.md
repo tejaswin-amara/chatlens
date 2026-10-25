@@ -1,6 +1,6 @@
 # ADR 0007: ChatLens Frontend Restoration and Student Portal Isolation
 
-* Status: proposed
+* Status: accepted
 * Deciders: Principal Software Engineer, Repository Maintainer
 * Date: 2026-10-23
 
@@ -12,7 +12,7 @@ Furthermore, `output: 'export'` was removed from `next.config.ts`, breaking the 
 We need an architectural decision on how to restore the ChatLens platform to working order while handling the student ERP portal work.
 
 ## Decision Drivers
-* Restore 100% functionality of the ChatLens chat analytics platform per ADR 0005 and PROJECT.md.
+* Restore the ChatLens analytics platform in accordance with ADR 0005 and the root README.
 * Preserve all verified student ERP portal work without data or feature loss.
 * Maintain clean separation of concerns, container contracts, and reverse proxy routing.
 * Adhere to Ponytail minimalism, YAGNI, and the Universal Engineering Pipeline Standard v2.2.0.
@@ -26,7 +26,7 @@ We need an architectural decision on how to restore the ChatLens platform to wor
   Abandon static Nginx export and run a Node.js server (`next start`), reconfiguring Caddy to split `/api/chatlens/*` to FastAPI and `/api/erp/*` to Next.js.
 
 ## Decision Outcome
-Proposed Option: **Option 1 (Clean Restoration of ChatLens SPA & Extraction of Portal)**.
+Accepted Option: **Option 1 (Clean Restoration of ChatLens SPA & Extraction of Portal)**.
 
 ### Rationale & Comparison
 * **Option 1:**

@@ -1,13 +1,7 @@
-"""Opaque-box End-to-End (E2E) Acceptance Test Suite for ChatLens PA Daemon Remediation.
+"""End-to-end acceptance tests for the SPARK daemon.
 
-Covers Tiers 1-4 per ORIGINAL_REQUEST.md (2026-10-23T05:12:11Z) and PROJECT.md:
-- Tier 1: Core Feature Coverage (F1.1 - F3.3 happy paths)
-- Tier 2: Boundary & Corner Cases (empty schedule, cancellations, rapid restarts,
-  typos, unauthorized senders, time boundaries)
-- Tier 3: Cross-Feature Combinations (pairwise interactions across buttons,
-  callbacks, fuzzy routing, debounce, overrides)
-- Tier 4: Real-World Application Scenarios (end-to-end user journeys from daemon boot
-  to interactive navigation)
+Covers core commands, schedule boundaries, callbacks, authorization, persistence,
+cross-feature combinations, and realistic daemon/user journeys.
 """
 
 from datetime import datetime
