@@ -1193,12 +1193,6 @@
     "ast_hash": "b1e13c25c3913bb27c885a16f58bb280",
     "semantic_hash": ""
   },
-  "chatlens-v2/docker-compose.yml": {
-    "mtime": 1792729214.0604837,
-    "seen": 1792744976.7029214,
-    "ast_hash": "eec939812eaee4a16c238236e45c1409",
-    "semantic_hash": ""
-  },
   "chatlens-v2/frontend/AGENTS.md": {
     "mtime": 1792267663.6633017,
     "seen": 1792744976.7029226,
