@@ -1,22 +1,6 @@
-"""Empirical challenge test suite for Milestone 2.
+"""Regression tests for bot callbacks, authorization, and command registration.
 
-Authored by Challenger 1 (Milestone 2).
-Exhaustively and empirically challenges:
-1. Button callback lifecycle:
-   - Simulation of callback_query for cmd:today, cmd:attendance, cmd:deadlines, cmd:status.
-   - Verification that answerCallbackQuery is called with the exact callback ID.
-   - Verification that each callback generates the exact output with 4 quick buttons re-attached.
-   - Exact equivalence between callback execution and slash command execution.
-2. Custom buttons overriding default buttons (1D and 2D layouts).
-3. Empty buttons (buttons=[]) producing zero reply_markup.
-4. Security & authorization:
-   - Non-owner queries rejected (no answerCallbackQuery, no sendMessage).
-   - Coercion between string and int owner_chat_id.
-5. Fault injection & resilience:
-   - answerCallbackQuery HTTP 400 failure (expired query) handled without interrupting command.
-   - Malformed callback queries (missing fields, empty cmd:, unknown cmd:).
-6. setMyCommands registration of exact 10 commands.
-7. Concurrency stress test of simultaneous callbacks.
+Covers button layouts, callback dispatch, error handling, invalid payloads, and concurrency.
 """
 
 import asyncio
@@ -60,7 +44,7 @@ def setup_test_env(tmp_path, monkeypatch):
     )
     # The singleton BotClient captures its base URL at import time, before this
     # fixture replaces settings.bot_token. Give the mocked client a test-only URL.
-    monkeypatch.setattr(bot, "base_url", "https://api.telegram.org/botbot123:mock_challenger_token")
+    monkeypatch.setattr(bot, "base_url", "https://api.telegram.org/botbot123:mock_test_token")
     monkeypatch.setattr(settings, "spark_timetable", DEFAULT_TIMETABLE_PATH)
     monkeypatch.setattr("src.utils.deduplication.deduplicator", test_dedup)
     monkeypatch.setattr("src.ingestion.handlers.deduplicator", test_dedup)

@@ -1,15 +1,6 @@
-"""Adversarial Challenge & Empirical Stress Test Suite for Milestone 2 Remediation & Milestone 3.
+"""Regression tests for command routing and the PowerShell daemon supervisor.
 
-Authored by Challenger 1 (Milestone 2 Remediation & Milestone 3).
-Mandatory testing mandates:
-1. Empirically stress-test fuzzy command routing:
-   - Assert /random, /xyz, /a, /b, /1 do NOT match /undo or /.
-   - Assert valid typos (/todat, /tomorow, /attandance, /deadlin, /statuss) 100% match.
-   - Assert state-mutating /undo cannot be triggered via fuzzy matching.
-2. Empirically stress-test scripts/run_daemon.ps1:
-   - -Status when stopped vs running.
-   - -HealthCheck with healthy DB, missing DB, and corrupt DB.
-   - -Stop when PID file exists vs missing.
+Covers fuzzy-command safety and supervisor status, health checks, and stop behavior.
 """
 
 from __future__ import annotations

@@ -1,24 +1,6 @@
-"""Empirical challenge test suite for Milestone 2 Remediation & Milestone 3.
+"""Regression tests for startup debounce and supervisor lifecycle boundaries.
 
-Authored by Challenger 2.
-Exhaustively and empirically stress-tests:
-1. Debounce Timing & Fault Tolerance:
-   - 899.9s elapsed: notification suppressed, database timestamp untouched.
-   - 900.1s elapsed: notification allowed, database timestamp updated to current time.
-   - 900.0s exact boundary: notification allowed.
-   - Corrupted non-numeric timestamp recovery: no crash, notification allowed, database overwritten
-     with valid float string, and subsequent rapid restart properly debounced.
-   - Bot transmission exception: exception caught gracefully, database timestamp NOT updated,
-     ensuring subsequent attempt is not falsely blocked.
-   - Initial boot without prior timestamp: notification allowed, timestamp persisted.
-   - Mathematical precision sweep across delta boundaries.
-2. PowerShell Supervisor Loop Exit Code Handling:
-   - Exit code 0: supervisor halts cleanly without restart.
-   - Exit code 2: unrecoverable configuration/auth error halts supervisor cleanly without restart.
-   - Exit code 1 / non-zero: crashes trigger exponential backoff delay and supervisor restart.
-   - Backoff doubling sequence and cap verification.
-   - Execution exception resilience: unhandled command error caught, delayed, and retried.
-   - PID file cleanup guarantee on exit.
+Covers timestamp thresholds, corrupted state, failed delivery, retry policy, and cleanup.
 """
 
 from __future__ import annotations

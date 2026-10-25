@@ -1,13 +1,6 @@
-"""Empirical stress test suite for Milestone 1 (Schedule Formatting & /tomorrow).
+"""Regression tests for schedule formatting and the /tomorrow command.
 
-Authored by Challenger 1 (Milestone 1).
-Exhaustively verifies:
-1. Schedule formatting and stats lines across all 7 days of the week (Mon–Sun).
-2. Slot note generation for all course types, room overrides, and cancellations.
-3. Live vs static status icons ([R4] today only).
-4. Simultaneous room override injection for /today and /tomorrow without cross-day leakage.
-5. Strict regex format compliance of the 4-slot structure.
-6. Edge cases and boundary conditions (Period 6 omission, week calculation, fuzzy routing).
+Covers weekday output, status icons, overrides, message structure, and fuzzy routing.
 """
 
 import re
