@@ -1,23 +1,24 @@
-# AGENTS.md — SPARK PA daemon (`src/`)
+# AGENTS.md — ChatLens & SPARK
 
-## What this is
-Headless Telegram → Google Workspace academic assistant. The current deployment is institution-specific (IST); verify academic data and date/time assumptions before reusing it elsewhere.
-Entry point: `python -m src.main`. A read-only Telethon listener watches an allowlist of chats,
-classifies each message (regex first, Gemini only for the residual), validates room changes against
-the timetable, then writes to Google Calendar, Tasks and Sheets and reports to the owner through a
-Telegram bot.
+## Purpose and architecture
+This repository contains two maintained components:
 
-Legacy, do not modify unless a task says so: `chatlens/` (v1 Flask app), `chatlens-v2/` (web app),
-root `requirements.txt` (v1 only), `_next/`, `docs/`, `index.html`, `.nojekyll`, `scratch/`.
-Treat the configured timetable and official academic-calendar data as deployment-specific sources of truth; verify changes against authoritative institutional documents.
+- **SPARK PA daemon (`src/`)** — a headless Telegram-to-Google-Workspace academic assistant. Its entry point is `python -m src.main`; it classifies allowlisted messages, validates events against the timetable, and synchronizes approved changes to Google Calendar, Tasks, and Sheets.
+- **ChatLens platform (`chatlens-v2/`)** — a web application with a FastAPI backend, Next.js frontend, asynchronous ingestion workers, PostgreSQL/pgvector, and Redis/Celery.
+
+The root `compose.yaml` is the canonical Compose definition. Do not treat `chatlens-v2/` or `docs/` as legacy. Keep the SPARK daemon isolated from the web stack: PostgreSQL, Redis, and Celery belong to the web platform, not `src/`.
+
+The current academic data is deployment-specific (IST); verify dates, course metadata, and time-zone assumptions against authoritative institutional documents before reusing it elsewhere.
 
 ## Commands
-- Setup: `uv sync --all-extras --dev` (Python 3.12 or newer)
-- Test: `uv run pytest -q`
-- Lint: `uv run ruff check src tests scripts`
-- Types: `uv run mypy src`
+- Setup: `uv sync --all-extras --dev` (Python 3.12 or newer).
+- Python tests: `uv run pytest -q -W error::RuntimeWarning`.
+- Python lint/format: `uv run ruff check src tests scripts chatlens-v2/backend` and `uv run ruff format --check src tests scripts chatlens-v2/backend`.
+- Type checks: `uv run mypy src scripts benchmarks chatlens-v2/backend`.
+- Frontend checks: from `chatlens-v2/frontend/`, run `npm ci`, `npm test -- --run`, `npm run lint`, `npx tsc --noEmit`, and `npm run build`.
+- Full local gate: `make check` (also requires `make`, `gitleaks`, and `osv-scanner`).
 
-## Invariants (target behavior; each task prompt says which parts already exist)
+## SPARK daemon invariants
 1. Telegram is read-only. Never send into groups or channels. Output goes only to Saved Messages
    (`"me"`) or to the owner through the bot.
 2. `SPARK_MODE`:

@@ -8,8 +8,6 @@ tests
 evals
 scratch
 docs
-_next
-chatlens
 chatlens-v2
 *.pyc
 __pycache__

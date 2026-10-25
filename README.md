@@ -220,7 +220,7 @@ All outbound bot communications are governed by the formatting contracts defined
 
 SPARK operates on personal user sessions and automated bot interfaces, strictly enforcing five non-negotiable anti-ban invariants (`R-BAN-1` through `R-BAN-5`):
 
-- **[R-BAN-1] Leaky-Bucket Rate Limiter**: All outbound network calls to Telegram are throttled via an adaptive token bucket (`src/utils/rate_limiter.py`). Bursts are capped to prevent `FloodWaitError` and automated MTProto account restrictions.
+- **[R-BAN-1] Leaky-Bucket Rate Limiter**: All outbound network calls to Telegram are throttled via an adaptive token bucket (`src/notify/bot.py`). Bursts are capped to prevent `FloodWaitError` and automated MTProto account restrictions.
 - **[R-BAN-2] Contact Consent & Interaction Scoping**: Group ingestion is strictly read-only. The daemon never posts, reacts, or forwards inside public groups or channel feeds. Outbound delivery is restricted to direct 1:1 conversation with the owner bot or Saved Messages (`"me"`).
 - **[R-BAN-3] Startup & Restart Debounce**: System notifications and startup receipts enforce a mandatory 15-minute cooldown persisted in SQLite `meta` (`last_startup_notify_ts`), preventing notification floods during crash loops or supervisor restarts.
 - **[R-BAN-4] Monitored Chat Scope Boundary**: The Telethon listener only processes messages from chats explicitly allowlisted in `SPARK_CHAT_IDS`. Empty or unconfigured chat lists immediately refuse startup (exit code 2).
@@ -259,7 +259,7 @@ and update the relevant sources together:
 | Course names, official codes, and text aliases | `src/parsing/regex_parser.py`, `src/timetable/__init__.py` | Supported courses, official IDs, aliases, and canonical names |
 | Period numbers, period times, room formats, and section assumptions | `src/timetable/__init__.py`, `src/parsing/regex_parser.py` | Actual timetable periods, breaks, rooms, sections, and parsing patterns |
 | Active term schedule | TOML file selected by `SPARK_TIMETABLE` (current default: `data/timetable_T04.toml`) | Term, validity dates, course slots, rooms, and faculty |
-| Official academic milestones | `src/academic_calendar.py` and `data/calendar_2026_27.toml` | Exam dates, fee deadlines, last instruction day, and other protected dates |
+| Official academic milestones | `src/academic_calendar.py` and `data/calendar_2026_27.toml` (optional deployment-local file; not included in this repository) | Exam dates, fee deadlines, last instruction day, and other protected dates |
 | Time zone and date interpretation | `src/utils/clock.py` and `Dockerfile` | IST is currently hard-coded in Python and the container image; update both and test timestamp conversion before using another timezone |
 | ERP account settings | `src/config.py` (`ERP_USERNAME`, `ERP_PASSWORD`) | Configure the target account explicitly; do not reuse the current deployment-specific username fallback |
 

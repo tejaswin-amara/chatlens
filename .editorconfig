@@ -1,4 +1,4 @@
-# EditorConfig configuration (Awesome Dev Pipeline v2.0.0)
+# Repository-wide EditorConfig defaults
 root = true
 
 [*]

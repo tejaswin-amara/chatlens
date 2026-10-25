@@ -71,9 +71,11 @@ chatlens-v2/
 
 ## 4. Setup and Execution
 
+Use the root `compose.yaml` for infrastructure and deployment; there is no separate Compose stack in this directory. To start only the local database and queue services, run `docker compose up -d postgres redis` from the repository root.
+
 ### Prerequisites
 - Python 3.12+ (managed via `uv`)
-- Node.js 20+ (managed via `npm`)
+- Node.js 24+ (required by the frontend toolchain)
 - PostgreSQL with `pgvector` extension enabled
 - Redis server running on `localhost:6379`
 

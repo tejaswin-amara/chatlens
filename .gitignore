@@ -62,12 +62,10 @@ data/private/
 scratch/
 uploads/
 error_output.txt
-fix_*.py
-update_*.py
-debug_*.py
-fix_*.sh
 .agents/teamwork/
 graphify-out/cache/
+# Generated browser visualization; rebuild locally with Graphify when needed.
+graphify-out/graph.html
 
 # Local Firebase service-account credentials
 secrets/
