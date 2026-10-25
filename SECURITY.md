@@ -4,15 +4,9 @@ We take the security and privacy of your chat data seriously. Because ChatLens i
 
 ---
 
-## 📅 Supported Versions
+## Scope
 
-We actively maintain and provide security updates for the following versions:
-
-| Version | Supported |
-| :--- | :---: |
-| **2.0.x** (FastAPI / Next.js) | ✅ Active |
-| **1.0.x** (Flask / SQLite) | ⚠️ Security patches only |
-| **< 1.0.0** (Legacy CLI) | ❌ Unsupported |
+This policy covers the maintained code on the default branch: the SPARK daemon (`src/`), ChatLens backend and frontend (`chatlens-v2/`), CI workflows, and deployment configuration. No separate legacy Flask or CLI application is maintained in this repository. Older commits and third-party forks may not receive fixes.
 
 ---
 

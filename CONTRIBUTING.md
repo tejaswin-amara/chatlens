@@ -1,145 +1,69 @@
-# 🤝 Contributing to ChatLens
+# Contributing to ChatLens
 
-Thank you for taking the time to contribute! ChatLens is a privacy-first, community-driven application, and we value your help in making it better.
+This repository contains the SPARK Telegram-to-Google-Workspace daemon and the ChatLens web platform. Keep changes focused, preserve the daemon/web-stack boundary, and run the checks relevant to your change before opening a pull request.
 
-Please review this guide to set up your local development environment and start contributing.
+## Prerequisites
 
----
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/)
+- Node.js 24.12+ and npm
+- Docker Compose for local PostgreSQL/Redis services or a full-stack run
+- `make`, `gitleaks`, and `osv-scanner` for the full quality gate
 
-## 🛠️ Local Development Setup
+## Set up
 
-ChatLens v2.0 is built on a split-service architecture: a **Next.js frontend** and a **FastAPI backend** running alongside **PostgreSQL** and **Redis**.
+From the repository root:
 
-### ⚙️ Prerequisites
-
-Before you begin, ensure you have the following installed:
-*   **Git**: For version control.
-*   **Python (3.10+)**: For the FastAPI backend and Celery workers.
-*   **Node.js (v18+)** and **npm**: For the React web UI.
-*   **Docker & Docker Compose**: To easily run PostgreSQL (`pgvector`) and Redis.
-
----
-
-### 📥 1. Fork & Clone
-
-1. Fork the [ChatLens Repository](https://github.com/tejaswin-amara/chatlens) on GitHub.
-2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/chatlens.git
-   cd chatlens
-   ```
-3. Add the upstream remote:
-   ```bash
-   git remote add upstream https://github.com/tejaswin-amara/chatlens.git
-   ```
-
----
-
-### 🔧 2. Configuration
-
-Create your local `.env` configuration file by copying the template:
 ```bash
-cp .env.example .env
-```
-Open `.env` and configure your settings. You will need a **Gemini API Key** from [Google AI Studio](https://aistudio.google.com/) to test AI functionalities.
-
----
-
-### 📦 3. Run External Services
-
-Spin up the local PostgreSQL database (with `pgvector` pre-installed) and Redis broker using Docker:
-```bash
-docker-compose up -d
-```
-
----
-
-### 🐍 4. Backend Setup
-
-1. Navigate to the backend directory:
-   ```bash
-   cd chatlens-v2/backend
-   ```
-2. Create and activate a Python virtual environment:
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Start the FastAPI development server:
-   ```bash
-   uvicorn main:app --reload --port 8000
-   ```
-5. In a separate terminal, activate the venv and start the Celery worker task runner:
-   ```bash
-   celery -A celery_worker.celery_app worker --loglevel=info
-   ```
-
----
-
-### ⚛️ 5. Frontend Setup
-
-1. Navigate to the frontend directory:
-   ```bash
-   cd chatlens-v2/frontend
-   ```
-2. Install npm dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the Next.js development server with Turbopack:
-   ```bash
-   npm run dev
-   ```
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 🧪 Testing & Validation
-
-Please ensure all tests and linters pass cleanly before proposing a Pull Request:
-
-### 🐍 Python Backend Tests
-Run the parser self-checks from the root directory:
-```bash
-# Set console encoding to UTF-8 on Windows before running:
-# $env:PYTHONIOENCODING="utf-8"
-python -m pytest -q
-```
-
-### ⚛️ Frontend Linting
-Run ESLint to check for code issues:
-```bash
+git clone https://github.com/tejaswin-amara/chatlens.git
+cd chatlens
+uv sync --all-extras --dev
 cd chatlens-v2/frontend
-npm run lint
+npm ci
+cd ../..
 ```
 
----
+For local development, configure `.env` from [`.env.example`](.env.example). For the full Compose stack, use [`.env.production.example`](.env.production.example) and replace every placeholder before starting services. Never commit real environment files or credentials.
 
-## 🚀 Submitting a Pull Request (PR)
+Start only the database and queue for local development:
 
-1. Create a branch for your changes:
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-2. Write clean, readable code and document your changes.
-3. Commit with clear messages:
-   ```bash
-   git commit -m "feat: add support for WhatsApp media timestamps"
-   ```
-4. Push to your fork:
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-5. Open a Pull Request on the main repository, referencing any related open issues.
+```bash
+docker compose up -d postgres redis
+```
 
----
+The root `compose.yaml` is the canonical Compose definition. To run the full stack, follow the deployment and authentication instructions in the root [README](README.md); do not use a second Compose file from a subdirectory.
 
-> [!TIP]
-> **Need help?** Open a Q&A issue on GitHub or join our community discussions. We are happy to guide new contributors!
+## Verification
+
+Run the complete repository gate when possible:
+
+```bash
+make check
+```
+
+For focused checks:
+
+```bash
+uv run pytest -q -W error::RuntimeWarning
+uv run ruff check src tests scripts chatlens-v2/backend
+uv run ruff format --check src tests scripts chatlens-v2/backend
+uv run mypy src scripts benchmarks chatlens-v2/backend
+```
+
+For frontend changes, from `chatlens-v2/frontend/`:
+
+```bash
+npm test -- --run
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+Do not claim checks passed unless they were actually run. Tests should be deterministic and must not contact Telegram, Google, or Gemini; mock external services at their adapter boundaries.
+
+## Pull requests
+
+1. Create a focused branch and keep the diff limited to the requested change.
+2. Add or update tests and relevant documentation.
+3. Use a clear Conventional Commit message.
+4. Complete the repository's pull-request template, including any remaining limitations or checks not run.

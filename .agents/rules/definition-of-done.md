@@ -9,18 +9,18 @@
 - [ ] **Acceptance Criteria**: All acceptance criteria for the task are met.
 - [ ] **Runtime Verification**: Code runs and behaves as intended, verified at runtime (never self-certify on code inspection alone).
 - [ ] **Test Coverage**: New behavior is covered by tests that fail without the change and pass with it.
-- [ ] **No Regressions**: All 333+ pytest tests and 363+ frontend tests pass 100% offline.
+- [ ] **No Regressions**: The repository's current Python and frontend test suites pass offline.
 - [ ] **Edge Cases**: Network timeouts, expired sessions, missing configs, and rate limits are safely handled.
 
 ## 2. Code Quality & Minimalism (Ponytail Ultra)
 - [ ] **Ladder of Abstraction**: YAGNI -> Codebase reuse -> Stdlib first -> Installed dependencies -> One readable line.
 - [ ] **Shortest Working Diff**: Surgical edits over rewrites. Unrelated code or formatting is never touched.
 - [ ] **Zero Dead Code**: No debug printouts, orphaned imports, or commented-out blocks left behind.
-- [ ] **Type & Lint Cleanliness**: `mypy` 0 errors across 58 source files; `ruff check` 0 errors; `npx tsc --noEmit` and `npm run lint` 0 errors.
+- [ ] **Type & Lint Cleanliness**: Configured `mypy`, `ruff`, TypeScript, and ESLint checks pass for the affected project paths.
 
 ## 3. Integration & Persistence
 - [ ] **System Invariants**: Telegram remains strictly read-only for public groups/channels. Output goes only to `OWNER_CHAT_ID` or `"me"`.
-- [ ] **Immutable Calendar**: Telegram messages never mutate academic-calendar dates (`data/calendar_2026_27.toml`).
+- [ ] **Immutable Calendar**: Telegram messages never mutate protected academic-calendar dates; when a deployment-local `data/calendar_2026_27.toml` is supplied, treat it as authoritative.
 - [ ] **Database & Migrations**: SQLite WAL mode enforced; Alembic migrations strictly follow expand/contract patterns.
 
 ## 4. Security & Guardrails (AgentShield)
