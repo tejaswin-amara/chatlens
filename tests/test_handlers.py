@@ -765,3 +765,36 @@ def test_format_day_schedule_missing_timetable():
     with patch("src.timetable.load", return_value=None):
         res = format_day_schedule(date(2026, 10, 23))
         assert res == "⚠️ Timetable file not found."
+
+
+@pytest.mark.asyncio
+async def test_handle_bot_command_button_emojis_and_aliases():
+    from src.config import settings
+    from src.ingestion.handlers import handle_bot_command
+
+    settings.owner_chat_id = 12345
+
+    button_cases = [
+        ("📅 Today", "No scheduled classes for"),
+        ("today", "No scheduled classes for"),
+        ("🟢 Status", "ChatLens PA Status"),
+        ("status", "ChatLens PA Status"),
+        ("⏰ Deadlines", "Upcoming Deadlines & Milestones"),
+        ("deadlines", "Upcoming Deadlines & Milestones"),
+    ]
+
+    for input_text, expected_substr in button_cases:
+        msg = {"chat": {"id": 12345}, "text": input_text}
+        with (
+            patch("src.timetable.load") as mock_load,
+            patch("src.timetable.get_effective_slots", return_value=[]),
+            patch("src.notify.bot.bot.send") as mock_send,
+            patch("src.academic_calendar.load_calendar", return_value=None),
+            patch("src.utils.deduplication.deduplicator.list_pending", return_value=[]),
+        ):
+            mock_load.return_value = MagicMock()
+            await handle_bot_command(msg)
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][0]
+            assert expected_substr in output, f"Failed for input: {input_text}"
+

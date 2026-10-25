@@ -1,17 +1,17 @@
 # Graph Report - kind-faraday  (2026-10-24)
 
 ## Corpus Check
-- 229 files · ~142,560 words
+- 229 files · ~142,678 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 35 file(s) not represented in the graph (top: (none) 19, .example 3, .toml 3)
 
 ## Summary
-- 2458 nodes · 4942 edges · 171 communities (114 shown, 57 thin omitted)
+- 2461 nodes · 4956 edges · 177 communities (118 shown, 59 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 365 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2ab6775f`
+- Built from commit: `4e18d987`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -39,33 +39,34 @@
 - MessageDeduplicator
 - ChatAnalyzer
 - _scrub_secrets
-- ExtractedAcademicEvent
+- AIExtractor
 - scrapers.py
 - ChatLens & SPARK PA Assistant
-- pathlib
+- harness.py
 - e2e/conftest.py
 - telegram_live.py
 - RegexParser
-- test_governance.py
+- GovernanceAuditLogger
 - Path
 - test_tier5_resilience.py
-- register_handlers
+- .get
 - verify_deployment.py
 - save_messages
 - test_workspace_and_erp.py
+- test_challenger_m2_m3_2.py
 - test_v2_backend.py
 - TestVerificationScriptErrorPaths
 - compilerOptions
 - run_ps_supervisor
 - Home
 - InputGuard
-- timetable/__init__.py
+- datetime
 - ActionTier
 - env.py
 - components.test.tsx
 - test_tier5_adversarial.py
 - test_catch_up.py
-- Any
+- test_governance.py
 - celery_worker.py
 - Dashboard.tsx
 - ChatLens v2.0
@@ -77,14 +78,14 @@
 - ADR 0006: Zero Debt, Dialect-Aware Vector Retrieval, and Strict Backend Typing
 - parse_telegram_export
 - ChatLens v2.0 Design System
-- run_mock_server
+- handle_bot_callback
 - test_erp_client_get_marks_session_recovery
 - ADR 0002: Data-Instruction Separation & Prompt Injection Defense
 - ADR 0003: Read-Only Telegram Ingestion Guardrail
 - AGENTS.md — SPARK PA daemon (`src/`)
 - dependencies
 - manifest.json
-- datetime
+- retriever.py
 - ADR 0001: Adoption of Awesome Dev Pipeline v2.2.0
 - ADR 0004: Gemini AI Guardrails and Mandatory Holiday Confirmation
 - ADR 0005: ChatLens Full-Stack Architecture, Vector Retrieval, and SPARK Bridge
@@ -93,7 +94,7 @@
 - _build_full_day_timetable
 - Project: KL-Sync System-Wide Verification & Quality Audit
 - 🤝 Contributor Covenant Code of Conduct
-- decide
+- ContiguousVectorBuffer
 - Security Audit Areas
 - layout.tsx
 - Definition of Done (Addy Osmani agent-skills Alignment)
@@ -106,7 +107,7 @@
 - Workflow
 - AsyncSessionMock
 - frontend/AGENTS.md
-- benchmark_timetable.py
+- test_e2e_remediation.py
 - test_compliance_guardrails.py
 - WorkspaceCircuitBreaker
 - os
@@ -119,9 +120,9 @@
 - TEST READY — Remediation Acceptance Test Suite
 - Ponytail Ultra Coding Standards (Ponytail v5.1 Alignment)
 - TypeScript & Frontend Engineering Rules (ChatLens v2)
-- GoogleWorkspaceAuth
-- ._is_session_expired
-- Test Infrastructure Specification: ChatLens PA Daemon Remediation
+- FakeTelegramClient
+- 4. Failure Inventory (Evidence-Backed Defects)
+- Project: ChatLens PA Daemon & Telegram Bot Remediation
 - frontend/README.md
 - Security Policy
 - TypeScript & Frontend Engineering Rules (ChatLens v2)
@@ -151,25 +152,27 @@
 - verify_deployment.sh script
 - chatlens
 - ADR 0008: Adoption of Microsoft Agent Governance Principles and In-Process Turbovec RAG
-- AsyncSessionMock
-- test_challenger_empirical.py
+- TelegramRateLimiter
 - test_briefing_command
-- Python Engineering Rules (ChatLens & SPARK PA)
-- check_adrs.py
-- clean_db
+- Any
+- re
+- MessageList.tsx
 - run_ps_command
-- isolate_env
-- sys
+- test_db_integration.py
+- TestSecretMaskingIntegrity
+- src/main.py
 - os
-- test_clock.py
+- load_calendar
+- HTMLTableParser
 - no-mistakes
+- harvest_debt.py
 - test_challenger_m1.py
-- .meta_get
+- google_token.py
+- retry_error_handler
 - devDependencies
-- delete_chat
-- CLAUDE.md — ChatLens Assistant Guide
-- Python Engineering Rules (ChatLens & SPARK PA)
-- test_empirical_prompt_injection_canaries_suite
+- whatsapp.py
+- helpers.py
+- test_today_and_tomorrow_bot_commands_simultaneously
 - setup_test_env
 
 ## God Nodes (most connected - your core abstractions)
@@ -189,37 +192,37 @@
   adr/0008-microsoft-agent-governance-and-turbovec-rag.md → src/governance/guards.py
 - `Dashboard Routes Contract (`src/app/dashboard/*`)` --references--> `timetable()`  [INFERRED]
   chatlens-v2/frontend/PROJECT.md → tests/test_timetable.py
-- `Reading the output` --references--> `status()`  [INFERRED]
-  .agents/skills/no-mistakes/SKILL.md → chatlens-v2/backend/main.py
+- `Architecture` --references--> `bot_callback_poll()`  [INFERRED]
+  PROJECT.md → src/main.py
 - `Phase 1: Security Hardening & Authentication Enforcement (P0)` --references--> `get_current_user()`  [INFERRED]
   docs/audits/chatlens-remediation-plan.md → chatlens-v2/backend/firebase_auth.py
-- `3. SPARK_MODE State Machine` --references--> `decide()`  [INFERRED]
-  README.md → src/ingestion/handlers.py
+- `Phase 2: Frontend Restoration & Static Export Configuration (P1)` --references--> `ChatStats`  [INFERRED]
+  docs/audits/chatlens-remediation-plan.md → chatlens-v2/frontend/src/types.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (171 total, 57 thin omitted)
+## Communities (177 total, 59 thin omitted)
 
 ### Community 0 - "run_daemon"
-Cohesion: 0.05
-Nodes (46): Architecture, Code Layout, Feature Inventory, Interface Contracts, Milestones, Project: ChatLens PA Daemon & Telegram Bot Remediation, `src/notify/bot.py` ↔ `src/ingestion/handlers.py` & `src/main.py`, `src/timetable/__init__.py` ↔ `src/ingestion/handlers.py` (+38 more)
+Cohesion: 0.19
+Nodes (23): bot_callback_poll(), run_daemon(), run_heartbeat(), run_reminders(), guard(), mock_valid_settings(), test_bot_callback_poll_no_token_returns_immediately(), test_bot_callback_poll_runs_in_dry_mode() (+15 more)
 
 ### Community 1 - "isolate_test_environment"
 Cohesion: 0.22
 Nodes (3): isolate_test_environment(), mock_bot_answer_callback(), mock_bot_send()
 
 ### Community 2 - "types.ts"
-Cohesion: 0.13
-Nodes (25): Home(), DeadlinesModal(), DeadlinesModalProps, Sidebar(), SidebarProps, SparkStatusModal(), SparkStatusModalProps, TimetableModal() (+17 more)
+Cohesion: 0.16
+Nodes (19): Home(), DeadlinesModal(), DeadlinesModalProps, SparkStatusModal(), SparkStatusModalProps, TimetableModal(), TimetableModalProps, fetchJSON() (+11 more)
 
 ### Community 3 - "E2EClient"
-Cohesion: 0.05
-Nodes (28): E2EClient, test_f1_api_chats_endpoint_routed(), test_f1_root_request_routes_to_frontend(), test_f2_spa_route_fallback(), test_f6_async_task_status_endpoint(), test_b1_long_uri_handling(), test_b1_malformed_url_percent_encoding(), test_b1_nonexistent_api_route_404() (+20 more)
+Cohesion: 0.06
+Nodes (24): E2EClient, E2EResponse, test_b1_long_uri_handling(), test_b1_malformed_url_percent_encoding(), test_b1_nonexistent_api_route_404(), test_b1_repeated_slashes_normalization(), test_b1_unsupported_http_method(), test_b2_deep_nested_spa_route() (+16 more)
 
 ### Community 4 - "pytest"
-Cohesion: 0.07
-Nodes (36): AcademicCalendar, get_milestone_date(), load_calendar(), build_briefing(), classes_can_skip(), classes_needed(), fetch_briefing_inputs(), format_bunk_calculator() (+28 more)
+Cohesion: 0.10
+Nodes (31): build_briefing(), classes_can_skip(), classes_needed(), fetch_briefing_inputs(), format_bunk_calculator(), next_run(), Settings, run_briefing() (+23 more)
 
 ### Community 5 - "asyncio"
 Cohesion: 0.05
@@ -227,11 +230,11 @@ Nodes (21): test_tier1_fuzzy_command_routing(), test_tier1_inline_callback_query
 
 ### Community 6 - "test_tier1_features.py"
 Cohesion: 0.05
-Nodes (21): lint_migrations(), main(), test_f1_api_healthz_routes_to_backend(), test_f1_caddyfile_routing_contracts(), test_f1_caddyfile_tls_and_encoding(), test_f1_ws_routing_configuration(), test_f2_nginx_conf_caching_and_spa(), test_f2_no_legacy_basepath_in_static_export() (+13 more)
+Nodes (19): lint_migrations(), main(), test_f1_caddyfile_routing_contracts(), test_f1_caddyfile_tls_and_encoding(), test_f1_ws_routing_configuration(), test_f2_nginx_conf_caching_and_spa(), test_f2_no_legacy_basepath_in_static_export(), test_f2_relative_origin_api_calls() (+11 more)
 
 ### Community 7 - "BotClient"
-Cohesion: 0.08
-Nodes (27): BotClient, BotConflictError, BotError, BotRateLimitedError, _extract_payload(), mock_bot(), mock_request(), test_bot_400_no_retry() (+19 more)
+Cohesion: 0.06
+Nodes (36): BotClient, BotConflictError, BotError, BotRateLimitedError, 1. Overview & Architecture, 2. Directory Layout & Artifact Index, 3. Tier Coverage Matrix (`tests/test_e2e_remediation.py`), 4. Execution & Verification Commands (+28 more)
 
 ### Community 8 - "test_run_daemon.py"
 Cohesion: 0.09
@@ -242,148 +245,156 @@ Cohesion: 0.14
 Nodes (13): CalendarSync, TasksSync, test_create_holiday_event_suppress_reminders(), test_update_class_room_patch_existing(), test_calendar_cancel_class(), test_calendar_missing_event(), test_calendar_override_marker_room(), test_calendar_period_window() (+5 more)
 
 ### Community 10 - "backend/main.py"
-Cohesion: 0.09
-Nodes (20): api_analyze(), api_auth_me(), api_chat_insights(), api_deadlines(), api_global_summarize(), api_monitoring_status(), api_timetable_today(), api_timetable_week() (+12 more)
+Cohesion: 0.11
+Nodes (21): api_analyze(), api_ask(), api_chat_insights(), api_global_summarize(), api_monitoring_status(), delete_chat(), _escape_like(), export_chat() (+13 more)
 
 ### Community 11 - "ChatLens Full-System Engineering Audit Report"
-Cohesion: 0.07
-Nodes (26): 1. Executive Summary, 2. System Architecture & Component Inventory, 3. Baseline Verification Results, 4. Failure Inventory (Evidence-Backed Defects), 6. Critical User-Journey Verification Matrix, 7.1 Authentication & Authorization Bypass (DEF-04), 7.2 Hardcoded Secrets & PII Scrubbing, 7.3 Prompt Injection Defense (+18 more)
+Cohesion: 0.12
+Nodes (15): 1. Executive Summary, 2. System Architecture & Component Inventory, 3. Baseline Verification Results, 6. Critical User-Journey Verification Matrix, 7.1 Authentication & Authorization Bypass (DEF-04), 7.2 Hardcoded Secrets & PII Scrubbing, 7.3 Prompt Injection Defense, 7. Security and Privacy Review (+7 more)
 
 ### Community 12 - "test_challenger_m2_m3.py"
 Cohesion: 0.09
 Nodes (14): clean_daemon_environment(), run_ps_script(), test_difflib_similarity_ratios_mathematical_oracle(), test_fuzzy_routing_additional_invalid_commands(), test_fuzzy_routing_rejection_mandate(), test_fuzzy_routing_undo_and_slash_safety(), test_fuzzy_routing_valid_typos_mandate(), test_supervisor_healthcheck_corrupt_db() (+6 more)
 
+### Community 13 - "KLUERPClient"
+Cohesion: 0.11
+Nodes (5): KLUERPClient, test_empirical_erp_session_expiration_markers(), test_erp_client_is_session_expired(), test_erp_client_marks_cache_offline_fallback(), test_erp_client_status_codes_session_expired()
+
 ### Community 14 - "test_backend_api.py"
-Cohesion: 0.08
-Nodes (23): Message, test_analyzer_ask_fences_untrusted_transcript(), test_api_status_probe_degraded(), test_ask_prompt_fencing(), test_chat_deletion(), test_chat_export_json_and_csv(), test_chats_and_messages_lifecycle(), test_chats_import_endpoint_and_payload_limits() (+15 more)
+Cohesion: 0.05
+Nodes (25): AsyncSessionMock, in_memory_db(), override_async_session_local(), override_get_db(), test_analyzer_ask_fences_untrusted_transcript(), test_api_status_probe_degraded(), test_ask_prompt_fencing(), test_chat_deletion() (+17 more)
 
 ### Community 15 - "handle_bot_command"
-Cohesion: 0.16
-Nodes (27): handle_bot_command(), test_apply_event_calendar_conflict(), test_format_day_schedule_missing_timetable(), test_handle_bot_callback_cmd_attendance(), test_handle_bot_callback_cmd_deadlines(), test_handle_bot_callback_cmd_status(), test_handle_bot_callback_cmd_today(), test_handle_bot_callback_unauthorized_ignored() (+19 more)
+Cohesion: 0.14
+Nodes (29): handle_bot_command(), register_handlers(), test_format_day_schedule_missing_timetable(), test_handle_bot_callback_cmd_attendance(), test_handle_bot_callback_cmd_deadlines(), test_handle_bot_callback_cmd_status(), test_handle_bot_callback_cmd_today(), test_handle_bot_callback_unauthorized_ignored() (+21 more)
 
 ### Community 16 - "handle_bot_callback"
-Cohesion: 0.10
-Nodes (17): handle_bot_callback(), RequestRecorder, test_bot_send_custom_buttons_1d(), test_bot_send_custom_buttons_2d(), test_bot_send_default_quick_buttons(), test_bot_send_empty_buttons_suppresses_reply_markup(), test_bot_set_my_commands_exact_registration(), test_callback_answer_failure_resilience() (+9 more)
+Cohesion: 0.08
+Nodes (17): RequestRecorder, setup_test_env(), test_bot_send_custom_buttons_1d(), test_bot_send_custom_buttons_2d(), test_bot_send_default_quick_buttons(), test_bot_send_empty_buttons_suppresses_reply_markup(), test_bot_set_my_commands_exact_registration(), test_callback_answer_failure_resilience() (+9 more)
 
 ### Community 17 - "test_fuzz_parser.py"
-Cohesion: 0.15
-Nodes (16): parse_and_save_sync(), _parse_datetime(), parse_whatsapp_export(), test_parse_and_save_empty_zip(), test_parse_and_save_valid_nested_zip(), test_parse_and_save_zip_slip_rejection(), test_parse_and_save_zip_without_chat_files(), test_telegram_corrupt_json() (+8 more)
+Cohesion: 0.19
+Nodes (15): parse_and_save_sync(), parse_whatsapp_export(), test_parse_and_save_empty_zip(), test_parse_and_save_valid_nested_zip(), test_parse_and_save_zip_slip_rejection(), test_parse_and_save_zip_without_chat_files(), test_telegram_corrupt_json(), test_telegram_empty_or_non_dict() (+7 more)
 
 ### Community 18 - "backend/main.py"
-Cohesion: 0.09
-Nodes (18): get_db(), api_deadlines_say(), api_telegram_send_code(), api_telegram_verify(), api_timetable_override(), ChatRequest, handle_upload(), import_chat() (+10 more)
+Cohesion: 0.12
+Nodes (16): get_db(), api_deadlines_say(), api_telegram_send_code(), api_telegram_verify(), api_timetable_override(), AskRequest, ChatRequest, handle_upload() (+8 more)
 
 ### Community 19 - "json"
-Cohesion: 0.17
-Nodes (25): main(), handle_undo_command(), get_connection(), clean_db(), mock_bot(), test_apply_event_writes_audit(), test_confirm_flow_approve(), test_confirm_flow_bot_edit_without_msg_id() (+17 more)
+Cohesion: 0.44
+Nodes (13): handle_undo_command(), get_connection(), clean_db(), guard(), test_undo_already_undone_ignored(), test_undo_delete_event(), test_undo_delete_task(), test_undo_failure_keeps_undone_0() (+5 more)
 
-### Community 21 - "ChatAnalyzer"
-Cohesion: 0.13
-Nodes (4): ChatAnalyzer, _format_messages(), test_analyzer_forbidden_id_redaction(), test_analyzer_format_messages()
+### Community 20 - "MessageDeduplicator"
+Cohesion: 0.12
+Nodes (5): MessageDeduplicator, test_r_ban_3_startup_debounce_logic(), test_debounce_evaluation_scenarios(), test_meta_table_crud_and_concurrency(), test_spark_rules_dedupe()
 
 ### Community 22 - "_scrub_secrets"
-Cohesion: 0.12
-Nodes (16): _redact_forbidden_ids(), Ingestion Boundaries, Privacy & Logging Standards, Security & Privacy Rules (ChatLens & SPARK PA), _redact_str(), _scrub_secrets(), _scrub_value(), _sentry_before_send() (+8 more)
+Cohesion: 0.11
+Nodes (15): Ingestion Boundaries, Privacy & Logging Standards, Security & Privacy Rules (ChatLens & SPARK PA), configure_logging(), _redact_str(), _scrub_secrets(), _scrub_value(), _sentry_before_send() (+7 more)
 
-### Community 23 - "ExtractedAcademicEvent"
-Cohesion: 0.17
-Nodes (15): Invariants & Architecture, Architecture & Conventions, Invariants & Architecture, run_reminders(), AIExtractor, now_ist(), today_ist(), test_ai_extractor_budget_exhaustion() (+7 more)
+### Community 23 - "AIExtractor"
+Cohesion: 0.07
+Nodes (28): Invariants & Architecture, Python Engineering Rules (ChatLens & SPARK PA), Runtime & Toolchain, Architecture & Conventions, CLAUDE.md — ChatLens Assistant Guide, Essential Commands, Invariants & Architecture, Python Engineering Rules (ChatLens & SPARK PA) (+20 more)
 
 ### Community 24 - "scrapers.py"
-Cohesion: 0.11
-Nodes (14): HTMLTableParser, parse_attendance_records(), parse_cgpa_records(), parse_fee_records(), parse_generic_tables(), parse_marks_records(), parse_timetable_records(), test_parse_attendance_metrics() (+6 more)
+Cohesion: 0.14
+Nodes (13): parse_attendance_records(), parse_cgpa_records(), parse_fee_records(), parse_generic_tables(), parse_marks_records(), parse_timetable_records(), test_parse_attendance_metrics(), test_parse_cgpa() (+5 more)
 
 ### Community 25 - "ChatLens & SPARK PA Assistant"
 Cohesion: 0.07
 Nodes (26): 1. System Architecture & Trust Boundaries, 2.1 Ingestion Layer (Telethon Listener), 2.2 Parsing & LLM Layer (Regex & Gemini), 2.3 Workspace Synchronization Layer (Calendar, Tasks, Sheets), 2.4 State & Persistence Layer (SQLite Database), 2.5 Supply Chain & CI/CD Layer, 2. STRIDE Threat Analysis by Component, STRIDE Threat Model: ChatLens & SPARK PA Assistant (+18 more)
 
-### Community 26 - "pathlib"
-Cohesion: 0.06
-Nodes (11): export_prompt(), test_pairwise_backend_upload_to_celery_shared_volume(), test_pairwise_celery_task_update_to_api_poll(), test_pairwise_daemon_sqlite_wal_to_backend_status_bridge(), test_pairwise_frontend_calls_backend_through_proxy(), test_pairwise_migrations_run_before_backend_accepts_traffic(), test_pairwise_proxy_tls_termination_and_upstream_headers(), test_scenario_1_stack_health_probe_convergence() (+3 more)
+### Community 26 - "harness.py"
+Cohesion: 0.10
+Nodes (3): export_prompt(), test_pairwise_migrations_run_before_backend_accepts_traffic(), test_scenario_3_chat_upload_and_analysis_lifecycle()
 
 ### Community 27 - "e2e/conftest.py"
 Cohesion: 0.11
 Nodes (9): compose_config(), e2e_client(), in_memory_db(), isolated_spark_db(), nginx_config(), ComposeParser, NginxConfParser, setup_isolated_spark_db() (+1 more)
 
 ### Community 28 - "telegram_live.py"
-Cohesion: 0.11
+Cohesion: 0.18
 Nodes (10): api_telegram_status(), check_status(), _fetch(), fetch_telegram_chats(), _get_client(), send_code(), send_telegram_code_sync(), _sender_name() (+2 more)
 
 ### Community 29 - "RegexParser"
-Cohesion: 0.17
-Nodes (13): RegexParser, test_empirical_regex_parser_room_variations(), test_periods_dashes(), test_room_direction(), test_task_precision(), test_regex_parser_course_mapping_table(), test_regex_parser_holiday_summary_truncation(), test_regex_parser_none_on_unstructured() (+5 more)
+Cohesion: 0.06
+Nodes (30): run_parser_benchmark(), run_turbovec_benchmark(), main(), decide(), Decision, extract(), process_message(), handle_incoming_message() (+22 more)
 
-### Community 30 - "test_governance.py"
-Cohesion: 0.07
-Nodes (14): GovernanceAuditLogger, ActionTier, PolicyVerdict, test_adversarial_injection_quarantined_in_pipeline(), test_dry_mode_rejects_all_external_writes(), test_gemini_derived_events_always_require_hitl(), test_governance_audit_logger_roundtrip(), test_high_impact_holiday_and_cancellation_always_mandates_hitl() (+6 more)
+### Community 30 - "GovernanceAuditLogger"
+Cohesion: 0.14
+Nodes (3): GovernanceAuditLogger, test_governance_audit_logger_roundtrip(), test_quarantine_console_commands()
 
-### Community 32 - "test_tier5_resilience.py"
-Cohesion: 0.11
-Nodes (3): MockHealthHandler, TestLogRotationEnforcement, TestSecretMaskingIntegrity
-
-### Community 33 - "register_handlers"
-Cohesion: 0.33
-Nodes (4): register_handlers(), handle_incoming_message(), test_incoming_room_override_message(), test_today_command_handler()
+### Community 33 - ".get"
+Cohesion: 0.08
+Nodes (12): test_f1_api_chats_endpoint_routed(), test_f1_api_healthz_routes_to_backend(), test_f1_root_request_routes_to_frontend(), test_f2_spa_route_fallback(), test_f2_static_asset_loads_cleanly(), test_f6_async_task_status_endpoint(), test_pairwise_celery_task_update_to_api_poll(), test_pairwise_frontend_calls_backend_through_proxy() (+4 more)
 
 ### Community 34 - "verify_deployment.py"
-Cohesion: 0.21
+Cohesion: 0.22
 Nodes (7): check_compose_file(), check_env_template(), check_live_endpoints(), check_supporting_configs(), log_info(), log_pass(), main()
 
 ### Community 35 - "save_messages"
-Cohesion: 0.15
-Nodes (8): Positive Consequences, save_messages(), generate_embedding(), generate_embeddings_batch(), api_ask(), api_telegram_sync_live(), AskRequest, _retrieve_relevant_messages()
+Cohesion: 0.24
+Nodes (4): save_messages(), generate_embedding(), generate_embeddings_batch(), api_telegram_sync_live()
 
 ### Community 36 - "test_workspace_and_erp.py"
-Cohesion: 0.18
-Nodes (7): SheetsLogger, test_empirical_sheets_logger_silent_degradation(), test_sheets_logger_heartbeat_configured_sheet_id(), test_sheets_logger_heartbeat_empty_sheet_id(), test_sheets_logger_heartbeat_whitespace_sheet_id(), test_sheets_logger_init_preserves_empty_string(), test_sheets_logger_unconfigured_guard_and_skips()
+Cohesion: 0.13
+Nodes (8): GoogleWorkspaceAuth, SheetsLogger, test_empirical_sheets_logger_silent_degradation(), test_sheets_logger_heartbeat_configured_sheet_id(), test_sheets_logger_heartbeat_empty_sheet_id(), test_sheets_logger_heartbeat_whitespace_sheet_id(), test_sheets_logger_init_preserves_empty_string(), test_sheets_logger_unconfigured_guard_and_skips()
+
+### Community 37 - "test_challenger_m2_m3_2.py"
+Cohesion: 0.13
+Nodes (9): make_clock_mock(), mock_daemon_settings(), test_debounce_bot_transmission_failure_preserves_prior_timestamp(), test_debounce_corrupted_timestamp_recovery(), test_debounce_delta_mathematical_precision_sweep(), test_debounce_first_boot_no_prior_record(), test_debounce_threshold_899_9_seconds_suppressed(), test_debounce_threshold_900_0_exact_boundary_allowed() (+1 more)
 
 ### Community 38 - "test_v2_backend.py"
-Cohesion: 0.14
-Nodes (7): test_upload_sync_fallback_when_broker_unreachable(), test_chat_statistics_aggregation(), test_content_hash_determinism(), test_telegram_parser_full_export_chats_list(), test_telegram_parser_single_chat(), test_whatsapp_parser_standard(), test_whatsapp_parser_us_format_and_12h()
+Cohesion: 0.11
+Nodes (8): test_analyzer_forbidden_id_redaction(), test_analyzer_format_messages(), test_chat_statistics_aggregation(), test_content_hash_determinism(), test_telegram_parser_full_export_chats_list(), test_telegram_parser_single_chat(), test_whatsapp_parser_standard(), test_whatsapp_parser_us_format_and_12h()
 
 ### Community 40 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
 ### Community 42 - "Home"
-Cohesion: 0.15
-Nodes (15): AskBar(), AskBarProps, EXAM_SCHEDULE, ExamPrepModal(), ExamPrepModalProps, EXPERIMENTS, app, auth (+7 more)
+Cohesion: 0.12
+Nodes (21): AskBar(), AskBarProps, EXAM_SCHEDULE, ExamPrepModal(), ExamPrepModalProps, EXPERIMENTS, Sidebar(), SidebarProps (+13 more)
 
 ### Community 43 - "InputGuard"
 Cohesion: 0.13
 Nodes (6): 2.6 Agent Governance & Semantic Vector Memory Layer (Microsoft AGT & Turbovec), InputGuard, test_benign_academic_messages_not_quarantined(), test_prompt_injection_detection(), test_sanitize_and_wrap_quarantines_untrusted_input(), test_unicode_evasion_and_zero_width_injection_detected()
 
-### Community 44 - "timetable/__init__.py"
-Cohesion: 0.24
-Nodes (13): get_effective_slots(), load(), Meta, Slot, Timetable, Verdict, test_empirical_timetable_room_normalization(), test_empirical_cancelled_slot_lifecycle() (+5 more)
+### Community 44 - "datetime"
+Cohesion: 0.15
+Nodes (19): run_timetable_benchmark(), Meta, parse_periods(), Slot, Timetable, validate(), Verdict, test_empirical_timetable_room_normalization() (+11 more)
 
 ### Community 45 - "ActionTier"
-Cohesion: 0.17
-Nodes (4): PolicyEngine, PolicyEvaluationResult, test_action_tier_classification(), test_cryptographic_state_token_validation()
+Cohesion: 0.21
+Nodes (3): PolicyEngine, test_action_tier_classification(), test_cryptographic_state_token_validation()
 
 ### Community 46 - "env.py"
-Cohesion: 0.21
+Cohesion: 0.10
 Nodes (5): do_run_migrations(), run_async_migrations(), run_migrations_offline(), run_migrations_online(), run_sync_migrations()
 
 ### Community 47 - "components.test.tsx"
-Cohesion: 0.15
-Nodes (21): AiCard(), AiCardProps, ChatHeader(), ChatHeaderProps, insightButtons, FormatAi(), renderInline(), ImportModal() (+13 more)
+Cohesion: 0.27
+Nodes (9): AiCard(), AiCardProps, FormatAi(), renderInline(), ImportModal(), ImportModalProps, WelcomePage(), WelcomePageProps (+1 more)
 
 ### Community 48 - "test_tier5_adversarial.py"
-Cohesion: 0.13
-Nodes (8): caddyfile_config(), CaddyfileParser, test_caddyfile_path_matching_api_exact(), test_compose_custom_database_url_override_ignored(), test_compose_variable_interpolation_special_chars(), test_proxy_route_api_trailing_slash_discrepancy(), test_proxy_websocket_upgrade_path(), test_task_status_polling_edge_cases()
+Cohesion: 0.10
+Nodes (11): caddyfile_config(), CaddyfileParser, test_alembic_migration_idempotency_sqlite(), test_alembic_migration_preexisting_table(), test_caddyfile_path_matching_api_exact(), test_compose_custom_database_url_override_ignored(), test_compose_variable_interpolation_special_chars(), test_proxy_route_api_trailing_slash_discrepancy() (+3 more)
 
 ### Community 49 - "test_catch_up.py"
 Cohesion: 0.30
 Nodes (12): catch_up_chats(), clean_db(), mock_client(), test_catch_up_7_day_cutoff(), test_catch_up_first_run(), test_catch_up_inaccessible_chat(), test_catch_up_live_message_advances(), test_catch_up_max_keeping_upsert() (+4 more)
+
+### Community 50 - "test_governance.py"
+Cohesion: 0.11
+Nodes (10): PolicyVerdict, test_adversarial_injection_quarantined_in_pipeline(), test_dry_mode_rejects_all_external_writes(), test_gemini_derived_events_always_require_hitl(), test_high_impact_holiday_and_cancellation_always_mandates_hitl(), test_owner_bypasses_injection_quarantine(), test_quarantined_input_blocks_all_actions(), test_room_override_in_live_mode_auto_approved_only_when_regex_and_validated() (+2 more)
 
 ### Community 51 - "celery_worker.py"
 Cohesion: 0.17
 Nodes (3): DummyCelery, generate_embeddings_batch(), parse_file_task()
 
 ### Community 52 - "Dashboard.tsx"
-Cohesion: 0.29
-Nodes (9): chartOptions(), Dashboard(), DashboardProps, DAY_LABELS, SkeletonCard(), SkeletonChart(), ChatStats, chart.js (+1 more)
+Cohesion: 0.19
+Nodes (13): ChatHeader(), ChatHeaderProps, insightButtons, chartOptions(), Dashboard(), DashboardProps, DAY_LABELS, SkeletonCard() (+5 more)
 
 ### Community 53 - "ChatLens v2.0"
 Cohesion: 0.15
@@ -394,20 +405,20 @@ Cohesion: 0.15
 Nodes (12): 📥 1. Fork & Clone, 🔧 2. Configuration, 📦 3. Run External Services, 🐍 4. Backend Setup, ⚛️ 5. Frontend Setup, 🤝 Contributing to ChatLens, ⚛️ Frontend Linting, 🛠️ Local Development Setup (+4 more)
 
 ### Community 55 - "KnowledgeRetriever"
-Cohesion: 0.06
-Nodes (7): ContiguousVectorBuffer, KnowledgeRetriever, guard(), test_retriever_answer_generation(), test_retriever_lexical_search(), test_retriever_load_chunks(), test_retriever_turbovec_cache_persistence_roundtrip()
+Cohesion: 0.19
+Nodes (3): KnowledgeRetriever, test_retriever_answer_generation(), test_retriever_lexical_search()
 
 ### Community 56 - "audit.py"
-Cohesion: 0.15
-Nodes (3): UntrustedInput, record_write(), redact_pii()
+Cohesion: 0.18
+Nodes (3): UntrustedInput, ActionTier, PolicyEvaluationResult
 
 ### Community 57 - "package.json"
 Cohesion: 0.07
 Nodes (26): eslintConfig, name, overrides, baseline-browser-mapping, browserslist, @grpc/grpc-js, zod, private (+18 more)
 
 ### Community 59 - "ADR 0006: Zero Debt, Dialect-Aware Vector Retrieval, and Strict Backend Typing"
-Cohesion: 0.25
-Nodes (7): ADR 0006: Zero Debt, Dialect-Aware Vector Retrieval, and Strict Backend Typing, Confirmation & Verification, Considered Options, Context and Problem Statement, Decision Drivers, Decision Outcome, Negative Consequences / Tradeoffs
+Cohesion: 0.18
+Nodes (9): ADR 0006: Zero Debt, Dialect-Aware Vector Retrieval, and Strict Backend Typing, Confirmation & Verification, Considered Options, Context and Problem Statement, Decision Drivers, Decision Outcome, Negative Consequences / Tradeoffs, Positive Consequences (+1 more)
 
 ### Community 60 - "parse_telegram_export"
 Cohesion: 0.18
@@ -417,8 +428,12 @@ Nodes (8): _flatten_text(), _parse_message(), parse_telegram_export(), test_tele
 Cohesion: 0.18
 Nodes (10): 1. Intent, 2. Colors, 3. Typography, 4. Spacing, 5. Motion (motion-anything), 6. Shapes & Borders, 7. Human-Centric Principles, 8. Icons (+2 more)
 
+### Community 62 - "handle_bot_callback"
+Cohesion: 0.23
+Nodes (16): apply_event(), handle_bot_callback(), ExtractedAcademicEvent, test_r_ban_5_apply_event_queues_when_circuit_open(), clean_db(), mock_bot(), test_apply_event_writes_audit(), test_confirm_flow_approve() (+8 more)
+
 ### Community 63 - "test_erp_client_get_marks_session_recovery"
-Cohesion: 0.24
+Cohesion: 0.22
 Nodes (6): test_erp_client_fetch_page_session_recovery(), mock_send(), test_erp_client_get_marks_session_recovery(), test_erp_client_login_lock_serialization(), concurrent_login(), fake_login_internal()
 
 ### Community 64 - "ADR 0002: Data-Instruction Separation & Prompt Injection Defense"
@@ -440,10 +455,6 @@ Nodes (10): dependencies, chart.js, clsx, firebase, lucide-react, next, react, r
 ### Community 68 - "manifest.json"
 Cohesion: 0.20
 Nodes (9): background_color, description, display, icons, name, orientation, short_name, start_url (+1 more)
-
-### Community 69 - "datetime"
-Cohesion: 0.33
-Nodes (6): validate(), sample_timetable(), test_timetable_scenarios(), test_validate_missing_or_sample_timetable(), test_validate_non_applicable_intents(), timetable()
 
 ### Community 70 - "ADR 0001: Adoption of Awesome Dev Pipeline v2.2.0"
 Cohesion: 0.22
@@ -467,7 +478,7 @@ Nodes (8): 1. Python Linting & Formatting, 2. Python Type Checking, 3. Python Te
 
 ### Community 75 - "_build_full_day_timetable"
 Cohesion: 0.13
-Nodes (14): format_day_schedule(), _build_full_day_timetable(), _get_icons_from_output(), test_empirical_adjacent_period_boundary_minute(), test_empirical_after_all_classes_end(), test_empirical_before_classes_start(), test_empirical_inter_period_breaks(), test_empirical_lunch_break_transitions() (+6 more)
+Nodes (12): _build_full_day_timetable(), _get_icons_from_output(), test_empirical_adjacent_period_boundary_minute(), test_empirical_after_all_classes_end(), test_empirical_before_classes_start(), test_empirical_inter_period_breaks(), test_empirical_lunch_break_transitions(), test_empirical_period_exact_end_time() (+4 more)
 
 ### Community 76 - "Project: KL-Sync System-Wide Verification & Quality Audit"
 Cohesion: 0.22
@@ -476,10 +487,6 @@ Nodes (8): Architecture, Code Layout, Dashboard Routes Contract (`src/app/dashbo
 ### Community 77 - "🤝 Contributor Covenant Code of Conduct"
 Cohesion: 0.22
 Nodes (8): 🤝 Contributor Covenant Code of Conduct, 📩 Enforcement, 👮 Enforcement Responsibilities, 📋 Our Pledge, ⚖️ Our Standards, Positive Behaviors, 🌐 Scope, Unacceptable Behaviors
-
-### Community 78 - "decide"
-Cohesion: 0.15
-Nodes (11): decide(), Decision, test_decide_invalid(), test_decide_valid(), canary_cases(), test_canary_dry_mode_absolute_lock(), test_canary_regex_parsing_and_decision_policy(), test_live_mode_never_auto_applies_non_allowlisted_events() (+3 more)
 
 ### Community 79 - "Security Audit Areas"
 Cohesion: 0.25
@@ -498,8 +505,8 @@ Cohesion: 0.29
 Nodes (6): 1. Changed, 2. Decisions, 3. Not done, 4. Verification Evidence, Pull Request Workflow (`/pr`), Required Format
 
 ### Community 83 - "sqlite3"
-Cohesion: 0.09
-Nodes (11): test_f8_backend_spark_status_bridge(), test_f8_spark_sqlite_integrity_check(), test_f8_spark_sqlite_wal_persistence(), test_b5_corrupt_sqlite_integrity_failure(), test_b5_readonly_db_access(), test_scenario_4_spark_daemon_restart_and_state_recovery(), test_alembic_migration_idempotency_sqlite(), test_alembic_migration_preexisting_table() (+3 more)
+Cohesion: 0.08
+Nodes (12): test_f8_backend_spark_status_bridge(), test_f8_spark_sqlite_integrity_check(), test_f8_spark_sqlite_wal_persistence(), test_b5_corrupt_sqlite_integrity_failure(), test_b5_empty_tables_handled(), test_b5_missing_db_returns_offline_status(), test_b5_readonly_db_access(), test_pairwise_daemon_sqlite_wal_to_backend_status_bridge() (+4 more)
 
 ### Community 84 - "Required Format"
 Cohesion: 0.29
@@ -522,20 +529,20 @@ Cohesion: 0.33
 Nodes (5): 1. Repository Mapping, 2. Systematic Codebase Scan, 3. Reporting Format, Whole-Repo Audit Skill (`audit`), Workflow
 
 ### Community 89 - "AsyncSessionMock"
-Cohesion: 0.14
-Nodes (4): AsyncSessionMock, setup_in_memory_backend_db(), override_async_session_local(), override_get_db()
+Cohesion: 0.11
+Nodes (5): AsyncSessionMock, CaseInsensitiveHeaderDict, setup_in_memory_backend_db(), override_async_session_local(), override_get_db()
 
 ### Community 90 - "frontend/AGENTS.md"
 Cohesion: 0.33
 Nodes (4): 📐 Architecture & Principles, 🛠️ Build & Test Commands, 📁 Directory Structure, 🚀 Project Overview
 
-### Community 91 - "benchmark_timetable.py"
-Cohesion: 0.18
-Nodes (5): run_parser_benchmark(), run_timetable_benchmark(), run_turbovec_benchmark(), main(), parse_periods()
+### Community 91 - "test_e2e_remediation.py"
+Cohesion: 0.17
+Nodes (5): test_tier1_startup_debounce_cooldown(), test_tier1_timetable_fallback_happy_path(), test_tier2_debounce_boundary_exact_seconds(), test_tier2_sqlite_wal_and_meta_concurrency(), test_tier3_debounce_with_corrupted_meta_timestamp()
 
 ### Community 92 - "test_compliance_guardrails.py"
-Cohesion: 0.12
-Nodes (13): apply_event(), extract(), _get_sender_name(), process_message(), TelegramRateLimiter, TokenBucket, ExtractedAcademicEvent, test_r_ban_1_rate_limiter_routing() (+5 more)
+Cohesion: 0.16
+Nodes (7): _get_sender_name(), record_write(), redact_pii(), isolate_env(), test_r_ban_2_consent_via_start_allows_dm(), test_r_ban_4_pii_redaction_patterns(), test_r_ban_4_sender_name_redaction()
 
 ### Community 93 - "WorkspaceCircuitBreaker"
 Cohesion: 0.20
@@ -543,7 +550,7 @@ Nodes (3): CircuitState, WorkspaceCircuitBreaker, test_r_ban_5_circuit_breaker_t
 
 ### Community 94 - "os"
 Cohesion: 0.14
-Nodes (12): _escape_like(), search_messages(), 1. Prioritization & Sequencing Strategy, 2. Phase-by-Phase Implementation Specifications, 3. End-to-End Verification Matrix, 4. Risks, Dependencies & Rollback Strategy, ChatLens Remediation Plan: Implementation Roadmap, Phase 1: Security Hardening & Authentication Enforcement (P0) (+4 more)
+Nodes (11): lifespan(), Base, 1. Prioritization & Sequencing Strategy, 2. Phase-by-Phase Implementation Specifications, 3. End-to-End Verification Matrix, 4. Risks, Dependencies & Rollback Strategy, ChatLens Remediation Plan: Implementation Roadmap, Phase 1: Security Hardening & Authentication Enforcement (P0) (+3 more)
 
 ### Community 95 - "Ponytail Ultra Minimalism Rules"
 Cohesion: 0.40
@@ -577,13 +584,17 @@ Nodes (3): 1. The Ladder of Abstraction, 2. Surgical Modifications & Hygiene, Po
 Cohesion: 0.50
 Nodes (3): Code Standards & Accessibility, Framework & Architecture, TypeScript & Frontend Engineering Rules (ChatLens v2)
 
-### Community 105 - "._is_session_expired"
-Cohesion: 0.29
-Nodes (3): test_empirical_erp_session_expiration_markers(), test_erp_client_is_session_expired(), test_erp_client_status_codes_session_expired()
+### Community 104 - "FakeTelegramClient"
+Cohesion: 0.17
+Nodes (3): FakeTelegramClient, test_daemon_clean_client_disconnect(), test_daemon_exit_codes_auth_key_unregistered()
 
-### Community 106 - "Test Infrastructure Specification: ChatLens PA Daemon Remediation"
+### Community 105 - "4. Failure Inventory (Evidence-Backed Defects)"
+Cohesion: 0.18
+Nodes (11): 4. Failure Inventory (Evidence-Backed Defects), DEF-01: Complete Substitution & Deletion of ChatLens UI, DEF-02: Frontend Docker Build & Static Export Deadlock, DEF-03: Reverse Proxy API Interception Deadlock, DEF-05: Backend Container Healthcheck Endpoint Mismatch, DEF-06: Database Credential and Connection String Divergence, DEF-07: Redundant Dual/Triple Migration Execution with Bare Exception Suppression, DEF-08: Asymmetric Vector Retrieval Degradation via Omitted Task Type (+3 more)
+
+### Community 106 - "Project: ChatLens PA Daemon & Telegram Bot Remediation"
 Cohesion: 0.20
-Nodes (9): 1. Overview & Architecture, 2. Directory Layout & Artifact Index, 3. Tier Coverage Matrix (`tests/test_e2e_remediation.py`), 4. Execution & Verification Commands, 5. Invariant Gates & Quality Enforcements, Running Specific Tiers, Running the Remediation Acceptance Suite, Static Analysis & Linter Verification (+1 more)
+Nodes (9): Architecture, Code Layout, Feature Inventory, Interface Contracts, Milestones, Project: ChatLens PA Daemon & Telegram Bot Remediation, `src/notify/bot.py` ↔ `src/ingestion/handlers.py` & `src/main.py`, `src/timetable/__init__.py` ↔ `src/ingestion/handlers.py` (+1 more)
 
 ### Community 107 - "frontend/README.md"
 Cohesion: 0.50
@@ -617,41 +628,49 @@ Nodes (6): icons, styles, Toast(), ToastItem(), ToastProps, ToastData
 Cohesion: 0.22
 Nodes (8): ADR 0008: Adoption of Microsoft Agent Governance Principles and In-Process Turbovec RAG, Considered Options, Context and Problem Statement, Decision Drivers, Decision Outcome, Negative Consequences, Positive Consequences, Rationale & Comparison
 
-### Community 145 - "AsyncSessionMock"
-Cohesion: 0.15
-Nodes (4): AsyncSessionMock, in_memory_db(), override_async_session_local(), override_get_db()
+### Community 145 - "TelegramRateLimiter"
+Cohesion: 0.31
+Nodes (4): TelegramRateLimiter, TokenBucket, test_r_ban_1_rate_limiter_routing(), test_r_ban_1_token_bucket_acquire()
 
-### Community 146 - "test_challenger_empirical.py"
-Cohesion: 0.07
-Nodes (5): configure_logging(), test_tier1_startup_debounce_cooldown(), test_tier2_debounce_boundary_exact_seconds(), test_tier2_sqlite_wal_and_meta_concurrency(), test_tier3_debounce_with_corrupted_meta_timestamp()
+### Community 148 - "Any"
+Cohesion: 0.22
+Nodes (4): api_auth_me(), api_deadlines(), api_timetable_today(), api_timetable_week()
+
+### Community 149 - "re"
+Cohesion: 0.19
+Nodes (6): _redact_forbidden_ids(), check_adrs(), main(), main(), scan_motion(), test_empirical_pii_masking_zero_raw_digits()
+
+### Community 150 - "MessageList.tsx"
+Cohesion: 0.36
+Nodes (8): formatDate(), formatTime(), isGrouped(), isSameDay(), MessageList(), MessageListProps, SKELETON_WIDTHS, Message
 
 ### Community 151 - "run_ps_command"
 Cohesion: 0.29
 Nodes (3): run_ps_command(), test_run_daemon_parameters_defined(), test_run_daemon_syntax_valid_powershell_5_1()
 
-### Community 154 - "sys"
-Cohesion: 0.15
-Nodes (7): main(), harvest_debt(), main(), update_debt_file(), main(), scan_motion(), main()
+### Community 154 - "src/main.py"
+Cohesion: 0.11
+Nodes (7): main(), create_telegram_client(), _install_signal_handlers(), _listen(), main(), _sleep_or_stop(), supervise()
 
 ### Community 155 - "os"
-Cohesion: 0.23
-Nodes (5): _authentication_required(), get_current_user(), require_current_user(), 5. Root-Cause Analysis: Confirmed Causes vs. Hypotheses, DEF-04: Zero Authentication Enforcement on All Backend Endpoints
+Cohesion: 0.21
+Nodes (6): _authentication_required(), get_current_user(), require_current_user(), 5. Root-Cause Analysis: Confirmed Causes vs. Hypotheses, DEF-04: Zero Authentication Enforcement on All Backend Endpoints, test_mock_firebase_token_is_rejected_outside_test_environment()
 
-### Community 157 - "test_clock.py"
-Cohesion: 0.27
-Nodes (5): to_ist(), test_clock_boundary(), test_clock_to_ist_aware_converted(), test_clock_to_ist_naive_treated_as_utc(), test_frozen_clock_fixture()
+### Community 157 - "load_calendar"
+Cohesion: 0.43
+Nodes (3): AcademicCalendar, get_milestone_date(), load_calendar()
 
 ### Community 159 - "no-mistakes"
-Cohesion: 0.18
-Nodes (10): Active validation-step boundary, Before you start, Escalate `ask-user` findings, Inspecting state, Intent is required, no-mistakes, Reading the output, Test-quality rule (+2 more)
+Cohesion: 0.15
+Nodes (11): Active validation-step boundary, Before you start, Escalate `ask-user` findings, Inspecting state, Intent is required, no-mistakes, Reading the output, Test-quality rule (+3 more)
+
+### Community 160 - "harvest_debt.py"
+Cohesion: 0.53
+Nodes (3): harvest_debt(), main(), update_debt_file()
 
 ### Community 161 - "test_challenger_m1.py"
-Cohesion: 0.10
-Nodes (8): setup_test_env(), test_course_code_shadowing_adversarial_probe(), test_every_day_of_the_week_timetable_coverage(), test_period_6_omission(), test_simultaneous_room_override_injection_today_and_tomorrow(), test_slot_note_generation_across_weeks_and_types(), test_today_and_tomorrow_bot_commands_simultaneously(), _validate_schedule_output_format()
-
-### Community 163 - ".meta_get"
-Cohesion: 0.29
-Nodes (3): test_r_ban_3_startup_debounce_logic(), test_debounce_evaluation_scenarios(), test_meta_table_crud_and_concurrency()
+Cohesion: 0.17
+Nodes (9): format_day_schedule(), get_effective_slots(), load(), test_course_code_shadowing_adversarial_probe(), test_every_day_of_the_week_timetable_coverage(), test_period_6_omission(), test_simultaneous_room_override_injection_today_and_tomorrow(), test_slot_note_generation_across_weeks_and_types() (+1 more)
 
 ### Community 164 - "devDependencies"
 Cohesion: 0.20
@@ -659,23 +678,23 @@ Nodes (10): devDependencies, eslint, eslint-config-next, tailwindcss, @tailwindc
 
 ## Knowledge Gaps
 - **8 isolated node(s):** `chatlens`, `tailwind-merge`, `tailwindcss`, `@tailwindcss/postcss`, `@types/node` (+3 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1123 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **57 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1125 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **59 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `2. Phase-by-Phase Implementation Specifications` connect `os` to `types.ts`?**
-  _High betweenness centrality (0.078) - this node is a cross-community bridge._
+- **Why does `2. Phase-by-Phase Implementation Specifications` connect `os` to `Home`, `backend/main.py`?**
+  _High betweenness centrality (0.085) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `handle_bot_command()` (e.g. with `Code Layout` and `1. Overview & Architecture`) actually correct?**
   _`handle_bot_command()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `chatlens`, `tailwind-merge`, `tailwindcss` to the rest of the system?**
   _8 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `run_daemon` be split into smaller, more focused modules?**
-  _Cohesion score 0.05346164127238706 - nodes in this community are weakly interconnected._
-- **Why does `Phase 2: Frontend Restoration & Static Export Configuration (P1)` connect `types.ts` to `Dashboard.tsx`, `os`?**
-  _High betweenness centrality (0.075) - this node is a cross-community bridge._
+- **Should `E2EClient` be split into smaller, more focused modules?**
+  _Cohesion score 0.05925925925925926 - nodes in this community are weakly interconnected._
+- **Why does `Phase 2: Frontend Restoration & Static Export Configuration (P1)` connect `Home` to `Dashboard.tsx`, `os`?**
+  _High betweenness centrality (0.082) - this node is a cross-community bridge._
 - **Are the 39 inferred relationships involving `E2EClient` (e.g. with `e2e_client()` and `test_f1_api_chats_endpoint_routed()`) actually correct?**
   _`E2EClient` has 39 INFERRED edges - model-reasoned connections that need verification._
-- **Should `types.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.12688172043010754 - nodes in this community are weakly interconnected._
+- **Should `pytest` be split into smaller, more focused modules?**
+  _Cohesion score 0.09805735430157261 - nodes in this community are weakly interconnected._

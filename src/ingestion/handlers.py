@@ -2,6 +2,7 @@
 
 import asyncio
 import enum
+import re
 import time
 from datetime import timedelta
 
@@ -833,7 +834,47 @@ async def handle_bot_command(msg: dict) -> None:
     from src.utils.deduplication import deduplicator
 
     chat_id = msg.get("chat", {}).get("id") or msg.get("from", {}).get("id")
-    text = (msg.get("text") or "").strip()
+    raw_text = (msg.get("text") or "").strip()
+
+    # Clean leading emojis and whitespace from button taps (e.g. "📅 Today", "📊 Attendance")
+    cleaned_text = re.sub(r"^[^\w/]+", "", raw_text).strip()
+    lower_cleaned = cleaned_text.lower()
+
+    button_map = {
+        "today": "/today",
+        "tomorrow": "/tomorrow",
+        "timetable": "/timetable",
+        "schedule": "/timetable",
+        "attendance": "/attendance",
+        "deadlines": "/deadlines",
+        "deadline": "/deadlines",
+        "tasks": "/deadlines",
+        "status": "/status",
+        "bunk": "/bunk",
+        "margins": "/bunk",
+        "safe bunks": "/bunk",
+        "briefing": "/briefing",
+        "digest": "/briefing",
+        "help": "/help",
+        "menu": "/help",
+        "marks": "/marks",
+        "cgpa": "/cgpa",
+        "fee": "/fee",
+        "rescan": "/rescan",
+        "scan": "/rescan",
+        "exam": "/exam",
+        "exams": "/exam",
+        "viva": "/exam",
+        "undo": "/undo",
+    }
+
+    if lower_cleaned in button_map:
+        text = button_map[lower_cleaned]
+    elif cleaned_text.startswith("/"):
+        text = cleaned_text
+    else:
+        text = raw_text
+
     cmd = text.split()[0].lower().split("@")[0] if text else ""
     sender_id = msg.get("from", {}).get("id") or chat_id
 

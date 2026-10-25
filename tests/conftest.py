@@ -1,6 +1,8 @@
 import shutil
+import urllib.request
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import SecretStr
@@ -10,6 +12,24 @@ from src.governance.audit import audit_logger
 from src.notify.bot import bot
 from src.utils import clock
 from src.utils.deduplication import deduplicator
+
+
+@pytest.fixture(autouse=True)
+def prevent_telegram_network(monkeypatch: pytest.MonkeyPatch):
+    """Ensure no test ever sends real network requests to Telegram API."""
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"ok": true, "result": []}'
+    mock_resp.__enter__.return_value = mock_resp
+
+    orig_urlopen = urllib.request.urlopen
+
+    def safe_urlopen(req, *args, **kwargs):
+        url = getattr(req, "full_url", str(req))
+        if "api.telegram.org" in url:
+            return mock_resp
+        return orig_urlopen(req, *args, **kwargs)
+
+    monkeypatch.setattr(urllib.request, "urlopen", safe_urlopen)
 
 
 @pytest.fixture(scope="session", autouse=True)
