@@ -409,3 +409,110 @@ def get_standard_navigation_buttons() -> list[list[dict[str, str]]]:
             {"text": "🟢 Status", "callback_data": "cmd:status"},
         ],
     ]
+
+
+def render_event_receipt(
+    parsed_event: Any,
+    execution_status: str = "DRY_RUN",
+    details_list: list[str] | None = None,
+    is_dry_run: bool = False,
+) -> str:
+    """Render executive event processed / action applied receipt card."""
+    cleaned_summary, _ = extract_and_clean_urls(getattr(parsed_event, "summary", "") or "")
+    c_name = getattr(parsed_event, "course_name", None) or "N/A"
+    c_code = getattr(parsed_event, "course_code", None)
+    c_str = f"{c_name} ({c_code})" if c_code else c_name
+    room = getattr(parsed_event, "room", None) or "N/A"
+    t_date = getattr(parsed_event, "target_date", None) or "N/A"
+    intent = getattr(parsed_event, "intent", "UNKNOWN")
+
+    if is_dry_run:
+        header = f"🔍 **[DRY RUN] Event Processed:** `{intent}`"
+        status_line = "• **Status:** DRY_RUN (Would execute)"
+    else:
+        header = f"✅ **Action applied:** `{intent}`"
+        details_str = (
+            f" ({', '.join(details_list) or 'Logged'})" if details_list is not None else ""
+        )
+        status_line = f"• **Status:** {execution_status}{details_str}"
+
+    lines = [
+        header,
+        f"• **Course:** {c_str}",
+        f"• **Room:** {room}",
+        f"• **Target Date:** {t_date}",
+        f"• **Summary:** {cleaned_summary}",
+        status_line,
+    ]
+    return sanitize_markdown("\n".join(lines))
+
+
+def render_review_notice(
+    parsed_event: Any,
+    reason: str,
+    is_confirmation: bool = True,
+) -> str:
+    """Render structured review required or owner confirmation prompt."""
+    cleaned_summary, _ = extract_and_clean_urls(getattr(parsed_event, "summary", "") or "")
+    intent = getattr(parsed_event, "intent", "NOTICE")
+
+    if is_confirmation:
+        lines = [
+            f"🔔 **Review needed for {intent}**",
+            "",
+            f"• **Notice**: {cleaned_summary}",
+            f"• **Reason**: {reason}",
+            "",
+            "👉 *Tap Apply to execute, or Ignore to dismiss.*",
+        ]
+    else:
+        lines = [
+            f"Review needed for {intent}",
+            cleaned_summary,
+            f"Reason: {reason}",
+        ]
+    return sanitize_markdown("\n".join(lines))
+
+
+def render_calendar_conflict(
+    milestone_match: str,
+    msg_dt: Any,
+    cal_date: Any,
+) -> str:
+    """Render milestone conflict alert card (Invariant 5)."""
+    lines = [
+        "⚠️ **Calendar Conflict**",
+        f"Found conflict for {milestone_match}.",
+        f"Message date: {msg_dt}",
+        f"Calendar date: {cal_date}",
+    ]
+    return sanitize_markdown("\n".join(lines))
+
+
+def render_circuit_breaker_alert() -> str:
+    """Render Google Workspace API circuit breaker trip alert."""
+    lines = [
+        "🚨 **Circuit Breaker Tripped**",
+        "Google Workspace API (Calendar/Tasks) returned quota errors (403/429).",
+        "Downstream writes paused for 5 minutes; events queued in pending.",
+    ]
+    return sanitize_markdown("\n".join(lines))
+
+
+def render_security_quarantine_alert(
+    chat_name: str,
+    chat_id: Any,
+    sender_name: str,
+    sender_id: Any,
+    reason: str,
+    snippet: str,
+) -> str:
+    """Render prompt injection quarantine alert."""
+    lines = [
+        "🛡️ **Security Alert: Quarantined Prompt Injection**",
+        f"• **Channel:** `{chat_name}` ({chat_id})",
+        f"• **Sender:** `{sender_name}` ({sender_id})",
+        f"• **Reason:** {reason}",
+        f"• **Filtered Snippet:** `{snippet}`",
+    ]
+    return sanitize_markdown("\n".join(lines))

@@ -10,10 +10,12 @@ import type {
   MonitoringStatus,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
-const AUTH_REQUIRED =
-  process.env.NODE_ENV === "production" ||
-  process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" && window.location.port === "3000"
+    ? "http://localhost:8000"
+    : "");
+const AUTH_REQUIRED = process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
 
 async function fetchJSON<T = unknown>(endpoint: string, opts?: RequestInit): Promise<T> {
   const headers = new Headers(opts?.headers);

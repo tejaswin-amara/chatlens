@@ -12,15 +12,21 @@ try:
     from firebase_admin import credentials
 
     admin_auth = _auth
-    if not firebase_admin._apps:
-        cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
-        if cred_path:
-            if not os.path.isfile(cred_path):
-                raise FileNotFoundError("FIREBASE_CREDENTIALS_PATH is not a readable file")
+    cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+    if cred_path:
+        if not os.path.isfile(cred_path):
+            raise FileNotFoundError("FIREBASE_CREDENTIALS_PATH is not a readable file")
+        if not firebase_admin._apps:
             firebase_admin.initialize_app(credentials.Certificate(cred_path))
-        else:
+        HAS_FIREBASE = True
+    elif os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and os.path.isfile(
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
+    ):
+        if not firebase_admin._apps:
             firebase_admin.initialize_app()
-    HAS_FIREBASE = True
+        HAS_FIREBASE = True
+    else:
+        HAS_FIREBASE = False
 except Exception:
     HAS_FIREBASE = False
 

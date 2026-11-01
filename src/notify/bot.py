@@ -261,7 +261,13 @@ class BotClient:
         if not chosen_parse_mode and ("**" in text or "`" in text or "*" in text):
             chosen_parse_mode = "Markdown"
 
-        if chosen_parse_mode:
+        if chosen_parse_mode == "Markdown":
+            from src.formatting.markdown_safety import sanitize_markdown
+
+            text = sanitize_markdown(text)
+            data["text"] = text
+            data["parse_mode"] = chosen_parse_mode
+        elif chosen_parse_mode:
             data["parse_mode"] = chosen_parse_mode
 
         if buttons is not None:
@@ -304,7 +310,13 @@ class BotClient:
     ) -> dict:
         target_chat_id = chat_id if chat_id is not None else settings.owner_chat_id
         data = {"chat_id": target_chat_id, "message_id": message_id, "text": text}
-        if parse_mode:
+        if parse_mode == "Markdown":
+            from src.formatting.markdown_safety import sanitize_markdown
+
+            text = sanitize_markdown(text)
+            data["text"] = text
+            data["parse_mode"] = parse_mode
+        elif parse_mode:
             data["parse_mode"] = parse_mode
         try:
             return self._retry("editMessageText", data)

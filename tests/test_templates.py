@@ -248,3 +248,94 @@ def test_get_standard_navigation_buttons():
     assert buttons[0][1]["callback_data"] == "cmd:attendance"
     assert buttons[1][0]["callback_data"] == "cmd:deadlines"
     assert buttons[1][1]["callback_data"] == "cmd:status"
+
+
+def test_sanitize_markdown_escapes_underscores_outside_code():
+    # Plain course code with underscore
+    assert sanitize_markdown("Course CS_101 notice") == "Course CS\\_101 notice"
+
+    # Inline code span with underscore must NOT be escaped
+    assert sanitize_markdown("Variable `test_var` value") == "Variable `test_var` value"
+
+    # Multi-line code block must NOT be escaped
+    code_block = "```\ndef foo_bar():\n    return 42\n```"
+    assert sanitize_markdown(code_block) == code_block
+
+    # Link label with underscore escaped, but URL destination preserved
+    link_md = "Click [My_Drive](https://drive.google.com/folder_id) now"
+    expected = "Click [My\\_Drive](https://drive.google.com/folder_id) now"
+    assert sanitize_markdown(link_md) == expected
+
+    # Already escaped underscore should not be double escaped
+    assert sanitize_markdown("Already CS\\_101") == "Already CS\\_101"
+
+
+def test_templates_event_receipt_and_review():
+    from src.formatting.templates import (
+        render_calendar_conflict,
+        render_circuit_breaker_alert,
+        render_event_receipt,
+        render_review_notice,
+        render_security_quarantine_alert,
+    )
+    from src.parsing.schemas import ExtractedAcademicEvent
+
+    event = ExtractedAcademicEvent(
+        intent="ROOM_OVERRIDE",
+        course_name="Machine Learning",
+        course_code="25SC2107E",
+        room="C-321",
+        target_date="2026-11-05",
+        summary="Class shifted to C-321",
+    )
+
+    # Dry run receipt
+    dry_receipt = render_event_receipt(event, is_dry_run=True)
+    assert "[DRY RUN] Event Processed:" in dry_receipt
+    assert "DRY\\_RUN (Would execute)" in dry_receipt
+    assert "`ROOM_OVERRIDE`" in dry_receipt
+
+    # Auto applied receipt
+    auto_receipt = render_event_receipt(
+        event, execution_status="SUCCESS", details_list=["Room updated"], is_dry_run=False
+    )
+    assert "✅ **Action applied:**" in auto_receipt
+    assert "SUCCESS (Room updated)" in auto_receipt
+
+    # Review notice (confirmation)
+    confirm_notice = render_review_notice(event, reason="Out of schedule", is_confirmation=True)
+    assert "🔔 **Review needed for ROOM\\_OVERRIDE**" in confirm_notice
+    assert "Tap Apply to execute" in confirm_notice
+
+    # Review notice (needs review)
+    review_notice = render_review_notice(event, reason="Out of schedule", is_confirmation=False)
+    assert "Review needed for ROOM\\_OVERRIDE" in review_notice
+
+    # Calendar conflict
+    conflict = render_calendar_conflict("mid-term", "2026-09-20", "2026-09-22")
+    assert "⚠️ **Calendar Conflict**" in conflict
+    assert "Message date: 2026-09-20" in conflict
+    assert "Calendar date: 2026-09-22" in conflict
+
+    # Circuit breaker alert
+    cb_alert = render_circuit_breaker_alert()
+    assert "🚨 **Circuit Breaker Tripped**" in cb_alert
+
+    # Security alert
+    sec_alert = render_security_quarantine_alert("Main", 123, "Eve", 456, "Injection", "ignore all")
+    assert "🛡️ **Security Alert: Quarantined Prompt Injection**" in sec_alert
+
+
+def test_academic_calendar_loading_and_milestones():
+    from src.academic_calendar import get_milestone_date, load_calendar
+
+    cal = load_calendar()
+    assert cal is not None
+    assert "T04" in cal.terms
+    assert "T05" in cal.terms
+
+    lab_exam_date = get_milestone_date("lab exam", date(2026, 10, 1), cal)
+    assert lab_exam_date == date(2026, 10, 15)
+
+    fee_date = get_milestone_date("fee", date(2026, 8, 1), cal)
+    assert fee_date == date(2026, 8, 10)

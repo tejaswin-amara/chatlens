@@ -61,7 +61,20 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
     parsed_event: ExtractedAcademicEvent | None = None
     source = None
 
-    if msg.voice or (msg.document and "audio" in getattr(msg.document, "mime_type", "")):
+    is_voice = bool(
+        msg.voice or (msg.document and "audio" in getattr(msg.document, "mime_type", ""))
+    )
+    is_media_file = bool(
+        msg.photo or (msg.document and "pdf" in getattr(msg.document, "mime_type", ""))
+    )
+
+    if (is_voice or is_media_file) and not settings.spark_media:
+        if msg_text.strip():
+            parsed_event = RegexParser.parse(msg_text, msg.date)
+            return (parsed_event, "regex") if parsed_event else (None, None)
+        return None, None
+
+    if is_voice:
         source = "gemini"
         file_size = getattr(getattr(msg, "file", None), "size", None)
         if isinstance(file_size, (int, float)) and file_size > 5_000_000:
@@ -76,7 +89,7 @@ async def extract(client: TelegramClient, msg) -> tuple[ExtractedAcademicEvent |
             except Exception as e:
                 logger.error("Failed voice extraction", error=str(e))
 
-    elif msg.photo or (msg.document and "pdf" in getattr(msg.document, "mime_type", "")):
+    elif is_media_file:
         source = "gemini"
         file_size = getattr(getattr(msg, "file", None), "size", None)
         if isinstance(file_size, (int, float)) and file_size > 5_000_000:
@@ -269,13 +282,13 @@ async def apply_event(
                                 details_list.append(
                                     f"Conflict: Msg date {msg_dt}, Cal date {cal_date}"
                                 )
+                                from src.formatting.templates import render_calendar_conflict
                                 from src.notify.bot import bot
 
-                                conflict_msg = (
-                                    f"⚠️ **Calendar Conflict**\n"
-                                    f"Found conflict for {milestone_match}.\n"
-                                    f"Message date: {msg_dt}\n"
-                                    f"Calendar date: {cal_date}"
+                                conflict_msg = render_calendar_conflict(
+                                    milestone_match=milestone_match,
+                                    msg_dt=msg_dt,
+                                    cal_date=cal_date,
                                 )
                                 await asyncio.to_thread(bot.send, conflict_msg)
                     else:
@@ -309,13 +322,10 @@ async def apply_event(
             deduplicator.add_pending(json.dumps(event_dict, default=str))
             details_list.append("Queued in pending (downstream rate limit)")
             if should_notify:
+                from src.formatting.templates import render_circuit_breaker_alert
                 from src.notify.bot import bot
 
-                alert_msg = (
-                    "🚨 **Circuit Breaker Tripped**\n"
-                    "Google Workspace API (Calendar/Tasks) returned quota errors (403/429).\n"
-                    "Downstream writes paused for 5 minutes; events queued in pending."
-                )
+                alert_msg = render_circuit_breaker_alert()
                 try:
                     await asyncio.to_thread(bot.send, alert_msg)
                 except Exception as alert_err:
@@ -410,12 +420,15 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         )
         deduplicator.mark_processed(chat_id, msg.id, msg_text)
         if settings.bot_token and settings.owner_chat_id:
-            alert = (
-                f"🛡️ **Security Alert: Quarantined Prompt Injection**\n"
-                f"• **Channel:** `{chat_name}` ({chat_id})\n"
-                f"• **Sender:** `{sender_name}` ({sender_id})\n"
-                f"• **Reason:** {untrusted_input.quarantine_reason}\n"
-                f"• **Filtered Snippet:** `{untrusted_input.content[:100]}`"
+            from src.formatting.templates import render_security_quarantine_alert
+
+            alert = render_security_quarantine_alert(
+                chat_name=chat_name,
+                chat_id=chat_id,
+                sender_name=sender_name,
+                sender_id=sender_id,
+                reason=untrusted_input.quarantine_reason or "Prompt injection detected",
+                snippet=untrusted_input.content[:100],
             )
             await asyncio.to_thread(bot.send, alert)
         return
@@ -507,13 +520,11 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             details="Dry run mode - external writes disabled",
         )
 
-        receipt = (
-            f"🔍 **[DRY RUN] Event Processed:** `{parsed_event.intent}`\n"
-            f"• **Course:** {parsed_event.course_name} ({parsed_event.course_code or 'N/A'})\n"
-            f"• **Room:** {parsed_event.room or 'N/A'}\n"
-            f"• **Target Date:** {parsed_event.target_date or 'N/A'}\n"
-            f"• **Summary:** {parsed_event.summary}\n"
-            f"• **Status:** DRY_RUN (Would execute)\n"
+        from src.formatting.templates import render_event_receipt
+
+        receipt = render_event_receipt(
+            parsed_event=parsed_event,
+            is_dry_run=True,
         )
         if settings.bot_token and settings.owner_chat_id:
             try:
@@ -529,10 +540,12 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
     elif decision == Decision.REVIEW:
         execution_status = "NEEDS_REVIEW"
         details_list = [f"Validation failed: {verdict.reason}"]
-        text = (
-            f"Review needed for {parsed_event.intent}\n"
-            f"{parsed_event.summary}\n"
-            f"Reason: {verdict.reason}"
+        from src.formatting.templates import render_review_notice
+
+        text = render_review_notice(
+            parsed_event=parsed_event,
+            reason=verdict.reason or "",
+            is_confirmation=False,
         )
         if settings.bot_token and settings.owner_chat_id:
             await asyncio.to_thread(bot.send, text, buttons=None)
@@ -560,11 +573,12 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
         }
         pid = deduplicator.add_pending(json.dumps(wrapper))
 
-        text = (
-            f"🔔 **Review needed for {parsed_event.intent}**\n\n"
-            f"• **Notice**: {parsed_event.summary}\n"
-            f"• **Reason**: {verdict.reason}\n\n"
-            f"👉 *Tap Apply to execute, or Ignore to dismiss.*"
+        from src.formatting.templates import render_review_notice
+
+        text = render_review_notice(
+            parsed_event=parsed_event,
+            reason=verdict.reason or "",
+            is_confirmation=True,
         )
         buttons = [
             {"text": "✅ Apply", "callback_data": f"ok:{pid}"},
@@ -617,13 +631,13 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             details=f"Auto applied: {execution_status}",
         )
 
-        receipt = (
-            f"✅ **Action applied:** `{parsed_event.intent}`\n"
-            f"• **Course:** {parsed_event.course_name} ({parsed_event.course_code or 'N/A'})\n"
-            f"• **Room:** {parsed_event.room or 'N/A'}\n"
-            f"• **Target Date:** {parsed_event.target_date or 'N/A'}\n"
-            f"• **Summary:** {parsed_event.summary}\n"
-            f"• **Status:** {execution_status} ({', '.join(details_list) or 'Logged'})\n"
+        from src.formatting.templates import render_event_receipt
+
+        receipt = render_event_receipt(
+            parsed_event=parsed_event,
+            execution_status=execution_status,
+            details_list=details_list,
+            is_dry_run=False,
         )
         if settings.bot_token and settings.owner_chat_id:
             try:

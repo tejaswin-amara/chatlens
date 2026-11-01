@@ -42,6 +42,38 @@ def extract_and_clean_urls(text: str) -> tuple[str, list[tuple[str, str]]]:
     return cleaned_text, links
 
 
+def escape_markdown_underscores(text: str) -> str:
+    """Escape unescaped underscores outside code spans and link targets.
+
+    Prevents Telegram 400 Bad Request entity parse failures while preserving
+    code spans (`code_var`), multi-line code blocks, and markdown link URLs ([label](url)).
+    """
+    if not text or "_" not in text:
+        return text
+
+    # Split by inline code spans and code blocks: ```...``` or `...`
+    # Capturing group preserves delimiters at odd indexes
+    code_parts = re.split(r"(```[\s\S]*?```|`[^`\n]*`)", text)
+    for i in range(len(code_parts)):
+        # Even indexes are outside of code spans
+        if i % 2 == 0:
+            part = code_parts[i]
+            # Split by markdown links: [label](url)
+            link_parts = re.split(r"(\[[^\]]*\]\([^\)]*\))", part)
+            for j in range(len(link_parts)):
+                if j % 2 == 1:
+                    # Link: [label](url) -> escape underscores in label only
+                    m = re.match(r"^(\[[^\]]*\])(\([^\)]*\))$", link_parts[j])
+                    if m:
+                        label = re.sub(r"(?<!\\)_", r"\_", m.group(1))
+                        link_parts[j] = label + m.group(2)
+                else:
+                    # Plain text: escape unescaped underscores
+                    link_parts[j] = re.sub(r"(?<!\\)_", r"\_", link_parts[j])
+            code_parts[i] = "".join(link_parts)
+    return "".join(code_parts)
+
+
 def sanitize_markdown(text: str) -> str:
     """Balance asterisks, backticks, and fix malformed markdown syntax to prevent Telegram 400."""
     if not text:
@@ -60,5 +92,8 @@ def sanitize_markdown(text: str) -> str:
     bold_tokens = text.count("**")
     if bold_tokens % 2 != 0:
         text += "**"
+
+    # Escape unescaped underscores outside code spans
+    text = escape_markdown_underscores(text)
 
     return text

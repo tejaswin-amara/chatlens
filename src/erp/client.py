@@ -1,10 +1,8 @@
 """KLU ERP client for authenticating against newerp.kluniversity.in and scraping academic data."""
 
 import asyncio
-import contextlib
 import json
 import re
-import sqlite3
 import time
 from typing import Any
 
@@ -18,6 +16,7 @@ from src.erp.scrapers import (
     parse_marks_records,
     parse_timetable_records,
 )
+from src.utils.db import get_connection
 from src.utils.deduplication import deduplicator
 from src.utils.logging import get_logger
 
@@ -66,10 +65,7 @@ class KLUERPClient:
             key = f"{academic_year}:{semester_id}"
             data_json = json.dumps(records)
             now = time.time()
-            with contextlib.closing(
-                sqlite3.connect(settings.spark_db, isolation_level=None)
-            ) as conn:
-                conn.execute("PRAGMA busy_timeout = 5000")
+            with get_connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS erp_marks_cache (
@@ -96,10 +92,7 @@ class KLUERPClient:
     def _get_cached_marks(self, academic_year: str, semester_id: str) -> list[dict[str, Any]]:
         try:
             key = f"{academic_year}:{semester_id}"
-            with contextlib.closing(
-                sqlite3.connect(settings.spark_db, isolation_level=None)
-            ) as conn:
-                conn.execute("PRAGMA busy_timeout = 5000")
+            with get_connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS erp_marks_cache (

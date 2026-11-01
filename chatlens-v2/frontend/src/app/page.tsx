@@ -28,9 +28,7 @@ import { WelcomePage } from "@/components/WelcomePage";
 import Toast from "@/components/Toast";
 
 const PAGE_SIZE = 100;
-const AUTH_REQUIRED =
-  process.env.NODE_ENV === "production" ||
-  process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
+const AUTH_REQUIRED = process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
 
 export default function Home() {
   // ── Global state ──
