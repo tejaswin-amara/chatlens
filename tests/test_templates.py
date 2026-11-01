@@ -333,9 +333,11 @@ def test_academic_calendar_loading_and_milestones():
     assert cal is not None
     assert "T04" in cal.terms
     assert "T05" in cal.terms
+    assert "T06" in cal.terms
+    assert "Summer" in cal.terms
 
     lab_exam_date = get_milestone_date("lab exam", date(2026, 10, 1), cal)
-    assert lab_exam_date == date(2026, 10, 15)
+    assert lab_exam_date == date(2026, 10, 12)
 
     fee_date = get_milestone_date("fee", date(2026, 8, 1), cal)
-    assert fee_date == date(2026, 8, 10)
+    assert fee_date == date(2026, 9, 26)

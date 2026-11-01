@@ -23,6 +23,9 @@ if ($ScriptDir) {
         Set-Location $RepoRoot
     }
 }
+if (-not $RepoRoot) {
+    $RepoRoot = (Get-Location).Path
+}
 
 $DbPath = if ($Database) {
     $Database
@@ -251,12 +254,13 @@ if ($Background) {
         New-Item -ItemType Directory -Path "logs" -Force | Out-Null
     }
 
-    $ScriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Definition }
+    $RawScriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Definition }
+    $ScriptPath = (Resolve-Path $RawScriptPath).Path
     $ProcArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -LogToFile"
     if ($Database) {
         $ProcArgs += " -Database `"$Database`""
     }
-    $Proc = Start-Process powershell -ArgumentList $ProcArgs -WindowStyle Hidden -PassThru
+    $Proc = Start-Process powershell -ArgumentList $ProcArgs -WorkingDirectory $RepoRoot -WindowStyle Hidden -PassThru
     $Proc.Id | Out-File -FilePath $PidFile -Encoding ascii -Force
     Write-Host "[+] ChatLens daemon started in background with PID $($Proc.Id)." -ForegroundColor Green
     exit 0

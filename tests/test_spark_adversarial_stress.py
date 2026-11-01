@@ -514,10 +514,12 @@ class TestTimetableHorizonAndAcademicCalendar:
 
         # Verify milestone queries
         lab_exam_dt = get_milestone_date("lab exam", date(2026, 10, 1), cal)
-        assert lab_exam_dt == date(2026, 10, 15)
+        assert lab_exam_dt == date(2026, 10, 12)
 
-        sem_end_dt = get_milestone_date("sem-end", date(2026, 11, 1), cal)
-        assert sem_end_dt == date(2026, 12, 5)
+        sem_end_dt = get_milestone_date("sem-end", date(2026, 10, 1), cal)
+        assert sem_end_dt == date(2026, 10, 26)
+        # Window-aware match when date falls within official examination period
+        assert get_milestone_date("sem-end", date(2026, 11, 1), cal) == date(2026, 11, 1)
 
         detention_dt = get_milestone_date("detention", date(2026, 11, 1), cal)
-        assert detention_dt == date(2026, 11, 20)
+        assert detention_dt == date(2026, 10, 16)

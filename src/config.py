@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     gemini_daily_budget: int = Field(default=50, alias="GEMINI_DAILY_BUDGET")
     spark_media: bool = Field(default=False, alias="SPARK_MEDIA")
     spark_timetable: str = Field(default="data/timetable_T04.toml", alias="SPARK_TIMETABLE")
+    spark_calendar: str = Field(default="data/calendar_2026_27.toml", alias="SPARK_CALENDAR")
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     erp_username: str = Field(default="2520090104", alias="ERP_USERNAME")
