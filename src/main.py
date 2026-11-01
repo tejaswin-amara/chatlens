@@ -346,7 +346,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                             logger.warning("Failed to send startup notification", error=str(err))
                     startup_sent = True
 
-                await catch_up_chats(client)
+                asyncio.create_task(catch_up_chats(client))
                 backoff = BACKOFF_START
                 logger.info("ChatLens PA Bot is live and listening for events")
 
