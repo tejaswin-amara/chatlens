@@ -147,7 +147,7 @@ async def run_reminders() -> None:
                     ev = ev["event"]
 
                 t_date = ev.get("target_date")
-                if t_date == today_str or (not t_date and item.get("status") == "PENDING"):
+                if t_date == today_str:
                     item_id = item.get("id")
                     meta_key = f"reminded:pending:{item_id}:{today_str}"
                     if not deduplicator.meta_get(meta_key):

@@ -392,3 +392,41 @@ async def test_run_reminders_debounces_already_reminded(mock_valid_settings):
             await guard(run_reminders())
 
         mock_send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_reminders_ignores_undated_or_future_items(mock_valid_settings):
+    from src.main import run_reminders
+
+    items = [
+        # Undated pending item
+        {
+            "id": 101,
+            "event": {
+                "course_name": "Backlog Course",
+                "summary": "Undated notice",
+                "target_date": None,
+            },
+            "status": "PENDING",
+        },
+        # Future item
+        {
+            "id": 102,
+            "event": {
+                "course_name": "Future Course",
+                "summary": "Next week exam",
+                "target_date": "2099-12-31",
+            },
+            "status": "PENDING",
+        },
+    ]
+    with (
+        patch("src.utils.deduplication.deduplicator.list_pending", return_value=items),
+        patch("src.utils.deduplication.deduplicator.meta_get", return_value=None),
+        patch("src.notify.bot.bot.send") as mock_send,
+        patch("asyncio.sleep", side_effect=asyncio.CancelledError),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await guard(run_reminders())
+
+        mock_send.assert_not_called()

@@ -36,11 +36,16 @@ dev = [
 ]
 backend = [
     "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "pgvector>=0.2.0",
     "celery>=5.3.0",
+    "redis>=5.0.0",
     "asyncpg>=0.29.0",
     "python-multipart>=0.0.20",
+    "firebase-admin>=6.5.0",
+    "aiosqlite>=0.20.0",
+    "python-dotenv>=1.0.0",
 ]
 integration = [
     "testcontainers[postgres]>=4.0.0",

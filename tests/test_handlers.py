@@ -797,3 +797,82 @@ async def test_handle_bot_command_button_emojis_and_aliases():
             mock_send.assert_called_once()
             output = mock_send.call_args[0][0]
             assert expected_substr in output, f"Failed for input: {input_text}"
+
+
+@pytest.mark.asyncio
+async def test_extract_media_disabled_skips_download_and_ai():
+    from unittest.mock import AsyncMock
+
+    from src.config import settings
+    from src.ingestion.handlers import extract
+
+    settings.spark_media = False
+    mock_client = MagicMock()
+    mock_client.download_media = AsyncMock()
+
+    # Voice message with no text
+    mock_voice_msg = MagicMock()
+    mock_voice_msg.text = None
+    mock_voice_msg.voice = True
+    mock_voice_msg.photo = False
+    mock_voice_msg.document = None
+
+    event, source = await extract(mock_client, mock_voice_msg)
+    assert event is None
+    assert source is None
+    mock_client.download_media.assert_not_called()
+
+    # Photo message with no text
+    mock_photo_msg = MagicMock()
+    mock_photo_msg.text = ""
+    mock_photo_msg.voice = False
+    mock_photo_msg.photo = True
+    mock_photo_msg.document = None
+
+    event, source = await extract(mock_client, mock_photo_msg)
+    assert event is None
+    assert source is None
+    mock_client.download_media.assert_not_called()
+
+    # Photo message with caption matching regex
+    mock_caption_msg = MagicMock()
+    mock_caption_msg.text = "DSA shifted to H006"
+    from datetime import datetime
+
+    mock_caption_msg.date = datetime(2026, 3, 30, 9, 0, 0)
+    mock_caption_msg.voice = False
+    mock_caption_msg.photo = True
+    mock_caption_msg.document = None
+
+    event, source = await extract(mock_client, mock_caption_msg)
+    assert event is not None
+    assert source == "regex"
+    assert event.intent == "ROOM_OVERRIDE"
+    mock_client.download_media.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extract_media_enabled_downloads_and_calls_ai():
+    from unittest.mock import AsyncMock
+
+    from src.config import settings
+    from src.ingestion.handlers import extract
+
+    settings.spark_media = True
+    mock_client = MagicMock()
+    mock_client.download_media = AsyncMock(return_value=b"fake_voice_data")
+
+    mock_voice_msg = MagicMock()
+    mock_voice_msg.text = None
+    mock_voice_msg.date = None
+    mock_voice_msg.voice = True
+    mock_voice_msg.photo = False
+    mock_voice_msg.document = None
+
+    with patch("src.ingestion.handlers.ai_extractor") as mock_ai:
+        mock_ai.extract_from_voice.return_value = MagicMock(intent="ROOM_OVERRIDE")
+        event, source = await extract(mock_client, mock_voice_msg)
+        assert event is not None
+        assert source == "gemini"
+        mock_client.download_media.assert_called_once()
+        mock_ai.extract_from_voice.assert_called_once()

@@ -8,7 +8,8 @@ param(
     [switch]$Status,
     [switch]$Stop,
     [int]$Backoff = 2,
-    [string]$Database = ""
+    [string]$Database = "",
+    [switch]$LogToFile
 )
 
 # Ensure script executes from repository root
@@ -33,9 +34,26 @@ $DbPath = if ($Database) {
 
 $PidFile = "logs/spark_daemon.pid"
 
+function Clean-StalePidFile {
+    if (Test-Path $PidFile) {
+        $SavedPidStr = (Get-Content $PidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+        if ($SavedPidStr -and ($SavedPidStr.Trim() -match '^\d+$')) {
+            $SavedPid = [int]$SavedPidStr.Trim()
+            $proc = Get-Process -Id $SavedPid -ErrorAction SilentlyContinue
+            if (-not $proc) {
+                Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Get-DaemonProcess {
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -like "*python*" -and $_.CommandLine -match "src\.main"
+        $_.Name -like "*python*" -and $_.CommandLine -match "src\.main" -and $_.ProcessId -ne $PID
+    } | Where-Object {
+        Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
     }
 }
 
@@ -92,6 +110,7 @@ if ($Status) {
     Write-Host "     ChatLens PA Daemon Status            " -ForegroundColor Cyan
     Write-Host "==========================================" -ForegroundColor Cyan
 
+    Clean-StalePidFile
     $PyProcs = Get-DaemonProcess
     $SavedPid = if (Test-Path $PidFile) {
         $content = Get-Content $PidFile -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -219,6 +238,7 @@ except Exception as e:
 
 # --- Action: -Background ---
 if ($Background) {
+    Clean-StalePidFile
     # Check duplicate
     $Existing = Get-DaemonProcess
     if ($Existing) {
@@ -232,7 +252,7 @@ if ($Background) {
     }
 
     $ScriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Definition }
-    $ProcArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+    $ProcArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -LogToFile"
     if ($Database) {
         $ProcArgs += " -Database `"$Database`""
     }
@@ -247,6 +267,7 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  ChatLens Enterprise PA Daemon Runner   " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
+Clean-StalePidFile
 $Existing = Get-DaemonProcess
 if ($Existing) {
     $ProcId = ($Existing | Select-Object -ExpandProperty ProcessId -First 1)
@@ -265,10 +286,18 @@ $CurrentBackoff = $Backoff
 try {
     while ($true) {
         try {
-            if (Get-Command uv -ErrorAction SilentlyContinue) {
-                & uv run python -m src.main
+            if ($LogToFile) {
+                if (Get-Command uv -ErrorAction SilentlyContinue) {
+                    & uv run python -m src.main *>> logs/spark.log
+                } else {
+                    & python -m src.main *>> logs/spark.log
+                }
             } else {
-                & python -m src.main
+                if (Get-Command uv -ErrorAction SilentlyContinue) {
+                    & uv run python -m src.main
+                } else {
+                    & python -m src.main
+                }
             }
             $ExitCode = $LASTEXITCODE
 

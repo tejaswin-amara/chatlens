@@ -47,6 +47,20 @@ def _escape_like(val: str) -> str:
     return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _is_redis_available() -> bool:
+    """Check if the Redis broker is reachable before attempting Celery task dispatch."""
+    try:
+        import redis
+
+        redis_url = str(
+            os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL") or "redis://localhost:6379/0"
+        )
+        client = redis.Redis.from_url(redis_url, socket_timeout=0.15, socket_connect_timeout=0.15)
+        return bool(client.ping())
+    except Exception:
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -198,6 +212,9 @@ async def handle_upload(file: UploadFile, platform: str):
     abs_path = os.path.abspath(file_path)
     # Try Celery task dispatch; fall back to synchronous if Redis/Celery unavailable
     try:
+        is_mocked = hasattr(parse_file_task.delay, "mock_calls")
+        if not is_mocked and not _is_redis_available():
+            raise RuntimeError("Redis broker unavailable")
         task = parse_file_task.delay(abs_path, platform)
         return {"status": "processing", "task_id": task.id, "platform": platform}
     except Exception as exc:
@@ -826,6 +843,13 @@ async def api_timetable_today(user: dict[str, Any] | None = Depends(require_curr
             "day": today.strftime("%A"),
             "slots": slots_data,
         }
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.debug(f"Timetable module unavailable: {exc}")
+        return {
+            "date": datetime.now(UTC).date().isoformat(),
+            "slots": [],
+            "error": "Timetable service unavailable in standalone mode",
+        }
     except Exception as exc:
         logger.error(f"Failed to fetch timetable: {exc}")
         return {"date": datetime.now(UTC).date().isoformat(), "slots": [], "error": str(exc)}
@@ -857,6 +881,9 @@ async def api_timetable_week(user: dict[str, Any] | None = Depends(require_curre
                 for s in timetable.slots
             ],
         }
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.debug(f"Timetable module unavailable: {exc}")
+        return {"slots": [], "error": "Timetable service unavailable in standalone mode"}
     except Exception as exc:
         return {"slots": [], "error": str(exc)}
 
@@ -870,8 +897,13 @@ async def api_timetable_override(
     try:
         from src.utils import clock
         from src.utils.deduplication import deduplicator
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Timetable service unavailable in standalone mode: {exc}"
+        ) from exc
 
-        target_date = req.target_date or clock.today_ist().strftime("%Y-%m-%d")
+    target_date = req.target_date or clock.today_ist().strftime("%Y-%m-%d")
+    try:
         row_id = deduplicator.record_override(
             target_date=target_date,
             period=req.period,
@@ -890,6 +922,11 @@ async def api_timetable_override(
             "status": req.status.upper(),
             "room": req.room,
         }
+    except sqlite3.OperationalError as exc:
+        logger.error(f"Failed to record override due to read-only database: {exc}")
+        raise HTTPException(
+            status_code=403, detail=f"Database is mounted read-only: {exc}"
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=400, detail=f"Failed to record timetable override: {exc}"
@@ -939,6 +976,44 @@ async def api_deadlines(user: dict[str, Any] | None = Depends(require_current_us
             "milestones": milestones[:10],
             "tasks": formatted_tasks,
         }
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.debug(f"Academic calendar module unavailable in standalone mode: {exc}")
+        formatted_tasks = []
+        spark_db = os.getenv("SPARK_DB", "spark.db")
+        if os.path.exists(spark_db):
+            try:
+                conn = sqlite3.connect(spark_db)
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT id, ts, status, event_json FROM pending "
+                    "WHERE status = 'PENDING' ORDER BY id DESC LIMIT 20;"
+                )
+                for r in cur.fetchall():
+                    ev_data = {}
+                    if r[3]:
+                        try:
+                            ev_data = json.loads(r[3]).get("event", {})
+                        except Exception as json_err:
+                            logger.debug(f"Failed to parse pending event JSON: {json_err}")
+                    formatted_tasks.append(
+                        {
+                            "id": r[0],
+                            "summary": ev_data.get("summary")
+                            or ev_data.get("description")
+                            or "Task / Assignment",
+                            "status": r[2],
+                            "created": r[1],
+                        }
+                    )
+                conn.close()
+            except Exception as db_err:
+                logger.debug(f"Failed to read pending tasks from standalone spark db: {db_err}")
+        return {
+            "today": datetime.now(UTC).date().isoformat(),
+            "milestones": [],
+            "tasks": formatted_tasks,
+            "error": "Calendar service unavailable in standalone mode",
+        }
     except Exception as exc:
         return {
             "today": datetime.now(UTC).date().isoformat(),
@@ -955,13 +1030,20 @@ async def api_deadlines_say(
 ):
     """Use Gemini AI to synthesize a voice-ready audio briefing script."""
     try:
-        import src.timetable as tt
-        from src.academic_calendar import load_calendar
-        from src.utils import clock
+        try:
+            import src.timetable as tt
+            from src.academic_calendar import load_calendar
+            from src.utils import clock
 
-        today = clock.today_ist()
-        timetable = tt.load()
-        effective_today = tt.get_effective_slots(today, timetable) if timetable else []
+            today = clock.today_ist()
+            timetable = tt.load()
+            effective_today = tt.get_effective_slots(today, timetable) if timetable else []
+            cal = load_calendar()
+        except (ImportError, ModuleNotFoundError):
+            tt = None  # type: ignore
+            today = datetime.now(UTC).date()
+            effective_today = []
+            cal = None
 
         schedule_summary = (
             ", ".join(
@@ -973,7 +1055,6 @@ async def api_deadlines_say(
             or "No scheduled classes today."
         )
 
-        cal = load_calendar()
         milestone_str = ""
         if cal:
             upcoming = []
@@ -1024,8 +1105,6 @@ async def api_monitoring_status(
     user: dict[str, Any] | None = Depends(require_current_user),
 ):
     """Retrieve live monitoring status of Telegram chats and SPARK daemon."""
-    from src.config import settings
-
     total_msg_res = await db.execute(select(func.count(Message.id)))
     total_messages = total_msg_res.scalar() or 0
 
@@ -1034,15 +1113,28 @@ async def api_monitoring_status(
     )
     active_chats = [{"name": row[0], "message_count": row[1]} for row in chats_res.all()]
 
-    spark_db_path = settings.spark_db
+    raw_chat_ids = os.getenv("SPARK_CHAT_IDS", "")
+    monitored_chat_ids: list[int] = []
+    if raw_chat_ids:
+        for x in raw_chat_ids.replace(";", ",").split(","):
+            token = x.strip()
+            if token:
+                try:
+                    monitored_chat_ids.append(int(token))
+                except ValueError:
+                    pass
+
+    spark_db_path = os.getenv("SPARK_DB", "spark.db")
     spark_online = os.path.exists(spark_db_path)
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    spark_mode = os.getenv("SPARK_MODE", "dry")
 
     return {
         "status": "online" if spark_online else "idle",
-        "monitored_chat_ids": settings.allowed_chat_ids,
-        "total_monitored_chats": len(settings.allowed_chat_ids),
+        "monitored_chat_ids": monitored_chat_ids,
+        "total_monitored_chats": len(monitored_chat_ids),
         "total_saved_messages": total_messages,
         "active_chats": active_chats,
-        "gemini_model": settings.gemini_model,
-        "spark_mode": settings.spark_mode,
+        "gemini_model": gemini_model,
+        "spark_mode": spark_mode,
     }

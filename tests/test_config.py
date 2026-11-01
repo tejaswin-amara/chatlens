@@ -85,3 +85,27 @@ def test_settings_missing_live_confirm():
     )
     with pytest.raises(ValueError, match="BOT_TOKEN"):
         s.validate_required()
+
+
+def test_settings_reports_all_missing_variables():
+    s = Settings(
+        TELEGRAM_API_ID=0,
+        TELEGRAM_API_HASH="",
+        TELEGRAM_SESSION_STRING="",
+        GOOGLE_CREDENTIALS_BASE64="",
+        GEMINI_API_KEY="",
+        SPARK_MODE="confirm",
+        SPARK_CHAT_IDS="",
+        BOT_TOKEN=None,
+        OWNER_CHAT_ID=None,
+    )
+    with pytest.raises(ValueError) as excinfo:
+        s.validate_required()
+    err_msg = str(excinfo.value)
+    assert "TELEGRAM_API_ID" in err_msg
+    assert "TELEGRAM_API_HASH" in err_msg
+    assert "TELEGRAM_SESSION_STRING" in err_msg
+    assert "GOOGLE_CREDENTIALS_BASE64" in err_msg
+    assert "GEMINI_API_KEY" in err_msg
+    assert "BOT_TOKEN" in err_msg
+    assert "OWNER_CHAT_ID" in err_msg

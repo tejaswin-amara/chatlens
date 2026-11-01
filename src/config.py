@@ -79,10 +79,6 @@ class Settings(BaseSettings):
             missing.append("GOOGLE_CREDENTIALS_BASE64")
         if not self.gemini_api_key.get_secret_value():
             missing.append("GEMINI_API_KEY")
-        if self.spark_mode not in ("dry", "confirm", "live"):
-            raise ValueError("SPARK_MODE must be dry, confirm, or live")
-        if not self.allowed_chat_ids:
-            raise ValueError("SPARK_CHAT_IDS cannot be empty")
 
         if self.spark_mode in ("confirm", "live"):
             if not self.bot_token or not self.bot_token.get_secret_value():
@@ -92,6 +88,11 @@ class Settings(BaseSettings):
 
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+
+        if self.spark_mode not in ("dry", "confirm", "live"):
+            raise ValueError("SPARK_MODE must be dry, confirm, or live")
+        if not self.allowed_chat_ids:
+            raise ValueError("SPARK_CHAT_IDS cannot be empty")
 
 
 settings = Settings()
