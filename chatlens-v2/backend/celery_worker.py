@@ -89,10 +89,26 @@ async def save_messages(messages: list[dict[str, Any]]) -> None:
             except Exception as exc:
                 logger.debug(f"Batch embedding skipped: {exc}")
 
-        bind = session.bind or getattr(session, "_bind", None)
         is_sqlite = False
+        bind = getattr(session, "bind", None)
+        if bind is None and hasattr(session, "get_bind"):
+            try:
+                bind = session.get_bind()
+            except Exception as exc:
+                logger.debug(f"session.get_bind check failed: {exc}")
+                bind = None
         if bind is not None and hasattr(bind, "dialect"):
-            is_sqlite = bind.dialect.name == "sqlite"
+            is_sqlite = getattr(bind.dialect, "name", "") == "sqlite"
+        if not is_sqlite:
+            try:
+                from database import DATABASE_URL, engine
+
+                if hasattr(engine, "dialect") and getattr(engine.dialect, "name", "") == "sqlite":
+                    is_sqlite = True
+                elif "sqlite" in str(DATABASE_URL).lower():
+                    is_sqlite = True
+            except Exception as exc:
+                logger.debug(f"Dialect fallback check failed: {exc}")
 
         chunk_size = 1000
         for i in range(0, len(messages), chunk_size):
@@ -184,3 +200,61 @@ def parse_file_task(self: Any, file_path: str, platform: str) -> dict[str, Any]:
     except Exception as exc:
         logger.debug(f"Task progress update failed: {exc}")
     return parse_and_save_sync(file_path, platform)
+
+
+def run_system_diagnostics_sync(
+    use_ai: bool = False, auto_remediate: bool = False
+) -> dict[str, Any]:
+    """Execute system diagnostics and optional safe auto-remediations synchronously."""
+    from diagnostics import DiagnosticsService
+
+    service = DiagnosticsService()
+
+    async def _run_with_db(session: Any) -> dict[str, Any]:
+        report = await service.run_diagnostics(
+            session=session, use_ai=use_ai, deep_consistency=True
+        )
+        if auto_remediate and report.get("root_causes"):
+            results = []
+            for rc in report.get("root_causes", []):
+                action = rc.get("recommended_action")
+                if action in {"REQUEUE_STALLED_PENDING", "PRUNE_STALE_OVERRIDES"}:
+                    res = await service.execute_remediation(action=action, db=session)
+                    results.append(res)
+            report["auto_remediation_results"] = results
+        return report
+
+    async def _runner() -> dict[str, Any]:
+        try:
+            async with AsyncSessionLocal() as session:
+                return await _run_with_db(session)
+        except Exception:
+            return await _run_with_db(None)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, _runner()).result()
+    else:
+        return asyncio.run(_runner())
+
+
+@celery_app.task(bind=True)
+def run_system_diagnostics_task(
+    self: Any, use_ai: bool = False, auto_remediate: bool = False
+) -> dict[str, Any]:
+    """Celery background worker task for system diagnostics and auto-remediation."""
+    try:
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "Running system diagnostics"},
+        )
+    except Exception as exc:
+        logger.debug(f"Task progress update failed: {exc}")
+    return run_system_diagnostics_sync(use_ai=use_ai, auto_remediate=auto_remediate)

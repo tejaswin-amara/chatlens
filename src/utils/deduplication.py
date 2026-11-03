@@ -86,6 +86,7 @@ class MessageDeduplicator:
                 );
                 """
             )
+            self._initialized = True
 
     def _compute_hash(self, chat_id: int | str, message_id: int | str, content: str = "") -> str:
         raw_key = f"{chat_id}:{message_id}:{content.strip()}"
@@ -107,14 +108,22 @@ class MessageDeduplicator:
             row = cur.fetchone()
             return (row[0], row[1], float(row[2])) if row else None
 
-    def list_pending(self, limit: int = 20) -> list[dict]:
+    def list_pending(self, limit: int | None = 20) -> list[dict]:
         with self._get_conn() as conn:
-            query = (
-                "SELECT id, event_json, status, created "
-                "FROM pending WHERE status = 'PENDING' "
-                "ORDER BY created DESC LIMIT ?"
-            )
-            cur = conn.execute(query, (limit,))
+            if limit is not None and limit > 0:
+                query = (
+                    "SELECT id, event_json, status, created "
+                    "FROM pending WHERE status = 'PENDING' "
+                    "ORDER BY created DESC LIMIT ?"
+                )
+                cur = conn.execute(query, (limit,))
+            else:
+                query = (
+                    "SELECT id, event_json, status, created "
+                    "FROM pending WHERE status = 'PENDING' "
+                    "ORDER BY created DESC"
+                )
+                cur = conn.execute(query)
             rows = cur.fetchall()
             results = []
             for r in rows:

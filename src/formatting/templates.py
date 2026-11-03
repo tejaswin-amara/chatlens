@@ -516,3 +516,33 @@ def render_security_quarantine_alert(
         f"• **Filtered Snippet:** `{snippet}`",
     ]
     return sanitize_markdown("\n".join(lines))
+
+
+def render_courses_card(
+    courses: dict[str, Any],
+    term: str = "T05",
+    cluster: int = 4,
+    total_credits: int = 15,
+) -> str:
+    """Render structured course catalog card complying with R-UI standards."""
+    lines = [
+        f"🎓 **Y25 B.Tech Trimester {term} Registered Courses**",
+        f"🕒 *Academic Year 2026-27 • Cluster {cluster} • {total_credits} Credits*",
+        "",
+    ]
+    for key, c in courses.items():
+        name = getattr(c, "name", key)
+        code = getattr(c, "code", "")
+        cat = getattr(c, "category", "PCC")
+        ltps = getattr(c, "ltps", "-")
+        cr = getattr(c, "credits", 0)
+        sec = getattr(c, "section", "-")
+        fac = getattr(c, "faculty", "-")
+
+        lines.append(f"• 📌 **{name}** (`{code}`)")
+        lines.append(f"  └ Category: `{cat}` | L-T-P-S: `{ltps}` | Credits: **{cr}**")
+        lines.append(f"     • Section: `{sec}` | Faculty: {fac}")
+        lines.append("")
+
+    lines.append("💡 *Tip: 38 occupied periods/week. Period 6 is lunch break.*")
+    return sanitize_markdown("\n".join(lines))

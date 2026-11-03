@@ -59,6 +59,7 @@ data/private/
 
 # Logs & Scratch
 *.log
+logs/
 scratch/
 uploads/
 error_output.txt

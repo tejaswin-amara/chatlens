@@ -83,29 +83,36 @@ async def run_briefing() -> None:
     while True:
         now = clock.now_ist()
         target = next_run(now)
-        await asyncio.sleep((target - now).total_seconds())
+        sleep_sec = max(1.0, (target - now).total_seconds())
+        await asyncio.sleep(sleep_sec)
 
         today_str = clock.today_ist().strftime("%Y-%m-%d")
         if _is_sent_today(today_str):
             continue
 
-        try:
-            inputs = await fetch_briefing_inputs()
-            text = build_briefing(clock.now_ist(), *inputs)
-            for attempt in range(2):
-                try:
-                    await asyncio.to_thread(bot.send, text)
-                    _mark_sent_today(today_str)
-                    logger.info("Daily briefing dispatched")
-                    break
-                except Exception as send_err:
-                    if attempt == 1:
-                        raise send_err
-                    await asyncio.sleep(5)
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error("Failed to build or send briefing", error=str(e))
+        max_retries = 3
+        backoff_sec = 300
+        for retry in range(max_retries):
+            try:
+                inputs = await fetch_briefing_inputs()
+                text = build_briefing(clock.now_ist(), *inputs)
+                for attempt in range(2):
+                    try:
+                        await asyncio.to_thread(bot.send, text)
+                        _mark_sent_today(today_str)
+                        logger.info("Daily briefing dispatched")
+                        break
+                    except Exception as send_err:
+                        if attempt == 1:
+                            raise send_err
+                        await asyncio.sleep(5)
+                break
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error("Failed to build or send briefing", error=str(e), retry=retry)
+                if retry < max_retries - 1:
+                    await asyncio.sleep(backoff_sec)
 
 
 async def run_heartbeat() -> None:
@@ -141,34 +148,45 @@ async def run_reminders() -> None:
             today_str = clock.today_ist().strftime("%Y-%m-%d")
             now = clock.now_ist()
 
-            for item in deduplicator.list_pending(limit=20):
-                ev = item.get("event", {})
-                if isinstance(ev, dict) and "event" in ev:
-                    ev = ev["event"]
+            for item in deduplicator.list_pending(limit=None):
+                try:
+                    ev = item.get("event", {})
+                    if isinstance(ev, dict) and "event" in ev:
+                        ev = ev["event"]
 
-                t_date = ev.get("target_date")
-                if t_date == today_str:
-                    item_id = item.get("id")
-                    meta_key = f"reminded:pending:{item_id}:{today_str}"
-                    if not deduplicator.meta_get(meta_key):
-                        c_name = ev.get("course_name") or ev.get("course_code") or "Academic Notice"
-                        period = ev.get("period") or "Today"
-                        summary = ev.get("summary") or "Assessment / Deadline"
-                        intent = ev.get("intent", "NOTICE")
+                    t_date = (ev.get("target_date") or "").split("T")[0]
+                    if t_date == today_str:
+                        item_id = item.get("id")
+                        meta_key = f"reminded:pending:{item_id}:{today_str}"
+                        if not deduplicator.meta_get(meta_key):
+                            c_name = (
+                                ev.get("course_name") or ev.get("course_code") or "Academic Notice"
+                            )
+                            period = ev.get("period") or "Today"
+                            summary = ev.get("summary") or "Assessment / Deadline"
+                            intent = ev.get("intent", "NOTICE")
 
-                        from src.formatting.templates import render_proactive_reminder
+                            from src.formatting.templates import render_proactive_reminder
 
-                        text = render_proactive_reminder(
-                            course_name=c_name,
-                            course_code=ev.get("course_code"),
-                            period=period,
-                            summary=summary,
-                            intent=intent,
-                        )
-                        if settings.bot_token and settings.owner_chat_id:
-                            await asyncio.to_thread(bot.send, text)
-                        deduplicator.meta_set(meta_key, str(now.timestamp()))
-                        logger.info("Proactive reminder dispatched", item_id=item_id, course=c_name)
+                            text = render_proactive_reminder(
+                                course_name=c_name,
+                                course_code=ev.get("course_code"),
+                                period=period,
+                                summary=summary,
+                                intent=intent,
+                            )
+                            if settings.bot_token and settings.owner_chat_id:
+                                await asyncio.to_thread(bot.send, text)
+                            deduplicator.meta_set(meta_key, str(now.timestamp()))
+                            logger.info(
+                                "Proactive reminder dispatched", item_id=item_id, course=c_name
+                            )
+                except Exception as item_err:
+                    logger.warning(
+                        "Failed processing reminder item",
+                        item_id=item.get("id"),
+                        error=str(item_err),
+                    )
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -227,8 +245,11 @@ def _install_signal_handlers(loop, stop_event: asyncio.Event) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, _signal_handler)
-        except NotImplementedError:
-            pass
+        except (NotImplementedError, AttributeError):
+            try:
+                signal.signal(sig, lambda *_: _signal_handler())
+            except (ValueError, OSError, AttributeError):
+                pass
 
 
 async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> int:
@@ -325,7 +346,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                             logger.warning("Failed to send startup notification", error=str(err))
                     startup_sent = True
 
-                await catch_up_chats(client)
+                asyncio.create_task(catch_up_chats(client))
                 backoff = BACKOFF_START
                 logger.info("ChatLens PA Bot is live and listening for events")
 
@@ -359,6 +380,10 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                 backoff = min(backoff * 2, BACKOFF_MAX)
 
         return 0
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Daemon interrupted by user/signal. Exiting cleanly.")
+        stop_event.set()
+        return 0
     finally:
         stop_event.set()
         for j in jobs:
@@ -377,7 +402,14 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
 def main() -> None:
     import asyncio
 
-    code = asyncio.run(run_daemon())
+    try:
+        code = asyncio.run(run_daemon())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Daemon interrupted via signal. Exiting cleanly.")
+        code = 0
+    except Exception as e:
+        logger.critical("Fatal daemon crash", error=str(e), exc_info=True)
+        code = 1
     sys.exit(code)
 
 

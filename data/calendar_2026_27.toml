@@ -1,20 +1,334 @@
 # Academic Calendar Configuration (2026-2027)
-# Maps institutional milestone dates per term for automated validation (Invariant 5)
+# Official Academic Calendar: Y25 B.Tech Trimester Program 2026-2027
+# Koneru Lakshmaiah Education Foundation (K L Deemed to be University)
 
 [T04]
-start = 2026-07-15
-"fee" = 2026-08-10
-"mid-term" = 2026-09-22
-"re-check" = 2026-10-05
-"lab exam" = 2026-10-15
-"detention" = 2026-11-20
-"last instruction" = 2026-11-25
-"sem-end" = 2026-12-05
-end = 2026-12-15
+term = "T04"
+name = "2026-27 Trimester-4"
+start = 2026-07-13
+end = 2026-11-01
+classwork_start = 2026-07-23
+
+# Invariant 5 Protected Milestones & Primary Dates
+"fee" = 2026-09-26
+"re-check" = 2026-09-12
+"last instruction" = 2026-10-15
+"detention" = 2026-10-16
+"mid-term" = 2026-09-04
+"mid-term-end" = 2026-09-08
+"lab exam" = 2026-10-12
+"lab exam-end" = 2026-10-17
+"sem-end lab exam" = 2026-10-19
+"sem-end lab exam-end" = 2026-10-24
+"sem-end" = 2026-10-26
+"sem-end-end" = 2026-11-01
+
+[[T04.events]]
+name = "T4-Orientation & Registrations"
+start_date = 2026-07-13
+end_date = 2026-07-18
+milestone = "orientation"
+
+[[T04.events]]
+name = "Commencement of Classwork"
+start_date = 2026-07-23
+end_date = 2026-07-23
+milestone = "classwork"
+
+[[T04.events]]
+name = "MID TERM Exams Along with Class work"
+start_date = 2026-09-04
+end_date = 2026-09-08
+milestone = "mid-term"
+
+[[T04.events]]
+name = "Last Date to Request Re-Check for MID TERM Exams"
+start_date = 2026-09-12
+end_date = 2026-09-12
+milestone = "re-check"
+
+[[T04.events]]
+name = "Last Date to Pay End Exam Fee"
+start_date = 2026-09-26
+end_date = 2026-09-26
+milestone = "fee"
+
+[[T04.events]]
+name = "Lab Exams Along with Class work (LAB Examinations)"
+start_date = 2026-10-12
+end_date = 2026-10-17
+milestone = "lab exam"
+
+[[T04.events]]
+name = "Last Instruction Day"
+start_date = 2026-10-15
+end_date = 2026-10-15
+milestone = "last instruction"
+
+[[T04.events]]
+name = "Declaration of Detention List"
+start_date = 2026-10-16
+end_date = 2026-10-16
+milestone = "detention"
+
+[[T04.events]]
+name = "SEM END Lab Exams"
+start_date = 2026-10-19
+end_date = 2026-10-24
+milestone = "sem-end lab exam"
+
+[[T04.events]]
+name = "SEM End Theory Exams + Hackathon"
+start_date = 2026-10-26
+end_date = 2026-11-01
+milestone = "sem-end"
 
 [T05]
-start = 2026-12-28
-"fee" = 2027-01-15
-"mid-term" = 2027-03-01
+term = "T05"
+name = "2026-27 Trimester-5"
+start = 2026-11-02
+end = 2027-02-07
+classwork_start = 2026-11-04
+
+# Invariant 5 Protected Milestones & Primary Dates
+"fee" = 2027-01-09
+"re-check" = 2026-12-24
+"last instruction" = 2027-01-28
+"detention" = 2027-01-29
+"mid-term" = 2026-12-14
+"mid-term-end" = 2026-12-19
+"lab exam" = 2027-01-18
+"lab exam-end" = 2027-01-23
+"sem-end lab exam" = 2027-01-25
+"sem-end lab exam-end" = 2027-01-30
+"sem-end" = 2027-02-01
+"sem-end-end" = 2027-02-07
+
+[[T05.events]]
+name = "T5-Orientation & Registrations"
+start_date = 2026-10-05
+end_date = 2026-10-07
+milestone = "orientation"
+
+[[T05.events]]
+name = "Techno-Management Immersion Week"
+start_date = 2026-10-30
+end_date = 2026-10-31
+milestone = "immersion"
+
+[[T05.events]]
+name = "Commencement of Classwork"
+start_date = 2026-11-04
+end_date = 2026-11-04
+milestone = "classwork"
+
+[[T05.events]]
+name = "MID TERM Exams Along with Class work"
+start_date = 2026-12-14
+end_date = 2026-12-19
+milestone = "mid-term"
+
+[[T05.events]]
+name = "Last Date to Request Re-Check for MID TERM Exams"
+start_date = 2026-12-24
+end_date = 2026-12-24
+milestone = "re-check"
+
+[[T05.events]]
+name = "Last Date to Pay End Exam Fee"
+start_date = 2027-01-09
+end_date = 2027-01-09
+milestone = "fee"
+
+[[T05.events]]
+name = "Lab Exams Along with Class work (LAB Examinations)"
+start_date = 2027-01-18
+end_date = 2027-01-23
+milestone = "lab exam"
+
+[[T05.events]]
+name = "SEM END Lab Exams"
+start_date = 2027-01-25
+end_date = 2027-01-30
+milestone = "sem-end lab exam"
+
+[[T05.events]]
+name = "Last Instruction Day"
+start_date = 2027-01-28
+end_date = 2027-01-28
+milestone = "last instruction"
+
+[[T05.events]]
+name = "Declaration of Detention List"
+start_date = 2027-01-29
+end_date = 2027-01-29
+milestone = "detention"
+
+[[T05.events]]
+name = "SEM End Theory Exams + Hackathon"
+start_date = 2027-02-01
+end_date = 2027-02-07
+milestone = "sem-end"
+
+[T06]
+term = "T06"
+name = "2026-27 Trimester-6"
+start = 2027-02-09
+end = 2027-05-09
+classwork_start = 2027-02-09
+
+# Invariant 5 Protected Milestones & Primary Dates
+"fee" = 2027-04-10
+"re-check" = 2027-03-31
+"last instruction" = 2027-04-29
+"detention" = 2027-04-30
+"mid-term" = 2027-03-22
+"mid-term-end" = 2027-03-27
+"lab exam" = 2027-04-19
+"lab exam-end" = 2027-04-24
+"sem-end lab exam" = 2027-04-26
+"sem-end lab exam-end" = 2027-05-01
 "sem-end" = 2027-05-02
-end = 2027-05-15
+"sem-end-end" = 2027-05-09
+
+[[T06.events]]
+name = "T6-Orientation & Registrations"
+start_date = 2027-01-25
+end_date = 2027-01-27
+milestone = "orientation"
+
+[[T06.events]]
+name = "Commencement of Classwork"
+start_date = 2027-02-09
+end_date = 2027-02-09
+milestone = "classwork"
+
+[[T06.events]]
+name = "Cultural Immersion Week"
+start_date = 2027-03-12
+end_date = 2027-03-13
+milestone = "immersion"
+
+[[T06.events]]
+name = "MID TERM Exams Along with Class work"
+start_date = 2027-03-22
+end_date = 2027-03-27
+milestone = "mid-term"
+
+[[T06.events]]
+name = "Last Date to Request Re-Check for MID TERM Exams"
+start_date = 2027-03-31
+end_date = 2027-03-31
+milestone = "re-check"
+
+[[T06.events]]
+name = "Last Date to Pay End Exam Fee"
+start_date = 2027-04-10
+end_date = 2027-04-10
+milestone = "fee"
+
+[[T06.events]]
+name = "Lab Exams Along with Class work (LAB Examinations)"
+start_date = 2027-04-19
+end_date = 2027-04-24
+milestone = "lab exam"
+
+[[T06.events]]
+name = "SEM END Lab Exams"
+start_date = 2027-04-26
+end_date = 2027-05-01
+milestone = "sem-end lab exam"
+
+[[T06.events]]
+name = "Last Instruction Day"
+start_date = 2027-04-29
+end_date = 2027-04-29
+milestone = "last instruction"
+
+[[T06.events]]
+name = "Declaration of Detention List"
+start_date = 2027-04-30
+end_date = 2027-04-30
+milestone = "detention"
+
+[[T06.events]]
+name = "SEM End Theory Exams + Hackathon"
+start_date = 2027-05-02
+end_date = 2027-05-09
+milestone = "sem-end"
+
+[Summer]
+term = "Summer"
+name = "2026-27 Summer Term"
+start = 2027-05-31
+end = 2027-07-11
+classwork_start = 2027-05-31
+
+# Invariant 5 Protected Milestones & Primary Dates
+"mid-term" = 2027-06-18
+"mid-term-end" = 2027-06-19
+"lab exam" = 2027-06-29
+"lab exam-end" = 2027-06-30
+"detention" = 2027-07-07
+"sem-end" = 2027-07-08
+"sem-end-end" = 2027-07-11
+
+[[Summer.events]]
+name = "3-Week Summer Technical Internship"
+start_date = 2027-05-10
+end_date = 2027-05-29
+milestone = "technical internship"
+
+[[Summer.events]]
+name = "8-Week Summer Internship"
+start_date = 2027-05-10
+end_date = 2027-07-03
+milestone = "summer internship"
+
+[[Summer.events]]
+name = "Summer Term Orientation & Registrations"
+start_date = 2027-05-28
+end_date = 2027-05-29
+milestone = "orientation"
+
+[[Summer.events]]
+name = "Commencement of Summer Term Classwork"
+start_date = 2027-05-31
+end_date = 2027-05-31
+milestone = "classwork"
+
+[[Summer.events]]
+name = "MID TERM Exams along with class work"
+start_date = 2027-06-18
+end_date = 2027-06-19
+milestone = "mid-term"
+
+[[Summer.events]]
+name = "2027-28 Odd Semester Registrations"
+start_date = 2027-06-28
+end_date = 2027-07-03
+milestone = "next-year-registration"
+
+[[Summer.events]]
+name = "Lab In Sem Exams Along with Class Work"
+start_date = 2027-06-29
+end_date = 2027-06-30
+milestone = "lab exam"
+
+[[Summer.events]]
+name = "Declaration of Detention List"
+start_date = 2027-07-07
+end_date = 2027-07-07
+milestone = "detention"
+
+[[Summer.events]]
+name = "SEM End Theory Exams + Hackathon"
+start_date = 2027-07-08
+end_date = 2027-07-11
+milestone = "sem-end"
+
+[[Summer.events]]
+name = "2027-28 Academic Year Commencement"
+start_date = 2027-07-12
+end_date = 2027-07-12
+milestone = "commencement next year"

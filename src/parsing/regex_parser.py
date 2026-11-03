@@ -10,28 +10,46 @@ IST = clock.IST
 
 
 COURSES = {
+    # T04
     "DSA": ["DSA", "DATA STRUCTURES", "DSA3", "DSA-3"],
     "OSSP": ["OSSP", "OPERATING SYSTEMS"],
     "ML": ["ML", "MLNG", "MACHINE LEARNING"],
     "ESD": ["ESD", "EBSD", "IOT", "EMBEDDED SYSTEM"],
     "DBSE": ["DBSE", "DATABASE SYSTEMS"],
     "JAPANESE": ["JAPANESE", "JPN", "FLP-2"],
+    # T05
+    "DLAC": ["DLAC", "DEEP LEARNING", "DL", "ACCELERATED COMPUTING"],
+    "CIS": ["CIS", "CLOUD", "CLOUD INFRASTRUCTURE", "INFRASTRUCTURE AND SERVICES"],
+    "CNNP": ["CNNP", "CN", "NETWORKS", "COMPUTER NETWORKS", "NETWORK PROGRAMMING"],
+    "GENAI": ["GENAI", "GAIPE", "GENERATIVE AI", "GEN AI", "AI PLATFORM"],
+    "ISDG": ["ISDG", "SDG", "SUSTAINABLE DEVELOPMENT", "SUSTAINABLE DEVELOPMENT GOALS"],
+    "KABBADI": ["KABBADI", "KABADDI", "SPORTS", "VAC"],
 }
 
 COURSE_CODES = {
+    # T04
     "DSA": "25CS2103E",
     "OSSP": "25CS2104E",
     "ML": "25SC2107E",
     "ESD": "25EC2206E",
     "DBSE": "25CS1302E",
     "JAPANESE": "25FL2112E",
+    # T05
+    "DLAC": "25CS3112E",
+    "CIS": "25CS2206E",
+    "CNNP": "25CS2208E",
+    "GENAI": "25CS2207E",
+    "ISDG": "25UC0032E",
+    "KABBADI": "25SP2108E",
 }
 
 ROOM_PATTERN = re.compile(r"\b(H[C]?[- ]?\d{2,3}[A-Z]?)\b", re.IGNORECASE)
 PERIOD_PATTERN = re.compile(
-    r"\b(PERIOD[- ]?[1-9]|P[1-9](?:[- ]?P[1-9])?|\d{1,2}:\d{2}\s*(?:AM|PM))\b", re.IGNORECASE
+    r"\b(PERIOD[- ]?(?:1[0-3]|[1-9])|P(?:1[0-3]|[1-9])(?:[- ]?P(?:1[0-3]|[1-9]))?|"
+    r"\d{1,2}:\d{2}\s*(?:AM|PM))\b",
+    re.IGNORECASE,
 )
-SECTION_PATTERN = re.compile(r"\b(S[- ]?10|S[- ]?11)\b", re.IGNORECASE)
+SECTION_PATTERN = re.compile(r"\b(?:S|SEC|SECTION)[- ]?(10|11|1)\b", re.IGNORECASE)
 HOLIDAY_PATTERN = re.compile(
     r"\b(HOLIDAY|NO CLASSES|CLASSES(?: ARE| WILL BE)? (?:CANCELLED|CANCELED|SUSPENDED)|"
     r"UNIVERSITY CLOSED|NON-INSTRUCTIONAL)\b",
@@ -262,6 +280,10 @@ class RegexParser:
                     7: (13, 20, 14, 10),
                     8: (14, 20, 15, 10),
                     9: (15, 10, 16, 0),
+                    10: (16, 10, 17, 0),
+                    11: (17, 0, 17, 50),
+                    12: (18, 0, 18, 50),
+                    13: (18, 50, 19, 40),
                 }
 
                 start_p = None
