@@ -3,17 +3,52 @@
 from datetime import date
 
 from src.parsing.regex_parser import RegexParser
-from src.timetable import COURSE_INFO, PERIOD_TIMES, format_day_schedule, load, parse_periods
+from src.timetable import (
+    COURSE_INFO,
+    COURSE_METADATA,
+    PERIOD_TIMES,
+    format_day_schedule,
+    load,
+    parse_periods,
+)
 
 
 def test_t05_timetable_loads_successfully():
     tt = load("data/timetable_T05.toml")
     assert tt is not None
     assert tt.meta.term == "T05"
+    assert tt.meta.cluster == 4
+    assert tt.meta.credits == 15
+    assert tt.meta.contact_hours == 38
     assert tt.meta.valid_from == date(2026, 11, 2)
     assert tt.meta.valid_to == date(2027, 2, 7)
     assert tt.meta.sample is False
     assert len(tt.slots) == 38
+
+    # Verify slot types
+    slot_types = {s.slot_type for s in tt.slots}
+    assert slot_types.issubset({"Skill", "Lecture", "Practical"})
+    skill_slots = [s for s in tt.slots if s.slot_type == "Skill"]
+    lecture_slots = [s for s in tt.slots if s.slot_type == "Lecture"]
+    practical_slots = [s for s in tt.slots if s.slot_type == "Practical"]
+    assert len(practical_slots) == 2  # Tue P5,7 CIS
+    assert len(lecture_slots) == 10
+    assert len(skill_slots) == 26
+    assert len(skill_slots) + len(lecture_slots) + len(practical_slots) == 38
+
+
+def test_t05_course_metadata_and_credits():
+    assert len(COURSE_METADATA) == 6
+    total_credits = sum(c.credits for c in COURSE_METADATA.values())
+    assert total_credits == 15
+    assert COURSE_METADATA["DLAC"].credits == 4
+    assert COURSE_METADATA["CIS"].credits == 4
+    assert COURSE_METADATA["GENAI"].credits == 4
+    assert COURSE_METADATA["CNNP"].credits == 3
+    assert COURSE_METADATA["ISDG"].credits == 0
+    assert COURSE_METADATA["KABBADI"].credits == 0
+    assert COURSE_METADATA["DLAC"].section == "S-10"
+    assert COURSE_METADATA["CIS"].section == "S-11"
 
 
 def test_t05_all_courses_in_course_info():

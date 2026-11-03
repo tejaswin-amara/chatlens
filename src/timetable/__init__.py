@@ -50,6 +50,74 @@ PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
 }
 
 
+class CourseMetadata(NamedTuple):
+    code: str
+    name: str
+    category: str = "PCC"
+    ltps: str = "2-0-0-8"
+    credits: int = 4
+    section: str = "S-10"
+    faculty: str = ""
+
+
+COURSE_METADATA: dict[str, CourseMetadata] = {
+    "DLAC": CourseMetadata(
+        code="25CS3112E",
+        name="Deep Learning With Accelerated Computing",
+        category="PCC",
+        ltps="2-0-0-8",
+        credits=4,
+        section="S-10",
+        faculty="Ms. Ch. Anitha",
+    ),
+    "CIS": CourseMetadata(
+        code="25CS2206E",
+        name="Cloud Infrastructure And Services",
+        category="PCC",
+        ltps="2-0-2-4",
+        credits=4,
+        section="S-11",
+        faculty="Ms. D. Divya Priya",
+    ),
+    "GENAI": CourseMetadata(
+        code="25CS2207E",
+        name="Generative Ai And Ai Platform Engineering",
+        category="PCC",
+        ltps="2-0-0-8",
+        credits=4,
+        section="S-10",
+        faculty="Dr. Y. Lakshmi Prasanna",
+    ),
+    "CNNP": CourseMetadata(
+        code="25CS2208E",
+        name="Computer Networks And Network Programming",
+        category="PCC",
+        ltps="2-0-0-4",
+        credits=3,
+        section="S-11",
+        faculty="Mrs. D. Alekhya",
+    ),
+    "ISDG": CourseMetadata(
+        code="25UC0032E",
+        name="Insights to Sustainable Development Goals",
+        category="AUC",
+        ltps="1-0-0-0",
+        credits=0,
+        section="S-10",
+        faculty="Faculty",
+    ),
+    "KABBADI": CourseMetadata(
+        code="25SP2108E",
+        name="Kabaddi",
+        category="VAC",
+        ltps="0-0-0-2",
+        credits=0,
+        section="S-1",
+        faculty="Physical Education",
+    ),
+}
+
+
 class Slot(NamedTuple):
     day: str
     period: int
@@ -57,6 +125,8 @@ class Slot(NamedTuple):
     room: str
     faculty: str
     override: str | None = None
+    section: str | None = None
+    slot_type: str = "Lecture"
 
 
 class Meta(NamedTuple):
@@ -64,6 +134,9 @@ class Meta(NamedTuple):
     valid_from: date
     valid_to: date
     sample: bool
+    cluster: int = 4
+    credits: int = 15
+    contact_hours: int = 38
 
 
 class Timetable(NamedTuple):
@@ -117,6 +190,9 @@ def load(path: str | None = None) -> Timetable | None:
         valid_from=meta_dict.get("valid_from", clock.today_ist()),
         valid_to=meta_dict.get("valid_to", clock.today_ist()),
         sample=is_sample,
+        cluster=meta_dict.get("cluster", 4),
+        credits=meta_dict.get("credits", 15),
+        contact_hours=meta_dict.get("contact_hours", 38),
     )
 
     slots = []
@@ -128,6 +204,8 @@ def load(path: str | None = None) -> Timetable | None:
                 course=slot.get("course", ""),
                 room=slot.get("room", ""),
                 faculty=slot.get("faculty", ""),
+                section=slot.get("section"),
+                slot_type=slot.get("type", "Lecture"),
             )
         )
 
@@ -273,29 +351,35 @@ def format_day_schedule(
 
         c_code, c_name = COURSE_INFO.get(s.course, (s.course, s.course))
         room = s.room
-        section = (
+        section = s.section or (
             "S-11" if s.course in ("CIS", "CNNP") else ("S-1" if s.course == "KABBADI" else "S-10")
         )
-        if s.course == "JAPANESE":
-            c_type = "Skill"
-        elif s.course == "KABBADI":
-            c_type = "VAC"
-        elif "HC-" in room or (s.course == "CIS" and s.period in (5, 7)):
-            c_type = "Lab"
-        else:
-            c_type = "Lecture"
+        c_type = getattr(s, "slot_type", None)
+        if not c_type or c_type == "Lecture":
+            if s.course == "JAPANESE":
+                c_type = "Skill"
+            elif s.course == "KABBADI":
+                c_type = "VAC"
+            elif "HC-" in room or (s.course == "CIS" and s.period in (5, 7)):
+                c_type = "Practical" if s.course == "CIS" else "Lab"
+            elif not c_type:
+                c_type = "Lecture"
 
-        if c_type == "Lab":
+        if c_type in ("Lab", "Practical"):
             lab_cnt += 1
-        elif c_type in ("Skill", "VAC"):
+        elif c_type in ("Skill", "VAC", "Audit"):
             non_erp_cnt += 1
         else:
             academic_cnt += 1
 
         note = (
-            f"Week {wk_num} lab session; bring laptop"
-            if c_type == "Lab"
-            else f"Week {wk_num} core topics"
+            f"Week {wk_num} practical/lab session; bring laptop"
+            if c_type in ("Lab", "Practical")
+            else (
+                f"Week {wk_num} skilling project"
+                if c_type == "Skill"
+                else f"Week {wk_num} core topics"
+            )
         )
         if s.override and s.override != "CANCELLED":
             note = f"⚡ Room override: {s.override}"

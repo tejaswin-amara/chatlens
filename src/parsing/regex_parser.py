@@ -49,7 +49,7 @@ PERIOD_PATTERN = re.compile(
     r"\d{1,2}:\d{2}\s*(?:AM|PM))\b",
     re.IGNORECASE,
 )
-SECTION_PATTERN = re.compile(r"\b(S[- ]?10|S[- ]?11|S[- ]?1)\b", re.IGNORECASE)
+SECTION_PATTERN = re.compile(r"\b(?:S|SEC|SECTION)[- ]?(10|11|1)\b", re.IGNORECASE)
 HOLIDAY_PATTERN = re.compile(
     r"\b(HOLIDAY|NO CLASSES|CLASSES(?: ARE| WILL BE)? (?:CANCELLED|CANCELED|SUSPENDED)|"
     r"UNIVERSITY CLOSED|NON-INSTRUCTIONAL)\b",
@@ -280,6 +280,10 @@ class RegexParser:
                     7: (13, 20, 14, 10),
                     8: (14, 20, 15, 10),
                     9: (15, 10, 16, 0),
+                    10: (16, 10, 17, 0),
+                    11: (17, 0, 17, 50),
+                    12: (18, 0, 18, 50),
+                    13: (18, 50, 19, 40),
                 }
 
                 start_p = None

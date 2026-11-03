@@ -911,6 +911,8 @@ async def handle_bot_command(msg: dict) -> None:
         "/tomorrow",
         "/timetable",
         "/schedule",
+        "/courses",
+        "/course",
         "/briefing",
         "/digest",
         "/attendance",
@@ -949,6 +951,7 @@ async def handle_bot_command(msg: dict) -> None:
             "• `/today` — Today's classes, rooms & status\n"
             "• `/tomorrow` — Tomorrow's schedule & upcoming classes\n"
             "• `/timetable` — Official weekly course timetable & rooms\n"
+            "• `/courses` — Registered T05 courses, credits, and faculty\n"
             "• `/briefing` — Generate today's academic briefing\n"
             "• `/attendance` — Live attendance & safe bunk margins\n"
             "• `/bunk` — Exact attendance bunk buffer calculator\n"
@@ -1035,6 +1038,14 @@ async def handle_bot_command(msg: dict) -> None:
             f"💡 *Use `/today` or `/tomorrow` for live classes or `/exam` for lab dates.*"
         )
         await asyncio.to_thread(bot.send, reply)
+
+    elif cmd in ("/courses", "/course"):
+        from src.formatting.templates import get_standard_navigation_buttons, render_courses_card
+        from src.timetable import COURSE_METADATA
+
+        reply = render_courses_card(COURSE_METADATA, term="T05", cluster=4, total_credits=15)
+        buttons = get_standard_navigation_buttons()
+        await asyncio.to_thread(bot.send, reply, buttons=buttons)
 
     elif cmd == "/attendance":
         from src.erp import klu_erp

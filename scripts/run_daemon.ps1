@@ -306,8 +306,8 @@ try {
             $ExitCode = $LASTEXITCODE
 
             if ($ExitCode -eq 0) {
-                Write-Host "[+] Daemon terminated cleanly (exit code 0)." -ForegroundColor Green
-                break
+                Write-Host "[+] Daemon cycle completed (exit code 0). Restarting..." -ForegroundColor Green
+                Start-Sleep -Seconds $CurrentBackoff
             } elseif ($ExitCode -eq 2) {
                 Write-Host "[-] Unrecoverable configuration or auth error (exit code 2). Halting supervisor." -ForegroundColor Red
                 break
