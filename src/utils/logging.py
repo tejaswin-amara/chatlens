@@ -82,6 +82,11 @@ def _sentry_before_send(event: Event, hint: Hint) -> Event | None:
 
 
 def configure_logging() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            sys.stdout.reconfigure(line_buffering=True)
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=log_level)
     structlog.configure(

@@ -305,14 +305,11 @@ try {
             }
             $ExitCode = $LASTEXITCODE
 
-            if ($ExitCode -eq 0) {
-                Write-Host "[+] Daemon terminated cleanly (exit code 0)." -ForegroundColor Green
-                break
-            } elseif ($ExitCode -eq 2) {
+            if ($ExitCode -eq 2) {
                 Write-Host "[-] Unrecoverable configuration or auth error (exit code 2). Halting supervisor." -ForegroundColor Red
                 break
             } else {
-                Write-Host "[!] Daemon crashed with exit code $ExitCode. Restarting in $CurrentBackoff seconds..." -ForegroundColor Yellow
+                Write-Host "[!] Daemon exited with code $ExitCode. Restarting in $CurrentBackoff seconds..." -ForegroundColor Yellow
                 Start-Sleep -Seconds $CurrentBackoff
                 $CurrentBackoff = [Math]::Min($CurrentBackoff * 2, 60)
             }
