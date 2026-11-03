@@ -17,12 +17,20 @@ def clear_cache() -> None:
 
 
 COURSE_INFO: dict[str, tuple[str, str]] = {
+    # T04 Courses
     "DSA": ("25CS2103E", "Data Structures & Algorithms-3"),
     "OSSP": ("25CS2104E", "Operating Systems & Systems Programming"),
     "ML": ("25SC2107E", "Machine Learning"),
     "ESD": ("25EC2206E", "Embedded System Design & IoT"),
     "DBSE": ("25CS1302E", "Database Systems Engineering"),
     "JAPANESE": ("25FL2112E", "Japanese Language Proficiency-2"),
+    # T05 Courses
+    "DLAC": ("25CS3112E", "Deep Learning With Accelerated Computing"),
+    "CIS": ("25CS2206E", "Cloud Infrastructure And Services"),
+    "CNNP": ("25CS2208E", "Computer Networks And Network Programming"),
+    "GENAI": ("25CS2207E", "Generative Ai And Ai Platform Engineering"),
+    "ISDG": ("25UC0032E", "Insights to Sustainable Development Goals"),
+    "KABBADI": ("25SP2108E", "Kabbadi"),
 }
 
 PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
@@ -31,10 +39,14 @@ PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
     3: ("10:00 AM", "10:50 AM", 10, 0, 10, 50),
     4: ("10:50 AM", "11:40 AM", 10, 50, 11, 40),
     5: ("11:50 AM", "12:40 PM", 11, 50, 12, 40),
-    # Note: Period 6 does NOT exist in KLEF T04 (lunch break 12:40 - 13:20)
+    # Note: Period 6 does NOT exist in KLEF T04/T05 (lunch break 12:40 - 13:20)
     7: ("01:20 PM", "02:10 PM", 13, 20, 14, 10),
     8: ("02:20 PM", "03:10 PM", 14, 20, 15, 10),
     9: ("03:10 PM", "04:00 PM", 15, 10, 16, 0),
+    10: ("04:10 PM", "05:00 PM", 16, 10, 17, 0),
+    11: ("05:00 PM", "05:50 PM", 17, 0, 17, 50),
+    12: ("06:00 PM", "06:50 PM", 18, 0, 18, 50),
+    13: ("06:50 PM", "07:40 PM", 18, 50, 19, 40),
 }
 
 
@@ -261,11 +273,21 @@ def format_day_schedule(
 
         c_code, c_name = COURSE_INFO.get(s.course, (s.course, s.course))
         room = s.room
-        c_type = "Skill" if s.course == "JAPANESE" else ("Lab" if "HC-" in room else "Lecture")
+        section = (
+            "S-11" if s.course in ("CIS", "CNNP") else ("S-1" if s.course == "KABBADI" else "S-10")
+        )
+        if s.course == "JAPANESE":
+            c_type = "Skill"
+        elif s.course == "KABBADI":
+            c_type = "VAC"
+        elif "HC-" in room or (s.course == "CIS" and s.period in (5, 7)):
+            c_type = "Lab"
+        else:
+            c_type = "Lecture"
 
         if c_type == "Lab":
             lab_cnt += 1
-        elif c_type == "Skill":
+        elif c_type in ("Skill", "VAC"):
             non_erp_cnt += 1
         else:
             academic_cnt += 1
@@ -284,7 +306,7 @@ def format_day_schedule(
             f"{icon} [{time_str}]: {c_name} ({c_code})\n"
             f"* Room    : {room}\n"
             f"* Faculty : {s.faculty}\n"
-            f"* Section : S-10\n"
+            f"* Section : {section}\n"
             f"* Type    : {c_type}\n"
             f"* Note    : {note}\n"
         )
@@ -328,6 +350,10 @@ def parse_periods(text: str) -> list[int]:
                 7: 13 * 60 + 20,
                 8: 14 * 60 + 20,
                 9: 15 * 60 + 10,
+                10: 16 * 60 + 10,
+                11: 17 * 60 + 0,
+                12: 18 * 60 + 0,
+                13: 18 * 60 + 50,
             }
 
             for p, p_mins in period_map.items():

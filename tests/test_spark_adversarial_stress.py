@@ -426,7 +426,7 @@ class TestTimetableHorizonAndAcademicCalendar:
     """Stress-test timetable validity horizon and calendar milestone guards."""
 
     def test_timetable_horizon_extension_validity(self):
-        tt = load()
+        tt = load("data/timetable_T04.toml")
         assert tt is not None
         assert tt.meta.term == "T04"
         # Confirm valid_to is extended to 2026-12-15
@@ -436,7 +436,7 @@ class TestTimetableHorizonAndAcademicCalendar:
     def test_date_lookups_across_horizon_boundary(self):
         from src.parsing.regex_parser import ExtractedAcademicEvent
 
-        tt = load()
+        tt = load("data/timetable_T04.toml")
         assert tt is not None
 
         # 2026-11-01 (Sunday - last day of old horizon, valid in term)

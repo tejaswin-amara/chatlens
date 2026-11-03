@@ -1021,13 +1021,16 @@ async def handle_bot_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, schedule_text)
 
     elif cmd in ("/timetable", "/schedule"):
+        from src.timetable import load as load_timetable
         from src.utils import clock
 
         today = clock.today_ist()
         now = clock.now_ist()
         schedule_text = format_day_schedule(today, now_dt=now)
+        tt = load_timetable()
+        term_str = tt.meta.term if tt and hasattr(tt, "meta") else "T05"
         reply = (
-            f"📅 **Official Academic Timetable (KLEF T04 - S-10)**\n\n"
+            f"📅 **Official Academic Timetable (KLEF {term_str} - S-10/S-11)**\n\n"
             f"{schedule_text}\n\n"
             f"💡 *Use `/today` or `/tomorrow` for live classes or `/exam` for lab dates.*"
         )
