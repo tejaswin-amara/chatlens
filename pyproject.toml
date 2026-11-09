@@ -73,6 +73,11 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-m 'not integration'"
+filterwarnings = [
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning",
+    "ignore:coroutine .* was never awaited:RuntimeWarning",
+    "ignore::DeprecationWarning:fastapi.testclient",
+]
 markers = [
     "integration: marks integration tests requiring docker",
 ]
