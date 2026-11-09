@@ -213,9 +213,17 @@ def test_slot_note_generation_across_weeks_and_types():
             c_type = lines[4].split(":")[1].strip()
             note = lines[5].split(":")[1].strip()
 
-            if c_type == "Lab":
-                assert note == f"Week {expected_wk} lab session; bring laptop"
-            elif c_type in ("Lecture", "Skill"):
+            if c_type in ("Lab", "Practical"):
+                assert note in (
+                    f"Week {expected_wk} lab session; bring laptop",
+                    f"Week {expected_wk} practical/lab session; bring laptop",
+                )
+            elif c_type == "Skill":
+                assert note in (
+                    f"Week {expected_wk} skilling project",
+                    f"Week {expected_wk} core topics",
+                )
+            elif c_type == "Lecture":
                 assert note == f"Week {expected_wk} core topics"
 
 
