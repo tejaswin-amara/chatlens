@@ -9,7 +9,8 @@ param(
     [switch]$Stop,
     [int]$Backoff = 2,
     [string]$Database = "",
-    [switch]$LogToFile
+    [switch]$LogToFile,
+    [switch]$Continuous
 )
 
 # Ensure script executes from repository root
@@ -256,7 +257,7 @@ if ($Background) {
 
     $RawScriptPath = if ($PSCommandPath) { $PSCommandPath } else { $MyInvocation.MyCommand.Definition }
     $ScriptPath = (Resolve-Path $RawScriptPath).Path
-    $ProcArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -LogToFile"
+    $ProcArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -LogToFile -Continuous"
     if ($Database) {
         $ProcArgs += " -Database `"$Database`""
     }
@@ -306,8 +307,13 @@ try {
             $ExitCode = $LASTEXITCODE
 
             if ($ExitCode -eq 0) {
-                Write-Host "[+] Daemon terminated cleanly (exit code 0)." -ForegroundColor Green
-                break
+                if ($Continuous) {
+                    Write-Host "[+] Daemon cycle completed (exit code 0). Continuous mode restarting in $Backoff seconds..." -ForegroundColor Green
+                    Start-Sleep -Seconds $Backoff
+                } else {
+                    Write-Host "[+] Daemon terminated cleanly (exit code 0)." -ForegroundColor Green
+                    break
+                }
             } elseif ($ExitCode -eq 2) {
                 Write-Host "[-] Unrecoverable configuration or auth error (exit code 2). Halting supervisor." -ForegroundColor Red
                 break
