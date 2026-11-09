@@ -333,7 +333,8 @@ class BotClient:
                 else:
                     raise
 
-        msg_id = res.get("result", {}).get("message_id") if isinstance(res, dict) else None
+        result_payload = res.get("result") if isinstance(res, dict) else None
+        msg_id = result_payload.get("message_id") if isinstance(result_payload, dict) else None
         logger.info("Bot message dispatched", target_chat_id=target_chat_id, message_id=msg_id)
         return res
 
