@@ -2,7 +2,7 @@
 # Target Runtime: Python 3.12-slim + uv
 # Timezone: Asia/Kolkata (IST)
 
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS builder
 
 # Install uv binary from official image
 COPY --from=ghcr.io/astral-sh/uv:0.5.21 /uv /uvx /bin/
@@ -19,7 +19,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Runtime stage
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

@@ -228,6 +228,31 @@ class BotClient:
                 time.sleep(2**attempt)
         return self._request(endpoint, data, timeout)
 
+    @staticmethod
+    def _chunk_text(text: str, max_chunk_size: int = 4000) -> list[str]:
+        if len(text) <= max_chunk_size:
+            return [text]
+
+        chunks: list[str] = []
+        remaining = text
+        while len(remaining) > max_chunk_size:
+            split_idx = remaining.rfind("\n\n", 0, max_chunk_size)
+            if split_idx == -1:
+                split_idx = remaining.rfind("\n", 0, max_chunk_size)
+            if split_idx == -1:
+                split_idx = remaining.rfind(" ", 0, max_chunk_size)
+            if split_idx == -1:
+                split_idx = max_chunk_size
+
+            chunk = remaining[:split_idx].rstrip()
+            if chunk:
+                chunks.append(chunk)
+            remaining = remaining[split_idx:].lstrip()
+
+        if remaining:
+            chunks.append(remaining)
+        return chunks
+
     def send(
         self,
         text: str,
@@ -256,51 +281,57 @@ class BotClient:
             )
             return {"ok": False, "description": "Blocked: Unsolicited group message"}
 
-        data: dict = {"chat_id": target_chat_id, "text": text}
-        chosen_parse_mode = parse_mode
-        if not chosen_parse_mode and ("**" in text or "`" in text or "*" in text):
-            chosen_parse_mode = "Markdown"
+        chunks = self._chunk_text(text, max_chunk_size=4000)
+        res: dict = {}
 
-        if chosen_parse_mode == "Markdown":
-            from src.formatting.markdown_safety import sanitize_markdown
+        for idx, chunk in enumerate(chunks):
+            is_last = idx == len(chunks) - 1
+            data: dict = {"chat_id": target_chat_id, "text": chunk}
+            chosen_parse_mode = parse_mode
+            if not chosen_parse_mode and ("**" in chunk or "`" in chunk or "*" in chunk):
+                chosen_parse_mode = "Markdown"
 
-            text = sanitize_markdown(text)
-            data["text"] = text
-            data["parse_mode"] = chosen_parse_mode
-        elif chosen_parse_mode:
-            data["parse_mode"] = chosen_parse_mode
+            if chosen_parse_mode == "Markdown":
+                from src.formatting.markdown_safety import sanitize_markdown
 
-        if buttons is not None:
-            if buttons:
-                inline_kb = buttons if isinstance(buttons[0], list) else [buttons]
-                data["reply_markup"] = {"inline_keyboard": inline_kb}
-        else:
-            # Default quick-action buttons on every chat response
-            data["reply_markup"] = {
-                "inline_keyboard": [
-                    [
-                        {"text": "📅 Today", "callback_data": "cmd:today"},
-                        {"text": "📊 Attendance", "callback_data": "cmd:attendance"},
-                    ],
-                    [
-                        {"text": "⏰ Deadlines", "callback_data": "cmd:deadlines"},
-                        {"text": "🟢 Status", "callback_data": "cmd:status"},
-                    ],
-                ]
-            }
+                chunk = sanitize_markdown(chunk)
+                data["text"] = chunk
+                data["parse_mode"] = chosen_parse_mode
+            elif chosen_parse_mode:
+                data["parse_mode"] = chosen_parse_mode
 
-        try:
-            res = self._retry("sendMessage", data)
-        except BotError as e:
-            if chosen_parse_mode and "400" in str(e):
-                logger.warning(
-                    "Markdown formatting rejected by Telegram, retrying as plain text",
-                    error=str(e),
-                )
-                data.pop("parse_mode", None)
+            if is_last:
+                if buttons is not None:
+                    if buttons:
+                        inline_kb = buttons if isinstance(buttons[0], list) else [buttons]
+                        data["reply_markup"] = {"inline_keyboard": inline_kb}
+                else:
+                    # Default quick-action buttons on every chat response
+                    data["reply_markup"] = {
+                        "inline_keyboard": [
+                            [
+                                {"text": "📅 Today", "callback_data": "cmd:today"},
+                                {"text": "📊 Attendance", "callback_data": "cmd:attendance"},
+                            ],
+                            [
+                                {"text": "⏰ Deadlines", "callback_data": "cmd:deadlines"},
+                                {"text": "🟢 Status", "callback_data": "cmd:status"},
+                            ],
+                        ]
+                    }
+
+            try:
                 res = self._retry("sendMessage", data)
-            else:
-                raise
+            except BotError as e:
+                if chosen_parse_mode and "400" in str(e):
+                    logger.warning(
+                        "Markdown formatting rejected by Telegram, retrying as plain text",
+                        error=str(e),
+                    )
+                    data.pop("parse_mode", None)
+                    res = self._retry("sendMessage", data)
+                else:
+                    raise
 
         msg_id = res.get("result", {}).get("message_id") if isinstance(res, dict) else None
         logger.info("Bot message dispatched", target_chat_id=target_chat_id, message_id=msg_id)
@@ -314,6 +345,8 @@ class BotClient:
         chat_id: int | str | None = None,
     ) -> dict:
         target_chat_id = chat_id if chat_id is not None else settings.owner_chat_id
+        if len(text) > 4000:
+            text = text[:3997] + "..."
         data = {"chat_id": target_chat_id, "message_id": message_id, "text": text}
         if parse_mode == "Markdown":
             from src.formatting.markdown_safety import sanitize_markdown

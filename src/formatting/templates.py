@@ -202,6 +202,7 @@ def render_deadlines_card(
     today_date: date,
     milestones: list[tuple[date, str]],
     pending_items: list[dict[str, Any]],
+    max_cards: int = 8,
 ) -> str:
     """Render executive-grade deadlines and academic intel card."""
     lines: list[str] = [
@@ -214,13 +215,17 @@ def render_deadlines_card(
 
     if cards:
         lines.append("📋 **Active Course Tasks & Announcements**:")
-        for c in cards:
+        display_cards = cards[:max_cards]
+        for c in display_cards:
             c_header = f"• {c['emoji']} **{c['course_name']}**"
             if c["course_code"]:
                 c_header += f" (`{c['course_code']}`)"
             lines.append(c_header)
 
-            lines.append(f"  └ 📄 **{c['topic_title']}**")
+            topic = c["topic_title"]
+            if len(topic) > 120:
+                topic = topic[:117] + "..."
+            lines.append(f"  └ 📄 **{topic}**")
             lines.append(f"     • **Status**: {c['badge']}")
             if c.get("period"):
                 lines.append(f"     • **Time Window**: `{c['period']}`")
@@ -233,7 +238,14 @@ def render_deadlines_card(
                 # Display the most descriptive note
                 clean_note = sorted(c["notes"], key=len, reverse=True)[0]
                 if clean_note:
+                    if len(clean_note) > 160:
+                        clean_note = clean_note[:157] + "..."
                     lines.append(f"     • **Guidance**: {clean_note}")
+            lines.append("")
+
+        if len(cards) > max_cards:
+            overflow = len(cards) - max_cards
+            lines.append(f"💡 *+{overflow} more active notices tracked in database.*")
             lines.append("")
     else:
         lines.append("🎉 *No pending tasks or notices registered from course chats.*")

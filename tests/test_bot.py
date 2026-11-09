@@ -307,3 +307,41 @@ def test_bot_answer_callback(mock_bot, mock_request):
     assert req.full_url.endswith("/answerCallbackQuery")
     payload = _extract_payload(mock_request)
     assert payload == {"callback_query_id": "cb_9876", "text": "Acknowledged"}
+
+
+def test_bot_chunk_text_splits_long_message(mock_bot):
+    chunk1 = "First chunk content: " + ("A" * 3950)
+    chunk2 = "Second chunk content: " + ("B" * 500)
+    long_text = chunk1 + "\n\n" + chunk2
+    chunks = mock_bot._chunk_text(long_text, max_chunk_size=4000)
+    assert len(chunks) == 2
+    for c in chunks:
+        assert len(c) <= 4000
+    assert "First chunk content" in chunks[0]
+    assert "Second chunk content" in chunks[1]
+
+
+def test_bot_send_chunks_message_exceeding_limit(mock_bot, mock_request):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"ok": true, "result": {"message_id": 999}}'
+    mock_request.return_value.__enter__.return_value = mock_resp
+
+    long_text = ("First long section\n\n" + ("X" * 3500)) + (
+        "\n\nSecond long section\n\n" + ("Y" * 2000)
+    )
+    res = mock_bot.send(long_text)
+    assert res["ok"] is True
+    # Should have sent 2 requests
+    assert mock_request.call_count == 2
+
+
+def test_bot_edit_truncates_long_message(mock_bot, mock_request):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"ok": true, "result": {"message_id": 123}}'
+    mock_request.return_value.__enter__.return_value = mock_resp
+
+    long_text = "Z" * 5000
+    mock_bot.edit(123, long_text)
+    payload = _extract_payload(mock_request)
+    assert len(payload["text"]) <= 4000
+    assert payload["text"].endswith("...")
