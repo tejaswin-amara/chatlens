@@ -1,0 +1,52 @@
+services:
+  - type: worker
+    name: spark-daemon
+    env: python
+    buildCommand: uv sync --frozen --no-dev
+    startCommand: uv run python -m src.main
+    envVars:
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false
+      - key: TELEGRAM_SESSION_STRING
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SPARK_TIMETABLE
+        value: data/timetable_T05.toml
+      - key: SPARK_MODE
+        value: confirm
+
+  - type: web
+    name: chatlens-backend
+    env: python
+    rootDir: chatlens-v2/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  - type: web
+    name: chatlens-frontend
+    env: static
+    rootDir: chatlens-v2/frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: out
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        sync: false

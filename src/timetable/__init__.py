@@ -17,12 +17,20 @@ def clear_cache() -> None:
 
 
 COURSE_INFO: dict[str, tuple[str, str]] = {
+    # T04 Courses
     "DSA": ("25CS2103E", "Data Structures & Algorithms-3"),
     "OSSP": ("25CS2104E", "Operating Systems & Systems Programming"),
     "ML": ("25SC2107E", "Machine Learning"),
     "ESD": ("25EC2206E", "Embedded System Design & IoT"),
     "DBSE": ("25CS1302E", "Database Systems Engineering"),
     "JAPANESE": ("25FL2112E", "Japanese Language Proficiency-2"),
+    # T05 Courses
+    "DLAC": ("25CS3112E", "Deep Learning With Accelerated Computing"),
+    "CIS": ("25CS2206E", "Cloud Infrastructure And Services"),
+    "CNNP": ("25CS2208E", "Computer Networks And Network Programming"),
+    "GENAI": ("25CS2207E", "Generative Ai And Ai Platform Engineering"),
+    "ISDG": ("25UC0032E", "Insights to Sustainable Development Goals"),
+    "KABBADI": ("25SP2108E", "Kabbadi"),
 }
 
 PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
@@ -31,11 +39,89 @@ PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
     3: ("10:00 AM", "10:50 AM", 10, 0, 10, 50),
     4: ("10:50 AM", "11:40 AM", 10, 50, 11, 40),
     5: ("11:50 AM", "12:40 PM", 11, 50, 12, 40),
-    # Note: Period 6 does NOT exist in KLEF T04 (lunch break 12:40 - 13:20)
+    # Note: Period 6 does NOT exist in KLEF T04/T05 (lunch break 12:40 - 13:20)
     7: ("01:20 PM", "02:10 PM", 13, 20, 14, 10),
     8: ("02:20 PM", "03:10 PM", 14, 20, 15, 10),
     9: ("03:10 PM", "04:00 PM", 15, 10, 16, 0),
+    10: ("04:10 PM", "05:00 PM", 16, 10, 17, 0),
+    11: ("05:00 PM", "05:50 PM", 17, 0, 17, 50),
+    12: ("06:00 PM", "06:50 PM", 18, 0, 18, 50),
+    13: ("06:50 PM", "07:40 PM", 18, 50, 19, 40),
 }
+
+
+class CourseMetadata(NamedTuple):
+    code: str
+    name: str
+    category: str = "PCC"
+    ltps: str = "2-0-0-8"
+    credits: int = 4
+    section: str = "S-10"
+    faculty: str = ""
+
+    def __iter__(self):
+        yield self.code
+        yield self.name
+
+
+T05_COURSE_METADATA: dict[str, CourseMetadata] = {
+    "DLAC": CourseMetadata(
+        code="25CS3112E",
+        name="Deep Learning With Accelerated Computing",
+        category="PCC",
+        ltps="2-0-0-8",
+        credits=4,
+        section="S-10",
+        faculty="Ms. Ch. Anitha",
+    ),
+    "CIS": CourseMetadata(
+        code="25CS2206E",
+        name="Cloud Infrastructure And Services",
+        category="PCC",
+        ltps="2-0-2-4",
+        credits=4,
+        section="S-11",
+        faculty="Ms. D. Divya Priya",
+    ),
+    "GENAI": CourseMetadata(
+        code="25CS2207E",
+        name="Generative Ai And Ai Platform Engineering",
+        category="PCC",
+        ltps="2-0-0-8",
+        credits=4,
+        section="S-10",
+        faculty="Dr. Y. Lakshmi Prasanna",
+    ),
+    "CNNP": CourseMetadata(
+        code="25CS2208E",
+        name="Computer Networks And Network Programming",
+        category="PCC",
+        ltps="2-0-0-4",
+        credits=3,
+        section="S-11",
+        faculty="Mrs. D. Alekhya",
+    ),
+    "ISDG": CourseMetadata(
+        code="25UC0032E",
+        name="Insights to Sustainable Development Goals",
+        category="AUC",
+        ltps="1-0-0-0",
+        credits=0,
+        section="S-10",
+        faculty="Faculty",
+    ),
+    "KABBADI": CourseMetadata(
+        code="25SP2108E",
+        name="Kabaddi",
+        category="VAC",
+        ltps="0-0-0-2",
+        credits=0,
+        section="S-1",
+        faculty="Physical Education",
+    ),
+}
+
+COURSE_METADATA: dict[str, CourseMetadata] = T05_COURSE_METADATA
 
 
 class Slot(NamedTuple):
@@ -45,6 +131,8 @@ class Slot(NamedTuple):
     room: str
     faculty: str
     override: str | None = None
+    section: str | None = None
+    slot_type: str = "Lecture"
 
 
 class Meta(NamedTuple):
@@ -52,6 +140,9 @@ class Meta(NamedTuple):
     valid_from: date
     valid_to: date
     sample: bool
+    cluster: int = 4
+    credits: int = 15
+    contact_hours: int = 38
 
 
 class Timetable(NamedTuple):
@@ -105,6 +196,9 @@ def load(path: str | None = None) -> Timetable | None:
         valid_from=meta_dict.get("valid_from", clock.today_ist()),
         valid_to=meta_dict.get("valid_to", clock.today_ist()),
         sample=is_sample,
+        cluster=meta_dict.get("cluster", 4),
+        credits=meta_dict.get("credits", 15),
+        contact_hours=meta_dict.get("contact_hours", 38),
     )
 
     slots = []
@@ -116,6 +210,8 @@ def load(path: str | None = None) -> Timetable | None:
                 course=slot.get("course", ""),
                 room=slot.get("room", ""),
                 faculty=slot.get("faculty", ""),
+                section=slot.get("section"),
+                slot_type=slot.get("type", "Lecture"),
             )
         )
 
@@ -261,19 +357,35 @@ def format_day_schedule(
 
         c_code, c_name = COURSE_INFO.get(s.course, (s.course, s.course))
         room = s.room
-        c_type = "Skill" if s.course == "JAPANESE" else ("Lab" if "HC-" in room else "Lecture")
+        section = s.section or (
+            "S-11" if s.course in ("CIS", "CNNP") else ("S-1" if s.course == "KABBADI" else "S-10")
+        )
+        c_type = getattr(s, "slot_type", None)
+        if not c_type or c_type == "Lecture":
+            if s.course == "JAPANESE":
+                c_type = "Skill"
+            elif s.course == "KABBADI":
+                c_type = "VAC"
+            elif "HC-" in room or (s.course == "CIS" and s.period in (5, 7)):
+                c_type = "Practical" if s.course == "CIS" else "Lab"
+            elif not c_type:
+                c_type = "Lecture"
 
-        if c_type == "Lab":
+        if c_type in ("Lab", "Practical"):
             lab_cnt += 1
-        elif c_type == "Skill":
+        elif c_type in ("Skill", "VAC", "Audit"):
             non_erp_cnt += 1
         else:
             academic_cnt += 1
 
         note = (
-            f"Week {wk_num} lab session; bring laptop"
-            if c_type == "Lab"
-            else f"Week {wk_num} core topics"
+            f"Week {wk_num} practical/lab session; bring laptop"
+            if c_type in ("Lab", "Practical")
+            else (
+                f"Week {wk_num} skilling project"
+                if c_type == "Skill"
+                else f"Week {wk_num} core topics"
+            )
         )
         if s.override and s.override != "CANCELLED":
             note = f"⚡ Room override: {s.override}"
@@ -284,7 +396,7 @@ def format_day_schedule(
             f"{icon} [{time_str}]: {c_name} ({c_code})\n"
             f"* Room    : {room}\n"
             f"* Faculty : {s.faculty}\n"
-            f"* Section : S-10\n"
+            f"* Section : {section}\n"
             f"* Type    : {c_type}\n"
             f"* Note    : {note}\n"
         )
@@ -328,6 +440,10 @@ def parse_periods(text: str) -> list[int]:
                 7: 13 * 60 + 20,
                 8: 14 * 60 + 20,
                 9: 15 * 60 + 10,
+                10: 16 * 60 + 10,
+                11: 17 * 60 + 0,
+                12: 18 * 60 + 0,
+                13: 18 * 60 + 50,
             }
 
             for p, p_mins in period_map.items():

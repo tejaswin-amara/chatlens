@@ -1,0 +1,356 @@
+[meta]
+term = "T05"
+valid_from = 2026-11-02
+valid_to = 2027-02-07
+sample = false
+cluster = 4
+credits = 15
+contact_hours = 38
+
+# Monday (Mon) — Total 6 periods
+[[slot]]
+day = "Mon"
+period = 1
+course = "GENAI"
+room = "H-005"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Mon"
+period = 2
+course = "GENAI"
+room = "H-005"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Mon"
+period = 3
+course = "CIS"
+room = "H006"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Lecture"
+
+[[slot]]
+day = "Mon"
+period = 4
+course = "CIS"
+room = "H006"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Lecture"
+
+[[slot]]
+day = "Mon"
+period = 5
+course = "DLAC"
+room = "H-005"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Mon"
+period = 7
+course = "DLAC"
+room = "H-005"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+# Tuesday (Tue) — Total 6 periods
+[[slot]]
+day = "Tue"
+period = 1
+course = "DLAC"
+room = "H107A"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Tue"
+period = 2
+course = "DLAC"
+room = "H107A"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Tue"
+period = 3
+course = "GENAI"
+room = "HC-15C"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Tue"
+period = 4
+course = "GENAI"
+room = "HC-15C"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Tue"
+period = 5
+course = "CIS"
+room = "HC-15D"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Practical"
+
+[[slot]]
+day = "Tue"
+period = 7
+course = "CIS"
+room = "HC-15D"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Practical"
+
+# Wednesday (Wed) — Total 6 periods
+[[slot]]
+day = "Wed"
+period = 3
+course = "DLAC"
+room = "HC-15C"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Wed"
+period = 4
+course = "DLAC"
+room = "HC-15C"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Wed"
+period = 5
+course = "CIS"
+room = "H-107"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Wed"
+period = 7
+course = "CIS"
+room = "H-107"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Wed"
+period = 8
+course = "ISDG"
+room = "H-005"
+faculty = "Faculty"
+section = "S-10"
+type = "Lecture"
+
+[[slot]]
+day = "Wed"
+period = 9
+course = "ISDG"
+room = "H-005"
+faculty = "Faculty"
+section = "S-10"
+type = "Lecture"
+
+# Thursday (Thu) — Total 6 periods
+[[slot]]
+day = "Thu"
+period = 1
+course = "DLAC"
+room = "H005C"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Lecture"
+
+[[slot]]
+day = "Thu"
+period = 2
+course = "DLAC"
+room = "H005C"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Lecture"
+
+[[slot]]
+day = "Thu"
+period = 3
+course = "GENAI"
+room = "HC-15C"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Thu"
+period = 4
+course = "GENAI"
+room = "HC-15C"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Thu"
+period = 5
+course = "CNNP"
+room = "H107B"
+faculty = "Mrs. D. Alekhya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Thu"
+period = 7
+course = "CNNP"
+room = "H107B"
+faculty = "Mrs. D. Alekhya"
+section = "S-11"
+type = "Skill"
+
+# Friday (Fri) — Total 8 periods
+[[slot]]
+day = "Fri"
+period = 1
+course = "CNNP"
+room = "HC-15D"
+faculty = "Mrs. D. Alekhya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Fri"
+period = 2
+course = "CNNP"
+room = "HC-15D"
+faculty = "Mrs. D. Alekhya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Fri"
+period = 3
+course = "GENAI"
+room = "H-005"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Lecture"
+
+[[slot]]
+day = "Fri"
+period = 4
+course = "GENAI"
+room = "H-005"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Lecture"
+
+[[slot]]
+day = "Fri"
+period = 5
+course = "DLAC"
+room = "HC-15C"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Fri"
+period = 7
+course = "DLAC"
+room = "HC-15C"
+faculty = "Ms. Ch. Anitha"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Fri"
+period = 12
+course = "KABBADI"
+room = "HC-15C"
+faculty = "Physical Education"
+section = "S-1"
+type = "Skill"
+
+[[slot]]
+day = "Fri"
+period = 13
+course = "KABBADI"
+room = "HC-15C"
+faculty = "Physical Education"
+section = "S-1"
+type = "Skill"
+
+# Saturday (Sat) — Total 6 periods
+[[slot]]
+day = "Sat"
+period = 1
+course = "CIS"
+room = "H-005"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Sat"
+period = 2
+course = "CIS"
+room = "H-005"
+faculty = "Ms. D. Divya Priya"
+section = "S-11"
+type = "Skill"
+
+[[slot]]
+day = "Sat"
+period = 3
+course = "CNNP"
+room = "H006"
+faculty = "Mrs. D. Alekhya"
+section = "S-11"
+type = "Lecture"
+
+[[slot]]
+day = "Sat"
+period = 4
+course = "CNNP"
+room = "H006"
+faculty = "Mrs. D. Alekhya"
+section = "S-11"
+type = "Lecture"
+
+[[slot]]
+day = "Sat"
+period = 5
+course = "GENAI"
+room = "H-005"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Sat"
+period = 7
+course = "GENAI"
+room = "H-005"
+faculty = "Dr. Y. Lakshmi Prasanna"
+section = "S-10"
+type = "Skill"

@@ -397,9 +397,9 @@ def render_proactive_reminder(
     return sanitize_markdown("\n".join(lines))
 
 
-def get_standard_navigation_buttons() -> list[list[dict[str, str]]]:
-    """Return standard 2x2 inline navigation keyboard."""
-    return [
+def get_standard_navigation_buttons(include_courses: bool = False) -> list[list[dict[str, str]]]:
+    """Return standard inline navigation keyboard."""
+    buttons = [
         [
             {"text": "📅 Today", "callback_data": "cmd:today"},
             {"text": "📊 Attendance", "callback_data": "cmd:attendance"},
@@ -409,6 +409,14 @@ def get_standard_navigation_buttons() -> list[list[dict[str, str]]]:
             {"text": "🟢 Status", "callback_data": "cmd:status"},
         ],
     ]
+    if include_courses:
+        buttons.append([{"text": "📚 Courses", "callback_data": "cmd:courses"}])
+    return buttons
+
+
+def get_courses_navigation_buttons() -> list[list[dict[str, str]]]:
+    """Return navigation keyboard including Courses button."""
+    return get_standard_navigation_buttons(include_courses=True)
 
 
 def render_event_receipt(
@@ -515,4 +523,34 @@ def render_security_quarantine_alert(
         f"• **Reason:** {reason}",
         f"• **Filtered Snippet:** `{snippet}`",
     ]
+    return sanitize_markdown("\n".join(lines))
+
+
+def render_courses_card(
+    courses: dict[str, Any],
+    term: str = "T05",
+    cluster: int = 4,
+    total_credits: int = 15,
+) -> str:
+    """Render structured course catalog card complying with R-UI standards."""
+    lines = [
+        f"🎓 **Y25 B.Tech Trimester {term} Registered Courses**",
+        f"🕒 *Academic Year 2026-27 • Cluster {cluster} • {total_credits} Credits*",
+        "",
+    ]
+    for key, c in courses.items():
+        name = getattr(c, "name", key)
+        code = getattr(c, "code", "")
+        cat = getattr(c, "category", "PCC")
+        ltps = getattr(c, "ltps", "-")
+        cr = getattr(c, "credits", 0)
+        sec = getattr(c, "section", "-")
+        fac = getattr(c, "faculty", "-")
+
+        lines.append(f"• 📌 **{name}** (`{code}`)")
+        lines.append(f"  └ Category: `{cat}` | L-T-P-S: `{ltps}` | Credits: **{cr}**")
+        lines.append(f"     • Section: `{sec}` | Faculty: {fac}")
+        lines.append("")
+
+    lines.append("💡 *Tip: 38 occupied periods/week. Period 6 is lunch break.*")
     return sanitize_markdown("\n".join(lines))

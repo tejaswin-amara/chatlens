@@ -10,17 +10,17 @@ interface ExamPrepModalProps {
 
 const EXAM_SCHEDULE = [
   {
-    course: "Embedded System Design & IoT (25EC2206E)",
+    course: "Deep Learning With Accelerated Computing (25CS3112E)",
     event: "Lab In-Sem Examination",
     date: "15 Oct 2026",
     time: "10:00 AM – 11:40 AM (P3-P4)",
     section: "S-10",
     room: "103",
-    faculty: "Dr. Dinesh Kumar",
+    faculty: "Ms. Ch. Anitha",
     technician: "None listed",
   },
   {
-    course: "Embedded System Design & IoT (25EC2206E)",
+    course: "Deep Learning With Accelerated Computing (25CS3112E)",
     event: "Project Defence & Demonstration",
     date: "16 Oct 2026",
     time: "10:00 AM – 11:40 AM (P3-P4)",

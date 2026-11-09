@@ -31,7 +31,8 @@ def test_scenario_1_stack_health_probe_convergence(
     res = e2e_client.get("/api/healthz")
     assert res.status_code == 200
     payload = res.json()
-    assert payload == {"status": "ok", "version": "2.0.0"}
+    assert payload["status"] == "ok"
+    assert payload["version"] == "2.0.0"
 
     # 2. Database & Broker container healthcheck contracts
     services = compose_config.get("services", {})

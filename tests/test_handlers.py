@@ -876,3 +876,22 @@ async def test_extract_media_enabled_downloads_and_calls_ai():
         assert source == "gemini"
         mock_client.download_media.assert_called_once()
         mock_ai.extract_from_voice.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_bot_command_courses():
+    from src.config import settings
+    from src.ingestion.handlers import handle_bot_command
+
+    settings.owner_chat_id = 12345
+    msg = {"chat": {"id": 12345}, "text": "/courses"}
+
+    with patch("src.notify.bot.bot.send") as mock_send:
+        await handle_bot_command(msg)
+        mock_send.assert_called_once()
+        call_text = mock_send.call_args[0][0]
+        assert "Y25 B.Tech Trimester T05" in call_text
+        assert "Deep Learning With Accelerated Computing" in call_text
+        assert "25CS3112E" in call_text
+        assert "Cloud Infrastructure And Services" in call_text
+        assert "15 Credits" in call_text

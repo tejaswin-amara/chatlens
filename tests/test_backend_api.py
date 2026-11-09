@@ -503,7 +503,9 @@ def test_healthz_endpoint(in_memory_db):
     client, _ = in_memory_db
     res = client.get("/api/healthz")
     assert res.status_code == 200
-    assert res.json() == {"status": "ok", "version": "2.0.0"}
+    payload = res.json()
+    assert payload["status"] == "ok"
+    assert payload["version"] == "2.0.0"
 
 
 def test_chat_export_json_and_csv(in_memory_db):

@@ -43,7 +43,8 @@ def test_f1_api_healthz_routes_to_backend(e2e_client: E2EClient) -> None:
     res = e2e_client.get("/api/healthz")
     assert res.status_code == 200
     payload = res.json()
-    assert payload == {"status": "ok", "version": "2.0.0"}
+    assert payload["status"] == "ok"
+    assert payload["version"] == "2.0.0"
 
 
 def test_f1_api_chats_endpoint_routed(e2e_client: E2EClient) -> None:

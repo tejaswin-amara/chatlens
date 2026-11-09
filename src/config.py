@@ -35,7 +35,10 @@ class Settings(BaseSettings):
     owner_chat_id: int | None = Field(default=None, alias="OWNER_CHAT_ID")
     gemini_daily_budget: int = Field(default=50, alias="GEMINI_DAILY_BUDGET")
     spark_media: bool = Field(default=False, alias="SPARK_MEDIA")
-    spark_timetable: str = Field(default="data/timetable_T04.toml", alias="SPARK_TIMETABLE")
+    spark_timetable: str = Field(default="data/timetable_T05.toml", alias="SPARK_TIMETABLE")
+    spark_calendar: str = Field(
+        default="data/academic_calendar_2026_27.toml", alias="SPARK_CALENDAR"
+    )
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     erp_username: str = Field(default="2520090104", alias="ERP_USERNAME")
@@ -48,6 +51,8 @@ class Settings(BaseSettings):
         default=25.0, alias="TELEGRAM_GLOBAL_RATE_LIMIT_RPS"
     )
     circuit_breaker_error_threshold: int = Field(default=3, alias="CIRCUIT_BREAKER_ERROR_THRESHOLD")
+    telemetry_url: str | None = Field(default=None, alias="TELEMETRY_URL")
+    telemetry_token: SecretStr | None = Field(default=None, alias="TELEMETRY_TOKEN")
     circuit_breaker_cooldown_seconds: int = Field(
         default=300, alias="CIRCUIT_BREAKER_COOLDOWN_SECONDS"
     )

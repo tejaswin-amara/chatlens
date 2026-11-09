@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sqlite3
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -15,6 +16,13 @@ from typing import Any
 from analyzer import ChatAnalyzer
 from celery_worker import celery_app, parse_and_save_sync, parse_file_task, save_messages
 from database import engine, get_db
+from diagnostics import (
+    SUPPORTED_REMEDIATIONS,
+    DiagnosticRunRequest,
+    DiagnosticsService,
+    RemediationRequest,
+    diagnostic_buffer,
+)
 from embeddings import generate_embedding
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,9 +69,18 @@ def _is_redis_available() -> bool:
         return False
 
 
+START_TIME = time.time()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    try:
+        root_logger = logging.getLogger()
+        if diagnostic_buffer not in root_logger.handlers:
+            root_logger.addHandler(diagnostic_buffer)
+    except Exception as exc:
+        logger.debug(f"Diagnostics logging hook warning: {exc}")
     try:
         async with engine.begin() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -101,9 +118,17 @@ app.add_middleware(
 
 
 @app.get("/api/healthz")
-async def healthz() -> dict[str, str]:
+@app.get("/healthz")
+@app.get("/api/health")
+async def healthz() -> dict[str, Any]:
     """Health and readiness probe."""
-    return {"status": "ok", "version": "2.0.0"}
+    return {
+        "status": "ok",
+        "system_status": "ok",
+        "timetable": "T05",
+        "uptime": time.time() - START_TIME,
+        "version": "2.0.0",
+    }
 
 
 @app.get("/api/auth/me")
@@ -982,10 +1007,10 @@ async def api_deadlines(user: dict[str, Any] | None = Depends(require_current_us
         spark_db = os.getenv("SPARK_DB", "spark.db")
         if os.path.exists(spark_db):
             try:
-                conn = sqlite3.connect(spark_db)
+                conn = sqlite3.connect(f"file:{spark_db}?mode=ro", uri=True)
                 cur = conn.cursor()
                 cur.execute(
-                    "SELECT id, ts, status, event_json FROM pending "
+                    "SELECT id, created, status, event_json FROM pending "
                     "WHERE status = 'PENDING' ORDER BY id DESC LIMIT 20;"
                 )
                 for r in cur.fetchall():
@@ -1138,3 +1163,66 @@ async def api_monitoring_status(
         "gemini_model": gemini_model,
         "spark_mode": spark_mode,
     }
+
+
+@app.get("/api/diagnostics/status")
+async def api_diagnostics_status(
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Retrieve system health status summary across all core subsystems."""
+    service = DiagnosticsService()
+    return await service.get_system_status(db=db)
+
+
+@app.post("/api/diagnostics/run")
+async def api_diagnostics_run(
+    req: DiagnosticRunRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Execute full two-tier diagnostic evaluation and root-cause analysis."""
+    run_req = req or DiagnosticRunRequest()
+    service = DiagnosticsService()
+    return await service.run_diagnostics(
+        session=db,
+        use_ai=run_req.use_ai,
+        deep_consistency=run_req.deep_consistency,
+    )
+
+
+@app.post("/api/diagnostics/remediate")
+async def api_diagnostics_remediate(
+    req: RemediationRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Execute an approved, safe, and idempotent remediation action."""
+    if req.action not in SUPPORTED_REMEDIATIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported remediation action: '{req.action}'. Supported actions: "
+                f"{sorted(SUPPORTED_REMEDIATIONS)}"
+            ),
+        )
+    service = DiagnosticsService()
+    try:
+        return await service.execute_remediation(
+            action=req.action,
+            params=req.parameters,
+            db=db,
+            dry_run=req.dry_run,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/diagnostics/consistency")
+async def api_diagnostics_consistency(
+    db: AsyncSession = Depends(get_db),
+    user: dict[str, Any] | None = Depends(require_current_user),
+):
+    """Deep structural data consistency report across SPARK SQLite and ChatLens DB."""
+    service = DiagnosticsService()
+    return await service.verify_consistency(db=db)

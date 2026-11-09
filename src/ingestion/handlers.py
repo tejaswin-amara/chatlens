@@ -864,6 +864,8 @@ async def handle_bot_command(msg: dict) -> None:
         "tomorrow": "/tomorrow",
         "timetable": "/timetable",
         "schedule": "/timetable",
+        "courses": "/courses",
+        "course": "/courses",
         "attendance": "/attendance",
         "deadlines": "/deadlines",
         "deadline": "/deadlines",
@@ -911,6 +913,8 @@ async def handle_bot_command(msg: dict) -> None:
         "/tomorrow",
         "/timetable",
         "/schedule",
+        "/courses",
+        "/course",
         "/briefing",
         "/digest",
         "/attendance",
@@ -949,6 +953,7 @@ async def handle_bot_command(msg: dict) -> None:
             "• `/today` — Today's classes, rooms & status\n"
             "• `/tomorrow` — Tomorrow's schedule & upcoming classes\n"
             "• `/timetable` — Official weekly course timetable & rooms\n"
+            "• `/courses` — Registered T05 courses, credits, and faculty\n"
             "• `/briefing` — Generate today's academic briefing\n"
             "• `/attendance` — Live attendance & safe bunk margins\n"
             "• `/bunk` — Exact attendance bunk buffer calculator\n"
@@ -1021,17 +1026,28 @@ async def handle_bot_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, schedule_text)
 
     elif cmd in ("/timetable", "/schedule"):
+        from src.timetable import load as load_timetable
         from src.utils import clock
 
         today = clock.today_ist()
         now = clock.now_ist()
         schedule_text = format_day_schedule(today, now_dt=now)
+        tt = load_timetable()
+        term_str = tt.meta.term if tt and hasattr(tt, "meta") else "T05"
         reply = (
-            f"📅 **Official Academic Timetable (KLEF T04 - S-10)**\n\n"
+            f"📅 **Official Academic Timetable (KLEF {term_str} - S-10/S-11)**\n\n"
             f"{schedule_text}\n\n"
             f"💡 *Use `/today` or `/tomorrow` for live classes or `/exam` for lab dates.*"
         )
         await asyncio.to_thread(bot.send, reply)
+
+    elif cmd in ("/courses", "/course"):
+        from src.formatting.templates import get_courses_navigation_buttons, render_courses_card
+        from src.timetable import COURSE_METADATA
+
+        reply = render_courses_card(COURSE_METADATA, term="T05", cluster=4, total_credits=15)
+        buttons = get_courses_navigation_buttons()
+        await asyncio.to_thread(bot.send, reply, buttons=buttons)
 
     elif cmd == "/attendance":
         from src.erp import klu_erp

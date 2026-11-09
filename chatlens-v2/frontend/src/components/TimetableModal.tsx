@@ -19,7 +19,7 @@ export default function TimetableModal({ open, onClose, onToast }: TimetableModa
 
   // Form state
   const [period, setPeriod] = useState<number>(1);
-  const [courseCode, setCourseCode] = useState("25SC2107E");
+  const [courseCode, setCourseCode] = useState("25CS3112E");
   const [room, setRoom] = useState("");
   const [status, setStatus] = useState<"OVERRIDE" | "CANCELLED">("OVERRIDE");
 
@@ -203,7 +203,7 @@ export default function TimetableModal({ open, onClose, onToast }: TimetableModa
                     type="text"
                     value={courseCode}
                     onChange={(e) => setCourseCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. 25SC2107E or ML"
+                    placeholder="e.g. 25CS3112E or DLAC"
                     required
                     className="w-full bg-brand-card border border-brand-border rounded-lg px-2.5 py-1.5 text-xs text-brand-text outline-none focus:border-brand-accent uppercase"
                   />
