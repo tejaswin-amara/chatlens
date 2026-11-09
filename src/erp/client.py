@@ -36,6 +36,10 @@ MARKS_URL = (
 )
 CGPA_URL = f"{ERP_BASE_URL}/index.php?r=studentinfo%2Fstudentendexamresult%2Fsearchgetmycgpa"
 FEE_URL = f"{ERP_BASE_URL}/index.php?r=feepayments%2Fstudentfeeorderdetailsinfo%2Fmy_fee_orders"
+EXAM_SEATING_URL = (
+    f"{ERP_BASE_URL}/index.php?r=examsection%2Fexam-invigilator-student-room-allotment-info"
+    f"%2Fstud_my_seating_plan"
+)
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -458,6 +462,41 @@ class KLUERPClient:
             return parse_fee_records(html)
         except Exception as e:
             logger.error("Failed to query ERP fee orders", error=str(e))
+            return []
+
+    async def get_exam_seating(self) -> list[dict[str, Any]]:
+        """Scrapes exam room and seating allocations from KLU ERP."""
+        try:
+            html = await self.fetch_page(EXAM_SEATING_URL)
+            if not html:
+                return []
+            from src.erp.scrapers import parse_generic_tables
+
+            tables = parse_generic_tables(html)
+            records: list[dict[str, Any]] = []
+            for table in tables:
+                for row in table:
+                    row_str = " ".join(str(v) for v in row.values()).lower()
+                    if "no results found" in row_str:
+                        continue
+                    c_code = row.get("Course Code") or row.get("course_code", "")
+                    room = row.get("Room No") or row.get("room_no", "")
+                    e_date = row.get("Exam Date") or row.get("exam_date", "")
+                    slot = row.get("Exam Slot") or row.get("exam_slot", "")
+                    e_type = row.get("Exam Type") or row.get("exam_type", "")
+                    if c_code or room or e_date:
+                        records.append(
+                            {
+                                "course_code": c_code,
+                                "room_no": room,
+                                "exam_date": e_date,
+                                "exam_slot": slot,
+                                "exam_type": e_type,
+                            }
+                        )
+            return records
+        except Exception as e:
+            logger.warning("Failed to query ERP exam seating", error=str(e))
             return []
 
 

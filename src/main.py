@@ -329,10 +329,13 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
 
     register_handlers(client)
 
+    from src.erp.sync import run_erp_sync
+
     jobs = [
         asyncio.create_task(supervise("briefing", run_briefing, stop_event)),
         asyncio.create_task(supervise("heartbeat", run_heartbeat, stop_event)),
         asyncio.create_task(supervise("reminders", run_reminders, stop_event)),
+        asyncio.create_task(supervise("erp_sync", lambda: run_erp_sync(stop_event), stop_event)),
     ]
     if settings.bot_token and settings.owner_chat_id:
         jobs.append(asyncio.create_task(supervise("bot_poll", bot_callback_poll, stop_event)))

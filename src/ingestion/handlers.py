@@ -1145,6 +1145,31 @@ async def handle_bot_command(msg: dict) -> None:
                 )
             await asyncio.to_thread(bot.send, "\n".join(lines))
 
+    elif cmd in ("/sync", "/erp_sync", "/crawl"):
+        from src.erp.sync import erp_sync_agent
+
+        await asyncio.to_thread(
+            bot.send, "⏳ Starting on-demand KLU ERP synchronization & delta analysis..."
+        )
+        res = await erp_sync_agent.sync_once(send_alerts=True)
+        if res.get("success"):
+            att_d = res.get("attendance_deltas", 0)
+            marks_d = res.get("marks_deltas", 0)
+            seat_d = res.get("seating_deltas", 0)
+            if att_d == 0 and marks_d == 0 and seat_d == 0:
+                await asyncio.to_thread(
+                    bot.send,
+                    "✅ **ERP Sync Complete**\n"
+                    "• Academic Term: `Y25 Trimester 5 (T05)`\n"
+                    "• Status: All student records are up to date. No new deltas detected.\n"
+                    "• Type `/attendance` or `/bunk` for current metrics.",
+                )
+        else:
+            reason = res.get("reason") or res.get("error") or "Unknown error"
+            await asyncio.to_thread(
+                bot.send, f"⚠️ ERP Sync encountered an issue: `{reason}`. Cached metrics preserved."
+            )
+
     elif cmd in ("/rescan", "/scan"):
         if _active_client:
             await asyncio.to_thread(

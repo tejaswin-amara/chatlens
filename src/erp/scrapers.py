@@ -135,14 +135,17 @@ def parse_attendance_records(html: str) -> list[dict[str, Any]]:
 
             # Check if this row looks like a course attendance row
             if code or name or conducted > 0:
-                # Calculate safe bunks and recovery classes for 85% goal
+                # Calculate safe bunks and recovery classes for 85% and 75% thresholds
                 safe_bunks = 0
+                safe_bunks_75 = 0
                 recovery_needed = 0
                 if conducted > 0:
                     if percentage >= 85.0:
                         safe_bunks = max(0, math.floor((attended - 0.85 * conducted) / 0.85))
                     else:
                         recovery_needed = max(0, math.ceil((0.85 * conducted - attended) / 0.15))
+                    if percentage >= 75.0:
+                        safe_bunks_75 = max(0, math.floor((attended - 0.75 * conducted) / 0.75))
 
                 status = "SAFE"
                 if percentage < 75.0:
@@ -161,6 +164,8 @@ def parse_attendance_records(html: str) -> list[dict[str, Any]]:
                         "absent": absent,
                         "percentage": percentage,
                         "safe_bunks": safe_bunks,
+                        "safe_bunks_85": safe_bunks,
+                        "safe_bunks_75": safe_bunks_75,
                         "recovery_needed": recovery_needed,
                         "status": status,
                     }
