@@ -52,8 +52,9 @@ Write-Host "==========================================================" -Foregro
 
 # 1. Create completely silent VBScript background launcher in Startup folder
 $VbsContent = @"
+' ChatLens SPARK Daemon 24/7 Autostart Launcher
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptPath`" -LogToFile -Continuous", 0, False
+WshShell.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$ScriptPath"" -LogToFile -Continuous", 0, False
 "@
 $VbsContent | Out-File -FilePath $VbsLauncherPath -Encoding ascii -Force
 Write-Host "[+] Installed silent launcher in Windows Startup folder:" -ForegroundColor Green

@@ -305,7 +305,7 @@ class KLUERPClient:
             return res.text
 
     async def get_attendance(
-        self, academic_year: str = "29", semester_id: str = "1"
+        self, academic_year: str = "29", semester_id: str = "2"
     ) -> list[dict[str, Any]]:
         """Scrapes and returns verified course-wise attendance metrics."""
         try:
@@ -363,7 +363,7 @@ class KLUERPClient:
         return []
 
     async def get_timetable(
-        self, academic_year: str = "29", semester_id: str = "1"
+        self, academic_year: str = "29", semester_id: str = "2"
     ) -> list[dict[str, Any]]:
         """Scrapes and returns official weekly timetable matrix from KLU ERP."""
         try:
@@ -392,7 +392,7 @@ class KLUERPClient:
         return []
 
     async def get_marks(
-        self, academic_year: str = "29", semester_id: str = "1"
+        self, academic_year: str = "29", semester_id: str = "2"
     ) -> list[dict[str, Any]]:
         """Scrapes and returns internal assessment marks."""
         try:

@@ -290,7 +290,7 @@ class BotClient:
             }
 
         try:
-            return self._retry("sendMessage", data)
+            res = self._retry("sendMessage", data)
         except BotError as e:
             if chosen_parse_mode and "400" in str(e):
                 logger.warning(
@@ -298,8 +298,13 @@ class BotClient:
                     error=str(e),
                 )
                 data.pop("parse_mode", None)
-                return self._retry("sendMessage", data)
-            raise
+                res = self._retry("sendMessage", data)
+            else:
+                raise
+
+        msg_id = res.get("result", {}).get("message_id") if isinstance(res, dict) else None
+        logger.info("Bot message dispatched", target_chat_id=target_chat_id, message_id=msg_id)
+        return res
 
     def edit(
         self,

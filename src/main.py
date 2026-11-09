@@ -33,11 +33,15 @@ async def bot_callback_poll() -> None:
         handle_undo_command,
     )
     from src.notify.bot import bot
+    from src.utils.deduplication import deduplicator
 
     await asyncio.to_thread(bot.delete_webhook)
     await asyncio.to_thread(bot.set_my_commands)
 
-    offset = 0
+    saved_offset = deduplicator.meta_get("telegram_bot_update_offset")
+    offset = int(saved_offset) if saved_offset and saved_offset.isdigit() else 0
+    logger.info("Bot callback polling started", initial_offset=offset)
+
     while True:
         try:
             updates = await asyncio.to_thread(bot.get_updates, offset, 1)
@@ -45,19 +49,68 @@ async def bot_callback_poll() -> None:
                 for up in updates["result"]:
                     update_id = up.get("update_id", offset)
                     offset = max(offset, update_id + 1)
+                    deduplicator.meta_set("telegram_bot_update_offset", str(offset))
 
                     if "callback_query" in up:
-                        await handle_bot_callback(up["callback_query"])
+                        cb = up["callback_query"]
+                        logger.info(
+                            "Bot callback query received",
+                            cb_id=cb.get("id"),
+                            data=cb.get("data"),
+                            sender_id=cb.get("from", {}).get("id"),
+                        )
+                        try:
+                            await handle_bot_callback(cb)
+                        except Exception as cb_err:
+                            logger.error(
+                                "Bot callback execution error",
+                                error=str(cb_err),
+                                exc_info=True,
+                            )
+                            cb_id = cb.get("id")
+                            if cb_id:
+                                try:
+                                    await asyncio.to_thread(
+                                        bot.answer_callback,
+                                        cb_id,
+                                        text="⚠️ Action failed.",
+                                    )
+                                except Exception as ack_err:
+                                    logger.debug(
+                                        "Failed to acknowledge callback", error=str(ack_err)
+                                    )
                     elif "message" in up:
                         m = up["message"]
                         text = (m.get("text") or "").strip()
                         sender_id = m.get("from", {}).get("id") or m.get("chat", {}).get("id")
                         if settings.owner_chat_id and str(sender_id) != str(settings.owner_chat_id):
                             continue
-                        if text.startswith("/undo"):
-                            await handle_undo_command(m)
-                        else:
-                            await handle_bot_command(m)
+                        cmd_name = text.split()[0] if text else "empty"
+                        logger.info("Bot command received", sender_id=sender_id, cmd=cmd_name)
+                        try:
+                            if text.startswith("/undo"):
+                                await handle_undo_command(m)
+                            else:
+                                await handle_bot_command(m)
+                        except Exception as cmd_err:
+                            logger.error(
+                                "Bot command execution error",
+                                cmd=cmd_name,
+                                error=str(cmd_err),
+                                exc_info=True,
+                            )
+                            if sender_id:
+                                try:
+                                    err_name = type(cmd_err).__name__
+                                    await asyncio.to_thread(
+                                        bot.send,
+                                        f"⚠️ Could not execute `{cmd_name}`: {err_name}",
+                                        chat_id=sender_id,
+                                    )
+                                except Exception as send_err:
+                                    logger.debug(
+                                        "Failed to send error notification", error=str(send_err)
+                                    )
             await asyncio.sleep(0.2)
         except asyncio.CancelledError:
             raise

@@ -1061,7 +1061,7 @@ async def handle_bot_command(msg: dict) -> None:
                 "Please verify `ERP_USERNAME` and `ERP_PASSWORD` in `.env` or check portal status.",
             )
         else:
-            lines = ["📊 **Live Attendance Overview (KL ERP)**:\n"]
+            lines = ["📊 **Live Attendance Overview (KL ERP)** — Y25 T05:\n"]
             critical = []
             for r in records:
                 pct = r["percentage"]
