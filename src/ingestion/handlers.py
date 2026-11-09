@@ -864,6 +864,8 @@ async def handle_bot_command(msg: dict) -> None:
         "tomorrow": "/tomorrow",
         "timetable": "/timetable",
         "schedule": "/timetable",
+        "courses": "/courses",
+        "course": "/courses",
         "attendance": "/attendance",
         "deadlines": "/deadlines",
         "deadline": "/deadlines",
@@ -1040,11 +1042,11 @@ async def handle_bot_command(msg: dict) -> None:
         await asyncio.to_thread(bot.send, reply)
 
     elif cmd in ("/courses", "/course"):
-        from src.formatting.templates import get_standard_navigation_buttons, render_courses_card
+        from src.formatting.templates import get_courses_navigation_buttons, render_courses_card
         from src.timetable import COURSE_METADATA
 
         reply = render_courses_card(COURSE_METADATA, term="T05", cluster=4, total_credits=15)
-        buttons = get_standard_navigation_buttons()
+        buttons = get_courses_navigation_buttons()
         await asyncio.to_thread(bot.send, reply, buttons=buttons)
 
     elif cmd == "/attendance":

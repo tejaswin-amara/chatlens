@@ -37,7 +37,9 @@ def test_pairwise_frontend_calls_backend_through_proxy(e2e_client: E2EClient) ->
     # 2. Invoke relative API endpoint through proxy
     api_res = e2e_client.get("/api/healthz")
     assert api_res.status_code == 200
-    assert api_res.json() == {"status": "ok", "version": "2.0.0"}
+    payload = api_res.json()
+    assert payload["status"] == "ok"
+    assert payload["version"] == "2.0.0"
 
     # 3. Invoke data endpoint through proxy
     chats_res = e2e_client.get("/api/chats")

@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sqlite3
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -68,6 +69,9 @@ def _is_redis_available() -> bool:
         return False
 
 
+START_TIME = time.time()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -114,9 +118,17 @@ app.add_middleware(
 
 
 @app.get("/api/healthz")
-async def healthz() -> dict[str, str]:
+@app.get("/healthz")
+@app.get("/api/health")
+async def healthz() -> dict[str, Any]:
     """Health and readiness probe."""
-    return {"status": "ok", "version": "2.0.0"}
+    return {
+        "status": "ok",
+        "system_status": "ok",
+        "timetable": "T05",
+        "uptime": time.time() - START_TIME,
+        "version": "2.0.0",
+    }
 
 
 @app.get("/api/auth/me")

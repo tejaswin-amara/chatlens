@@ -7,6 +7,7 @@ from src.timetable import (
     COURSE_INFO,
     COURSE_METADATA,
     PERIOD_TIMES,
+    T05_COURSE_METADATA,
     format_day_schedule,
     load,
     parse_periods,
@@ -39,6 +40,7 @@ def test_t05_timetable_loads_successfully():
 
 def test_t05_course_metadata_and_credits():
     assert len(COURSE_METADATA) == 6
+    assert len(T05_COURSE_METADATA) == 6
     total_credits = sum(c.credits for c in COURSE_METADATA.values())
     assert total_credits == 15
     assert COURSE_METADATA["DLAC"].credits == 4
@@ -119,3 +121,49 @@ def test_parse_periods_extended():
     assert parse_periods("P12-P13") == [12, 13]
     assert parse_periods("06:00 PM - 06:50 PM") == [12]
     assert parse_periods("06:50 PM - 07:40 PM") == [13]
+
+
+def test_t05_slot_types():
+    tt = load("data/timetable_T05.toml")
+    assert tt is not None
+    assert len(tt.slots) == 38
+
+    # Assert specific day slot types
+    slots_by_day = {}
+    for s in tt.slots:
+        slots_by_day.setdefault(s.day, []).append(s)
+
+    for _day, slots in slots_by_day.items():
+        slots.sort(key=lambda x: x.period)
+
+    # Check Wednesday (Skill, Skill, Skill, Skill, Lecture, Lecture)
+    wed_slots = sorted(slots_by_day["Wed"], key=lambda x: x.period)
+    assert wed_slots[0].period == 3 and wed_slots[0].slot_type == "Skill"
+    assert wed_slots[1].period == 4 and wed_slots[1].slot_type == "Skill"
+    assert wed_slots[2].period == 5 and wed_slots[2].slot_type == "Skill"
+    assert wed_slots[3].period == 7 and wed_slots[3].slot_type == "Skill"
+    assert wed_slots[4].period == 8 and wed_slots[4].slot_type == "Lecture"
+    assert wed_slots[5].period == 9 and wed_slots[5].slot_type == "Lecture"
+
+    # Check Friday
+    fri_slots = sorted(slots_by_day["Fri"], key=lambda x: x.period)
+    assert fri_slots[0].period == 1 and fri_slots[0].slot_type == "Skill"
+    assert fri_slots[1].period == 2 and fri_slots[1].slot_type == "Skill"
+    assert fri_slots[2].period == 3 and fri_slots[2].slot_type == "Lecture"
+    assert fri_slots[3].period == 4 and fri_slots[3].slot_type == "Lecture"
+    assert fri_slots[4].period == 5 and fri_slots[4].slot_type == "Skill"
+    assert fri_slots[5].period == 7 and fri_slots[5].slot_type == "Skill"
+    assert fri_slots[6].period == 12 and fri_slots[6].slot_type == "Skill"
+    assert fri_slots[7].period == 13 and fri_slots[7].slot_type == "Skill"
+
+
+def test_t05_weekly_contact_hours_and_credits():
+    tt = load("data/timetable_T05.toml")
+    assert tt is not None
+
+    # Total weekly contact hours is number of slots
+    assert len(tt.slots) == 38
+
+    # Total registered credits is defined in metadata
+    assert tt.meta.credits == 15
+    assert tt.meta.cluster == 4

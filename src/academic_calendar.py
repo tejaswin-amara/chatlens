@@ -30,7 +30,15 @@ def load_calendar(path: str | Path | None = None) -> AcademicCalendar | None:
 
             target_path = Path(settings.spark_calendar)
         except Exception:
-            target_path = Path("data/calendar_2026_27.toml")
+            target_path = Path("data/academic_calendar_2026_27.toml")
+        if not target_path.exists():
+            for alt in (
+                Path("data/academic_calendar_2026_27.toml"),
+                Path("data/calendar_2026_27.toml"),
+            ):
+                if alt.exists():
+                    target_path = alt
+                    break
     else:
         target_path = Path(path)
 

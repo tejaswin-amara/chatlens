@@ -397,9 +397,9 @@ def render_proactive_reminder(
     return sanitize_markdown("\n".join(lines))
 
 
-def get_standard_navigation_buttons() -> list[list[dict[str, str]]]:
-    """Return standard 2x2 inline navigation keyboard."""
-    return [
+def get_standard_navigation_buttons(include_courses: bool = False) -> list[list[dict[str, str]]]:
+    """Return standard inline navigation keyboard."""
+    buttons = [
         [
             {"text": "📅 Today", "callback_data": "cmd:today"},
             {"text": "📊 Attendance", "callback_data": "cmd:attendance"},
@@ -409,6 +409,14 @@ def get_standard_navigation_buttons() -> list[list[dict[str, str]]]:
             {"text": "🟢 Status", "callback_data": "cmd:status"},
         ],
     ]
+    if include_courses:
+        buttons.append([{"text": "📚 Courses", "callback_data": "cmd:courses"}])
+    return buttons
+
+
+def get_courses_navigation_buttons() -> list[list[dict[str, str]]]:
+    """Return navigation keyboard including Courses button."""
+    return get_standard_navigation_buttons(include_courses=True)
 
 
 def render_event_receipt(

@@ -285,7 +285,24 @@ def test_argument_order_polymorphism():
 
 
 def test_config_setting_loads_default_calendar():
-    assert settings.spark_calendar == "data/calendar_2026_27.toml"
+    assert settings.spark_calendar == "data/academic_calendar_2026_27.toml"
     cal = load_calendar()
     assert cal is not None
     assert "T04" in cal.terms
+
+
+def test_t05_bounds_resolution():
+    cal = load_calendar()
+    assert cal is not None
+    from src.academic_calendar import _resolve_term
+
+    assert _resolve_term(cal, date(2026, 11, 2)) == "T05"
+    assert _resolve_term(cal, date(2026, 11, 4)) == "T05"
+    assert _resolve_term(cal, date(2027, 2, 7)) == "T05"
+
+
+def test_t05_milestone_resolution_for_new_start_date():
+    cal = load_calendar()
+    assert cal is not None
+    d_fee_t5 = get_milestone_date("fee", date(2026, 11, 2), cal)
+    assert d_fee_t5 == date(2027, 1, 9)

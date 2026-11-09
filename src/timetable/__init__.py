@@ -59,8 +59,12 @@ class CourseMetadata(NamedTuple):
     section: str = "S-10"
     faculty: str = ""
 
+    def __iter__(self):
+        yield self.code
+        yield self.name
 
-COURSE_METADATA: dict[str, CourseMetadata] = {
+
+T05_COURSE_METADATA: dict[str, CourseMetadata] = {
     "DLAC": CourseMetadata(
         code="25CS3112E",
         name="Deep Learning With Accelerated Computing",
@@ -116,6 +120,8 @@ COURSE_METADATA: dict[str, CourseMetadata] = {
         faculty="Physical Education",
     ),
 }
+
+COURSE_METADATA: dict[str, CourseMetadata] = T05_COURSE_METADATA
 
 
 class Slot(NamedTuple):
