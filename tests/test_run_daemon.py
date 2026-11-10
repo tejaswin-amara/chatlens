@@ -30,6 +30,16 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(scope="module", autouse=True)
+def preserve_daemon_lifecycle():
+    """Ensure the production daemon is safely preserved and restored after tests finish."""
+    status_proc = run_ps_script(["-Status"])
+    was_running = "RUNNING" in status_proc.stdout
+    yield
+    if was_running:
+        run_ps_script(["-Background"])
+
+
 def run_ps_script(args: list[str], timeout: float = 15.0) -> subprocess.CompletedProcess[str]:
     """Execute run_daemon.ps1 via powershell.exe with specified arguments."""
     cmd = [
@@ -138,6 +148,7 @@ def test_run_daemon_parameters_defined():
 
 def test_status_when_daemon_stopped():
     """Verify -Status returns exit 0 and reports STOPPED when no daemon is active."""
+    run_ps_script(["-Stop"])
     res = run_ps_script(["-Status"])
     assert res.returncode == 0
     assert "ChatLens PA Daemon Status" in res.stdout

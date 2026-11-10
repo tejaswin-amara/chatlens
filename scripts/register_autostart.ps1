@@ -1,6 +1,6 @@
-# ChatLens Enterprise SPARK PA Daemon Permanent 24/7 Autostart Manager
+# ChatLens Enterprise SPARK PA Daemon Permanent 24/7 Autostart & Watchdog Manager
 # Ensures the daemon runs silently in the background, starts on Windows boot/logon,
-# and automatically recovers if terminated.
+# and automatically recovers via scheduled watchdog if terminated or crashed.
 
 [CmdletBinding()]
 param(
@@ -9,12 +9,18 @@ param(
     [switch]$StartNow
 )
 
-$RepoRoot = "C:\Users\speed\Documents\antigravity\kind-faraday"
+$ScriptDir = Split-Path -Parent $PSCommandPath
+if (-not $ScriptDir) {
+    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+}
+$RepoRoot = if ($ScriptDir) { Split-Path -Parent $ScriptDir } else { "C:\Users\speed\Documents\antigravity\kind-faraday" }
 $ScriptPath = Join-Path $RepoRoot "scripts\run_daemon.ps1"
+$WatchdogPath = Join-Path $RepoRoot "scripts\watchdog.ps1"
 $StartupFolder = [Environment]::GetFolderPath("Startup")
 $VbsLauncherPath = Join-Path $StartupFolder "ChatLens-SPARK-Daemon.vbs"
 $RegistryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $RegistryValueName = "ChatLens-SPARK-Daemon"
+$TaskName = "ChatLens-SPARK-Watchdog"
 
 if ($Status) {
     Write-Host "==========================================" -ForegroundColor Cyan
@@ -26,6 +32,10 @@ if ($Status) {
     $RegEntry = (Get-ItemProperty -Path $RegistryKey -Name $RegistryValueName -ErrorAction SilentlyContinue).$RegistryValueName
     $RegExists = [bool]$RegEntry
     Write-Host "  HKCU Run Registry   : $RegExists" -ForegroundColor $(if ($RegExists) { "Green" } else { "Gray" })
+
+    $TaskQuery = schtasks.exe /query /tn "$TaskName" 2>&1
+    $TaskExists = ($LASTEXITCODE -eq 0)
+    Write-Host "  Windows Watchdog    : $TaskExists (Every 2 min self-heal)" -ForegroundColor $(if ($TaskExists) { "Green" } else { "Gray" })
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File "$ScriptPath" -Status
     exit 0
@@ -39,6 +49,9 @@ if ($Uninstall) {
     }
     Remove-ItemProperty -Path $RegistryKey -Name $RegistryValueName -ErrorAction SilentlyContinue
     Write-Host "[+] Removed HKCU Run registry entry." -ForegroundColor Green
+
+    schtasks.exe /delete /tn "$TaskName" /f 2>&1 | Out-Null
+    Write-Host "[+] Removed Windows Scheduled Watchdog Task." -ForegroundColor Green
 
     # Also stop running daemon
     & powershell -NoProfile -ExecutionPolicy Bypass -File "$ScriptPath" -Stop
@@ -65,7 +78,16 @@ $LaunchCmd = "wscript.exe `"$VbsLauncherPath`""
 Set-ItemProperty -Path $RegistryKey -Name $RegistryValueName -Value $LaunchCmd -Force
 Write-Host "[+] Registered in HKCU CurrentVersion\Run registry key." -ForegroundColor Green
 
-# 3. Start the daemon right now if requested or not already running
+# 3. Register persistent Windows Scheduled Task Watchdog (Every 2 minutes)
+$TaskCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $WatchdogPath -Quiet"
+schtasks.exe /create /tn "$TaskName" /tr "$TaskCmd" /sc MINUTE /mo 2 /f 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "[+] Registered Windows Scheduled Task Watchdog ($TaskName, every 2 min)." -ForegroundColor Green
+} else {
+    Write-Host "[!] Note: Could not register Windows Task Scheduler entry." -ForegroundColor Yellow
+}
+
+# 4. Start the daemon right now if requested or not already running
 Write-Host "[*] Launching SPARK background daemon now..." -ForegroundColor Cyan
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$ScriptPath" -Background
 
