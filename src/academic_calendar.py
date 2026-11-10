@@ -5,6 +5,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from src.utils import clock
+
 
 class CalendarEvent(NamedTuple):
     name: str
@@ -226,7 +228,7 @@ def _normalize_args(
     elif isinstance(raw_date, date):
         ref_date = raw_date
     else:
-        ref_date = date.today()
+        ref_date = clock.today_ist()
 
     return milestone, ref_date, cal
 

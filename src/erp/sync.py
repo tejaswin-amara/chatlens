@@ -197,6 +197,9 @@ class AcademicERPSyncAgent:
             logger.warning("Attendance sync cycle failed", error=str(att_err))
             sync_result["attendance_error"] = str(att_err)
 
+        # 400ms rate-limit spacing between sequential ERP requests
+        await asyncio.sleep(0.4)
+
         # 2. Internal Marks Scraping & Delta Detection
         try:
             marks = await klu_erp.get_marks(
@@ -212,6 +215,9 @@ class AcademicERPSyncAgent:
         except Exception as marks_err:
             logger.warning("Marks sync cycle failed", error=str(marks_err))
             sync_result["marks_error"] = str(marks_err)
+
+        # 400ms rate-limit spacing between sequential ERP requests
+        await asyncio.sleep(0.4)
 
         # 3. Exam Seating Allocations Check
         try:

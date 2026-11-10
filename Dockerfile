@@ -4,8 +4,8 @@
 
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS builder
 
-# Install uv binary from official image
-COPY --from=ghcr.io/astral-sh/uv:0.5.21 /uv /uvx /bin/
+# Install uv binary from official image (pinned by multi-arch digest)
+COPY --from=ghcr.io/astral-sh/uv:0.5.21@sha256:87d729f94c87d0aade077260d07d899848f027b7ef37e734dca711c7ceffd3cf /uv /uvx /bin/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
