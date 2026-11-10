@@ -195,6 +195,11 @@ class BotClient:
             if self.token:
                 err_msg = err_msg.replace(self.token, "***")
             raise BotError(f"Telegram Bot URLError: {err_msg}") from e
+        except (TimeoutError, OSError) as e:
+            err_msg = str(e)
+            if self.token:
+                err_msg = err_msg.replace(self.token, "***")
+            raise BotError(f"Telegram Bot Network Error: {err_msg}") from e
 
     def _retry(self, endpoint: str, data: dict, timeout: int = 30):
         if data and "chat_id" in data:
