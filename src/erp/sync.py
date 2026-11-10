@@ -77,17 +77,22 @@ def enrich_course_record(record: dict[str, Any]) -> dict[str, Any]:
     # Compute both 75% floor and 85% distinction margins
     attended = enriched.get("attended", 0)
     conducted = enriched.get("conducted", 0)
-    pct = enriched.get("percentage", 0.0)
 
     if conducted > 0:
         enriched["safe_bunks_75"] = (
-            max(0, math.floor((attended - 0.75 * conducted) / 0.75)) if pct >= 75.0 else 0
+            max(0, math.floor((100 * attended - 75 * conducted) / 75))
+            if 100 * attended >= 75 * conducted
+            else 0
         )
         enriched["safe_bunks_85"] = (
-            max(0, math.floor((attended - 0.85 * conducted) / 0.85)) if pct >= 85.0 else 0
+            max(0, math.floor((100 * attended - 85 * conducted) / 85))
+            if 100 * attended >= 85 * conducted
+            else 0
         )
         enriched["recovery_needed"] = (
-            max(0, math.ceil((0.85 * conducted - attended) / 0.15)) if pct < 85.0 else 0
+            max(0, math.ceil((85 * conducted - 100 * attended) / 15))
+            if 100 * attended < 85 * conducted
+            else 0
         )
     else:
         enriched["safe_bunks_75"] = 0

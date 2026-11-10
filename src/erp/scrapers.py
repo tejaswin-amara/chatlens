@@ -140,12 +140,12 @@ def parse_attendance_records(html: str) -> list[dict[str, Any]]:
                 safe_bunks_75 = 0
                 recovery_needed = 0
                 if conducted > 0:
-                    if percentage >= 85.0:
-                        safe_bunks = max(0, math.floor((attended - 0.85 * conducted) / 0.85))
+                    if 100 * attended >= 85 * conducted:
+                        safe_bunks = max(0, math.floor((100 * attended - 85 * conducted) / 85))
                     else:
-                        recovery_needed = max(0, math.ceil((0.85 * conducted - attended) / 0.15))
-                    if percentage >= 75.0:
-                        safe_bunks_75 = max(0, math.floor((attended - 0.75 * conducted) / 0.75))
+                        recovery_needed = max(0, math.ceil((85 * conducted - 100 * attended) / 15))
+                    if 100 * attended >= 75 * conducted:
+                        safe_bunks_75 = max(0, math.floor((100 * attended - 75 * conducted) / 75))
 
                 status = "SAFE"
                 if percentage < 75.0:
