@@ -263,6 +263,32 @@ def run_ps_script(args: list[str], timeout: float = 20.0) -> subprocess.Complete
     )
 
 
+def wait_for_daemon_running(
+    proc: subprocess.Popen[str] | subprocess.Popen[bytes],
+    timeout: float = 8.0,
+) -> subprocess.CompletedProcess[str]:
+    """Resiliently poll until child daemon process is active and visible."""
+    deadline = time.time() + timeout
+    last_res = None
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(f"Child process exited prematurely with code {proc.returncode}")
+        res = run_ps_script(["-Status"])
+        last_res = res
+        if (
+            res.returncode == 0
+            and "Daemon Process : RUNNING" in res.stdout
+            and str(proc.pid) in res.stdout
+        ):
+            return res
+        time.sleep(0.1)
+    stdout_snip = last_res.stdout if last_res else "None"
+    raise TimeoutError(
+        f"Process {proc.pid} did not become visible to supervisor within {timeout}s. "
+        f"Last status:\n{stdout_snip}"
+    )
+
+
 @pytest.fixture(autouse=True)
 def clean_daemon_environment():
     """Ensure clean daemon process state before and after supervisor tests."""
@@ -295,8 +321,7 @@ def test_supervisor_status_when_running():
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(1.0)
-        res = run_ps_script(["-Status"])
+        res = wait_for_daemon_running(proc)
         assert res.returncode == 0
         assert "Daemon Process : RUNNING" in res.stdout
         assert str(proc.pid) in res.stdout
@@ -320,7 +345,7 @@ def test_supervisor_healthcheck_healthy_db(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(1.0)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(healthy_db)])
         assert res.returncode == 0
         assert "Health check passed" in res.stdout
@@ -340,7 +365,7 @@ def test_supervisor_healthcheck_missing_db(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(1.0)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(missing_db)])
         assert res.returncode == 1
         assert "does not exist" in res.stdout
@@ -360,7 +385,7 @@ def test_supervisor_healthcheck_corrupt_db(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(1.0)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(corrupt_db)])
         assert res.returncode == 1
         assert "integrity check failed" in res.stdout.lower() or "error" in res.stdout.lower()
@@ -379,7 +404,7 @@ def test_supervisor_stop_when_pid_file_exists(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(1.0)
+        wait_for_daemon_running(proc)
         PID_FILE.write_text(str(proc.pid), encoding="ascii")
 
         res = run_ps_script(["-Stop"])
@@ -390,7 +415,7 @@ def test_supervisor_stop_when_pid_file_exists(tmp_path):
         assert not PID_FILE.exists(), "PID file was not deleted by -Stop"
 
         # Verify process is terminated
-        for _ in range(20):
+        for _ in range(30):
             if proc.poll() is not None:
                 break
             time.sleep(0.1)
@@ -414,7 +439,7 @@ def test_supervisor_stop_when_pid_file_missing():
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(1.0)
+        wait_for_daemon_running(proc)
         assert not PID_FILE.exists()
 
         res = run_ps_script(["-Stop"])
@@ -424,7 +449,7 @@ def test_supervisor_stop_when_pid_file_missing():
             or "Terminating python daemon process" in res.stdout
         )
 
-        for _ in range(20):
+        for _ in range(30):
             if proc.poll() is not None:
                 break
             time.sleep(0.1)

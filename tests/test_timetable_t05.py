@@ -167,3 +167,15 @@ def test_t05_weekly_contact_hours_and_credits():
     # Total registered credits is defined in metadata
     assert tt.meta.credits == 15
     assert tt.meta.cluster == 4
+
+
+def test_t05_period_6_is_unassigned_lunch_separator_across_all_days():
+    tt = load("data/timetable_T05.toml")
+    assert tt is not None
+    p6_slots = [s for s in tt.slots if s.period == 6]
+    assert len(p6_slots) == 0, (
+        f"Period 6 must be unassigned lunch separator, found {len(p6_slots)} slots"
+    )
+    # Verify operational days (Mon-Sat) all exist in slots
+    operational_days = {s.day for s in tt.slots}
+    assert operational_days == {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}

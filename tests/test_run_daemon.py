@@ -80,6 +80,32 @@ def run_ps_command(command: str, timeout: float = 15.0) -> subprocess.CompletedP
     )
 
 
+def wait_for_daemon_running(
+    proc: subprocess.Popen[str] | subprocess.Popen[bytes],
+    timeout: float = 8.0,
+) -> subprocess.CompletedProcess[str]:
+    """Resiliently poll until child daemon process is active and visible."""
+    deadline = time.time() + timeout
+    last_res = None
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(f"Child process exited prematurely with code {proc.returncode}")
+        res = run_ps_script(["-Status"])
+        last_res = res
+        if (
+            res.returncode == 0
+            and "Daemon Process : RUNNING" in res.stdout
+            and str(proc.pid) in res.stdout
+        ):
+            return res
+        time.sleep(0.1)
+    stdout_snip = last_res.stdout if last_res else "None"
+    raise TimeoutError(
+        f"Process {proc.pid} did not become visible to supervisor within {timeout}s. "
+        f"Last status:\n{stdout_snip}"
+    )
+
+
 # ==============================================================================
 # 1. Script Syntax & AST Compatibility Tests
 # ==============================================================================
@@ -163,8 +189,7 @@ def test_status_when_daemon_running():
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
-        res = run_ps_script(["-Status"])
+        res = wait_for_daemon_running(proc)
         assert res.returncode == 0
         assert "ChatLens PA Daemon Status" in res.stdout
         assert "Daemon Process : RUNNING" in res.stdout
@@ -196,7 +221,7 @@ def test_stop_terminates_running_process():
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         assert proc.poll() is None  # Process is running
 
         res = run_ps_script(["-Stop"])
@@ -205,7 +230,7 @@ def test_stop_terminates_running_process():
 
         # Verify process was terminated
         stopped = False
-        for _ in range(20):
+        for _ in range(30):
             if proc.poll() is not None:
                 stopped = True
                 break
@@ -248,7 +273,7 @@ def test_healthcheck_fails_when_database_missing(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(missing_db)])
         assert res.returncode == 1
         assert "does not exist" in res.stdout
@@ -267,7 +292,7 @@ def test_healthcheck_fails_when_database_corrupted(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(corrupt_db)])
         assert res.returncode == 1
         assert "integrity check failed" in res.stdout.lower() or "error" in res.stdout.lower()
@@ -289,7 +314,7 @@ def test_healthcheck_fails_when_heartbeat_missing(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(test_db)])
         assert res.returncode == 1
         assert "stale or missing" in res.stdout
@@ -313,7 +338,7 @@ def test_healthcheck_fails_when_heartbeat_stale(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(test_db)])
         assert res.returncode == 1
         assert "stale or missing" in res.stdout
@@ -338,7 +363,7 @@ def test_healthcheck_passes_when_heartbeat_fresh(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(test_db)])
         assert res.returncode == 0
         assert "Health check passed" in res.stdout
@@ -364,7 +389,7 @@ def test_healthcheck_passes_with_fresh_startup_notify_ts(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(test_db)])
         assert res.returncode == 0
         assert "Health check passed" in res.stdout
@@ -392,7 +417,7 @@ def test_healthcheck_selects_most_recent_timestamp(tmp_path):
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-HealthCheck", "-Database", str(test_db)])
         assert res.returncode == 0
         assert "Health check passed" in res.stdout
@@ -414,7 +439,7 @@ def test_background_duplicate_suppression():
         cwd=str(REPO_ROOT),
     )
     try:
-        time.sleep(0.8)
+        wait_for_daemon_running(proc)
         res = run_ps_script(["-Background"])
         assert res.returncode == 0
         assert "already running with PID" in res.stdout

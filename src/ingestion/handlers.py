@@ -813,29 +813,50 @@ async def handle_undo_command(msg: dict) -> None:
                 patch_body["summary"] = prior["summary"]
 
             service = calendar_sync.auth.get_calendar_service()
-            await asyncio.to_thread(
-                service.events()
-                .patch(calendarId=calendar_sync.calendar_id, eventId=event_id, body=patch_body)
-                .execute
-            )
+            try:
+                await asyncio.to_thread(
+                    service.events()
+                    .patch(calendarId=calendar_sync.calendar_id, eventId=event_id, body=patch_body)
+                    .execute
+                )
+            except Exception as patch_err:
+                err_msg = str(patch_err).lower()
+                if "404" in err_msg or "not found" in err_msg or "deleted" in err_msg:
+                    pass
+                else:
+                    raise
             deduplicator.mark_undone(w_id)
             await asyncio.to_thread(bot.send, f"✅ Undid patch on event `{event_id}`.")
 
         elif kind == "insert":
             if prior.get("source") == "calendar":
                 service = calendar_sync.auth.get_calendar_service()
-                await asyncio.to_thread(
-                    service.events()
-                    .delete(calendarId=calendar_sync.calendar_id, eventId=event_id)
-                    .execute
-                )
+                try:
+                    await asyncio.to_thread(
+                        service.events()
+                        .delete(calendarId=calendar_sync.calendar_id, eventId=event_id)
+                        .execute
+                    )
+                except Exception as del_err:
+                    err_msg = str(del_err).lower()
+                    if "404" in err_msg or "not found" in err_msg or "deleted" in err_msg:
+                        pass
+                    else:
+                        raise
                 deduplicator.mark_undone(w_id)
                 await asyncio.to_thread(bot.send, "✅ Deleted created calendar event.")
             elif prior.get("source") == "tasks":
                 service = tasks_sync.auth.get_tasks_service()
-                await asyncio.to_thread(
-                    service.tasks().delete(tasklist="@default", task=event_id).execute
-                )
+                try:
+                    await asyncio.to_thread(
+                        service.tasks().delete(tasklist="@default", task=event_id).execute
+                    )
+                except Exception as del_err:
+                    err_msg = str(del_err).lower()
+                    if "404" in err_msg or "not found" in err_msg or "deleted" in err_msg:
+                        pass
+                    else:
+                        raise
                 deduplicator.mark_undone(w_id)
                 await asyncio.to_thread(bot.send, "✅ Deleted created task.")
             else:

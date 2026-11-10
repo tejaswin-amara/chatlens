@@ -323,3 +323,59 @@ async def test_handle_bot_command_sync():
         assert "Starting on-demand KLU ERP synchronization" in sent[0]
         assert "ERP Sync Complete" in sent[1]
         assert "No new deltas detected" in sent[1]
+
+
+def test_integer_scaled_attendance_arithmetic_boundaries():
+    # 1. Exact distinction boundary: 17/20 = 85.0%
+    # 100 * 17 >= 85 * 20 (1700 >= 1700) -> safe_bunks_85 = floor(0/85) = 0
+    # safe_bunks_75 = floor((1700 - 75*20)/75) = floor(200/75) = 2
+    r_dist = enrich_course_record({"conducted": 20, "attended": 17})
+    assert r_dist["safe_bunks_85"] == 0
+    assert r_dist["safe_bunks_75"] == 2
+    assert r_dist["recovery_needed"] == 0
+
+    # 2. Exact bunk floor boundary: 15/20 = 75.0%
+    # 100 * 15 >= 75 * 20 (1500 >= 1500) -> safe_bunks_75 = floor(0/75) = 0
+    # 100 * 15 < 85 * 20 (1500 < 1700) -> safe_bunks_85 = 0
+    # recovery_needed = ceil((1700 - 1500)/15) = ceil(200/15) = 14
+    r_floor = enrich_course_record({"conducted": 20, "attended": 15})
+    assert r_floor["safe_bunks_85"] == 0
+    assert r_floor["safe_bunks_75"] == 0
+    assert r_floor["recovery_needed"] == 14
+
+    # 3. Below bunk floor: 10/20 = 50.0%
+    # safe_bunks_75 = 0, safe_bunks_85 = 0
+    # recovery_needed = ceil((85*20 - 100*10)/15) = ceil(700/15) = 47
+    r_low = enrich_course_record({"conducted": 20, "attended": 10})
+    assert r_low["safe_bunks_85"] == 0
+    assert r_low["safe_bunks_75"] == 0
+    assert r_low["recovery_needed"] == 47
+
+    # 4. Zero conducted classes edge case
+    r_zero = enrich_course_record({"conducted": 0, "attended": 0})
+    assert r_zero["safe_bunks_85"] == 0
+    assert r_zero["safe_bunks_75"] == 0
+    assert r_zero["recovery_needed"] == 0
+
+
+@pytest.mark.asyncio
+async def test_erp_sync_rate_pacing_400ms():
+    agent = AcademicERPSyncAgent()
+    settings.owner_chat_id = 99999
+    settings.bot_token = "mock_token"
+
+    sleep_calls = []
+
+    async def mock_sleep(delay):
+        sleep_calls.append(delay)
+
+    with (
+        patch("asyncio.sleep", side_effect=mock_sleep),
+        patch("src.erp.client.klu_erp.get_attendance", new_callable=AsyncMock, return_value=[]),
+        patch("src.erp.client.klu_erp.get_marks", new_callable=AsyncMock, return_value=[]),
+        patch("src.erp.client.klu_erp.get_exam_seating", new_callable=AsyncMock, return_value=[]),
+    ):
+        await agent.sync_once(send_alerts=False)
+        # Exactly two 400ms sleeps between the three sequential ERP queries
+        # (attendance -> marks -> seating)
+        assert sleep_calls == [0.4, 0.4]

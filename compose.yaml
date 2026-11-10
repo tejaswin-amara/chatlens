@@ -8,7 +8,7 @@ x-logging: &default-logging
 
 services:
   chatlens-proxy:
-    image: caddy:2-alpine
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     container_name: chatlens-proxy
     restart: unless-stopped
     logging: *default-logging
@@ -201,7 +201,7 @@ services:
       - chatlens-net
 
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg16@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
     container_name: chatlens-postgres
     restart: unless-stopped
     logging: *default-logging
@@ -224,7 +224,7 @@ services:
       - chatlens-net
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
     container_name: chatlens-redis
     restart: unless-stopped
     logging: *default-logging

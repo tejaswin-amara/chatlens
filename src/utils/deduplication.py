@@ -73,6 +73,10 @@ class MessageDeduplicator:
                     key TEXT PRIMARY KEY,
                     ts REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS llm_budget (
+                    day TEXT PRIMARY KEY,
+                    calls INTEGER
+                );
                 CREATE TABLE IF NOT EXISTS timetable_overrides (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     target_date TEXT NOT NULL,
@@ -221,6 +225,23 @@ class MessageDeduplicator:
         with self._get_conn() as conn:
             row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
             return row[0] if row else None
+
+    def get_llm_calls(self, day: str) -> int:
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT calls FROM llm_budget WHERE day = ?", (day,)).fetchone()
+            return int(row[0]) if row else 0
+
+    def increment_llm_calls(self, day: str) -> int:
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO llm_budget (day, calls) VALUES (?, 1)
+                ON CONFLICT(day) DO UPDATE SET calls = calls + 1
+                """,
+                (day,),
+            )
+            row = conn.execute("SELECT calls FROM llm_budget WHERE day = ?", (day,)).fetchone()
+            return int(row[0]) if row else 1
 
     def record_override(
         self,
