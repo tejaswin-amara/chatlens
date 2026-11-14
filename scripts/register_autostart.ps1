@@ -6,7 +6,9 @@
 param(
     [switch]$Uninstall,
     [switch]$Status,
-    [switch]$StartNow
+    [switch]$StartNow,
+    [switch]$RemoveWatchdog,
+    [switch]$NoWatchdog
 )
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
@@ -34,10 +36,22 @@ if ($Status) {
     Write-Host "  HKCU Run Registry   : $RegExists" -ForegroundColor $(if ($RegExists) { "Green" } else { "Gray" })
 
     $TaskObj = Get-ScheduledTask -TaskName "$TaskName" -ErrorAction SilentlyContinue
-    $TaskActive = [bool]($TaskObj -and $TaskObj.State -ne "Disabled")
-    Write-Host "  Windows Watchdog    : $TaskActive (Every 2 min self-heal, State: $($TaskObj.State))" -ForegroundColor $(if ($TaskActive) { "Green" } else { "Red" })
+    if (-not $TaskObj) {
+        Write-Host "  Windows Watchdog    : Not Installed (Disabled / Removed)" -ForegroundColor Gray
+    } else {
+        $TaskActive = [bool]($TaskObj.State -ne "Disabled")
+        Write-Host "  Windows Watchdog    : $TaskActive (State: $($TaskObj.State))" -ForegroundColor $(if ($TaskActive) { "Green" } else { "Red" })
+    }
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File "$ScriptPath" -Status
+    exit 0
+}
+
+if ($RemoveWatchdog) {
+    Write-Host "[*] Removing Windows Scheduled Watchdog Task..." -ForegroundColor Cyan
+    Unregister-ScheduledTask -TaskName "$TaskName" -Confirm:$false -ErrorAction SilentlyContinue
+    schtasks.exe /delete /tn "$TaskName" /f 2>&1 | Out-Null
+    Write-Host "[+] Removed Windows Scheduled Watchdog Task ($TaskName)." -ForegroundColor Green
     exit 0
 }
 
@@ -78,23 +92,27 @@ $LaunchCmd = "wscript.exe `"$VbsLauncherPath`""
 Set-ItemProperty -Path $RegistryKey -Name $RegistryValueName -Value $LaunchCmd -Force
 Write-Host "[+] Registered in HKCU CurrentVersion\Run registry key." -ForegroundColor Green
 
-# 3. Register persistent Windows Scheduled Task Watchdog (Every 2 minutes, runs on battery & AC)
-$TaskRegistered = $false
-try {
-    $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogPath`" -Quiet"
-    $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
-    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-    Register-ScheduledTask -TaskName "$TaskName" -Action $Action -Trigger $Trigger -Settings $Settings -Force | Out-Null
-    $TaskRegistered = $true
-} catch {
-    $TaskCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $WatchdogPath -Quiet"
-    schtasks.exe /create /tn "$TaskName" /tr "$TaskCmd" /sc MINUTE /mo 2 /f 2>&1 | Out-Null
-    $TaskRegistered = ($LASTEXITCODE -eq 0)
-}
-if ($TaskRegistered) {
-    Write-Host "[+] Registered Windows Scheduled Task Watchdog ($TaskName, every 2 min, battery-safe)." -ForegroundColor Green
+# 3. Register persistent Windows Scheduled Task Watchdog (unless -NoWatchdog specified)
+if (-not $NoWatchdog) {
+    $TaskRegistered = $false
+    try {
+        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogPath`" -Quiet"
+        $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
+        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+        Register-ScheduledTask -TaskName "$TaskName" -Action $Action -Trigger $Trigger -Settings $Settings -Force | Out-Null
+        $TaskRegistered = $true
+    } catch {
+        $TaskCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $WatchdogPath -Quiet"
+        schtasks.exe /create /tn "$TaskName" /tr "$TaskCmd" /sc MINUTE /mo 2 /f 2>&1 | Out-Null
+        $TaskRegistered = ($LASTEXITCODE -eq 0)
+    }
+    if ($TaskRegistered) {
+        Write-Host "[+] Registered Windows Scheduled Task Watchdog ($TaskName, every 2 min, battery-safe)." -ForegroundColor Green
+    } else {
+        Write-Host "[!] Note: Could not register Windows Task Scheduler entry." -ForegroundColor Yellow
+    }
 } else {
-    Write-Host "[!] Note: Could not register Windows Task Scheduler entry." -ForegroundColor Yellow
+    Write-Host "[*] Skipping Windows Watchdog Task registration (-NoWatchdog specified)." -ForegroundColor Yellow
 }
 
 # 4. Start the daemon right now if requested or not already running
