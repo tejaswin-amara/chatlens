@@ -19,7 +19,7 @@ class TelemetryEmitter:
         self.circuit_open_until: float = 0.0
 
     def start(self) -> None:
-        if self.worker_task is None:
+        if self.worker_task is None or self.worker_task.done():
             self.worker_task = asyncio.create_task(self._worker())
 
     async def stop(self) -> None:

@@ -228,7 +228,9 @@ async def test_tier1_inline_callback_query_execution(
 
 
 def test_tier1_set_my_commands_registration():
-    """F2.3: Native Telegram / autocomplete setMyCommands registers 10 standard commands."""
+    """F2.3: Native Telegram / autocomplete setMyCommands registers standard commands."""
+    from src.notify.bot import DEFAULT_BOT_COMMANDS
+
     mock_client = BotClient(token="bot123:test_token")
     captured = {}
 
@@ -243,10 +245,11 @@ def test_tier1_set_my_commands_registration():
     assert res == {"ok": True}
     assert captured["endpoint"] == "setMyCommands"
     registered_cmds = [c["command"] for c in captured["data"]["commands"]]
-    expected_cmds = [
-        "start",
-    ]
-    assert registered_cmds == expected_cmds
+    assert len(registered_cmds) == len(DEFAULT_BOT_COMMANDS)
+    assert "start" in registered_cmds
+    assert "today" in registered_cmds
+    assert "attendance" in registered_cmds
+    assert "deadlines" in registered_cmds
 
 
 @pytest.mark.asyncio

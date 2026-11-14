@@ -82,7 +82,7 @@ def run_ps_command(command: str, timeout: float = 15.0) -> subprocess.CompletedP
 
 def wait_for_daemon_running(
     proc: subprocess.Popen[str] | subprocess.Popen[bytes],
-    timeout: float = 8.0,
+    timeout: float = 5.0,
 ) -> subprocess.CompletedProcess[str]:
     """Resiliently poll until child daemon process is active and visible."""
     deadline = time.time() + timeout
@@ -98,7 +98,7 @@ def wait_for_daemon_running(
             and str(proc.pid) in res.stdout
         ):
             return res
-        time.sleep(0.1)
+        time.sleep(0.05)
     stdout_snip = last_res.stdout if last_res else "None"
     raise TimeoutError(
         f"Process {proc.pid} did not become visible to supervisor within {timeout}s. "
@@ -215,9 +215,15 @@ def test_stop_when_no_process_running():
 
 
 def test_stop_terminates_running_process():
-    """Verify -Stop finds and terminates running python daemon process."""
+    """Verify -Stop finds and terminates running python daemon process gracefully."""
     proc = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(30)", "src.main"],
+        [
+            sys.executable,
+            "-c",
+            "import time, pathlib; stop = pathlib.Path('logs/spark_daemon.stop'); "
+            "[time.sleep(0.05) for _ in range(600) if not stop.exists()]",
+            "src.main",
+        ],
         cwd=str(REPO_ROOT),
     )
     try:
@@ -234,8 +240,36 @@ def test_stop_terminates_running_process():
             if proc.poll() is not None:
                 stopped = True
                 break
-            time.sleep(0.1)
+            time.sleep(0.05)
         assert stopped, "Daemon process was not stopped by -Stop"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
+def test_stop_force_kill_when_unresponsive():
+    """Verify -Stop force-terminates when daemon ignores graceful stop file."""
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(15)", "src.main"],
+        cwd=str(REPO_ROOT),
+    )
+    try:
+        wait_for_daemon_running(proc)
+        assert proc.poll() is None
+
+        # Use -GraceTimeout 1 to quickly exercise the force-kill fallback
+        res = run_ps_script(["-Stop", "-GraceTimeout", "1"])
+        assert res.returncode == 0
+        assert "stopped successfully" in res.stdout
+        assert "terminating remaining processes" in res.stdout
+
+        stopped = False
+        for _ in range(30):
+            if proc.poll() is not None:
+                stopped = True
+                break
+            time.sleep(0.05)
+        assert stopped, "Unresponsive daemon was not force-terminated"
     finally:
         if proc.poll() is None:
             proc.kill()

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.notify.bot import BotClient, BotError
+from src.notify.bot import DEFAULT_BOT_COMMANDS, BotClient, BotError
 
 
 @pytest.fixture
@@ -225,11 +225,22 @@ def test_bot_set_my_commands(mock_bot, mock_request):
     payload = _extract_payload(mock_request)
     assert "commands" in payload
     commands = payload["commands"]
-    assert len(commands) == 1
-    expected_commands = [
-        {"command": "start", "description": "Open SPARK PA Academic Assistant"},
-    ]
-    assert commands == expected_commands
+    assert len(commands) == len(DEFAULT_BOT_COMMANDS)
+    assert commands == DEFAULT_BOT_COMMANDS
+
+
+def test_bot_set_my_commands_with_scope(mock_bot, mock_request):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"ok": true, "result": true}'
+    mock_request.return_value.__enter__.return_value = mock_resp
+
+    scope = {"type": "all_private_chats"}
+    res = mock_bot.set_my_commands(scope=scope)
+    assert res == {"ok": True, "result": True}
+
+    payload = _extract_payload(mock_request)
+    assert payload.get("scope") == scope
+    assert len(payload.get("commands", [])) == len(DEFAULT_BOT_COMMANDS)
 
 
 def test_bot_send_default_quick_buttons(mock_bot, mock_request):

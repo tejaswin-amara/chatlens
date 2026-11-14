@@ -54,6 +54,11 @@
   }
 }
 
+.message-item-contain {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
+}
+
 body {
   background-color: var(--color-brand-bg);
   color: var(--color-brand-text);

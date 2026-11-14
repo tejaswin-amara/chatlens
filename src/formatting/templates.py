@@ -346,6 +346,167 @@ def render_status_card(
     return sanitize_markdown("\n".join(lines))
 
 
+def format_grouped_attendance(records: list[dict[str, Any]]) -> str:
+    """Format live attendance overview grouping LTPS components by course."""
+    import math
+
+    if not records:
+        return "⚠️ No attendance records available from KL ERP."
+
+    lines = ["📊 **Live Attendance Overview (KL ERP)** — Y25 T05:\n"]
+
+    def _format_ltps(raw: str) -> str:
+        r = (raw or "").strip()
+        if not r:
+            return ""
+        up = r.upper()
+        if up in ("L", "LECTURE"):
+            return "Lecture (L)"
+        if up in ("T", "TUTORIAL"):
+            return "Tutorial (T)"
+        if up in ("P", "PRACTICAL", "LAB"):
+            return "Practical (P)"
+        if up in ("S", "SKILL"):
+            return "Skill (S)"
+        if up in ("PROJECT", "PRJ"):
+            return "Project (S)"
+        return r
+
+    # Group records by course code / name
+    groups: dict[str, dict[str, Any]] = {}
+    for r in records:
+        c_code = (r.get("course_code") or r.get("code") or "").strip()
+        c_name = (r.get("course_name") or r.get("course") or c_code or "Course").strip()
+        key = c_code.upper() if c_code else c_name.upper()
+        if key not in groups:
+            groups[key] = {
+                "course_code": c_code,
+                "course_name": c_name,
+                "components": [],
+            }
+        groups[key]["components"].append(r)
+
+    critical: list[str] = []
+    detention_risks: list[str] = []
+
+    for g in groups.values():
+        c_name = g["course_name"]
+        c_code = g["course_code"]
+        comps = g["components"]
+        code_str = f" (`{c_code}`)" if c_code else ""
+
+        if len(comps) > 1:
+            tot_att = sum(int(c.get("attended", 0)) for c in comps)
+            tot_cond = sum(int(c.get("conducted") or c.get("held") or 0) for c in comps)
+            overall_pct = round((tot_att / tot_cond) * 100.0, 2) if tot_cond > 0 else 0.0
+
+            if tot_cond > 0:
+                if 100 * tot_att >= 85 * tot_cond:
+                    tot_bunks = max(0, math.floor((100 * tot_att - 85 * tot_cond) / 85))
+                    tot_rec = 0
+                else:
+                    tot_bunks = 0
+                    tot_rec = max(0, math.ceil((85 * tot_cond - 100 * tot_att) / 15))
+            else:
+                tot_bunks, tot_rec = 0, 0
+
+            overall_icon = "🟢" if overall_pct >= 85.0 else ("🟡" if overall_pct >= 75.0 else "🔴")
+            if tot_bunks > 0:
+                tot_margin = (
+                    f"• **{tot_bunks} safe {'bunk' if tot_bunks == 1 else 'bunks'}** aggregate"
+                )
+            elif tot_rec > 0:
+                tot_margin = (
+                    f"• ⚠️ Needs **{tot_rec} {'class' if tot_rec == 1 else 'classes'}** for 85%"
+                )
+            else:
+                tot_margin = "• At 85% threshold"
+
+            lines.append(f"{overall_icon} **{c_name}**{code_str}")
+            lines.append(f"   • Overall: {tot_att}/{tot_cond} ({overall_pct}%) {tot_margin}")
+
+            for idx, comp in enumerate(comps):
+                is_last = idx == len(comps) - 1
+                tree_char = "└" if is_last else "├"
+                comp_att = int(comp.get("attended", 0))
+                comp_cond = int(comp.get("conducted") or comp.get("held") or 0)
+                pct = comp.get("percentage")
+                if pct is None:
+                    pct = round((comp_att / comp_cond) * 100.0, 2) if comp_cond > 0 else 0.0
+
+                c_icon = "🟢" if pct >= 85.0 else ("🟡" if pct >= 75.0 else "🔴")
+                ltps_str = _format_ltps(comp.get("ltps", "")) or "Component"
+
+                bunks = comp.get("safe_bunks", 0)
+                rec = comp.get("recovery_needed", 0)
+                if bunks > 0:
+                    c_margin = f"• **{bunks} safe {'bunk' if bunks == 1 else 'bunks'}**"
+                elif rec > 0:
+                    c_margin = f"• ⚠️ Needs **{rec} {'class' if rec == 1 else 'classes'}**"
+                    critical.append(f"{c_name} [{ltps_str}]")
+                else:
+                    c_margin = "• At threshold"
+
+                if pct < 75.0:
+                    detention_risks.append(f"{c_name} [{ltps_str}]")
+
+                lines.append(
+                    f"   {tree_char} {c_icon} **{ltps_str}**: "
+                    f"{comp_att}/{comp_cond} ({pct}%) {c_margin}"
+                )
+            lines.append("")
+        else:
+            comp = comps[0]
+            comp_att = int(comp.get("attended", 0))
+            comp_cond = int(comp.get("conducted") or comp.get("held") or 0)
+            pct = comp.get("percentage")
+            if pct is None:
+                pct = round((comp_att / comp_cond) * 100.0, 2) if comp_cond > 0 else 0.0
+
+            status_icon = "🟢" if pct >= 85.0 else ("🟡" if pct >= 75.0 else "🔴")
+            ltps_str = _format_ltps(comp.get("ltps", ""))
+            ltps_tag = f" [{ltps_str}]" if ltps_str else ""
+
+            bunks = comp.get("safe_bunks", 0)
+            rec = comp.get("recovery_needed", 0)
+            if bunks > 0:
+                margin_str = (
+                    f"• Margin: **{bunks} safe {'bunk' if bunks == 1 else 'bunks'}** remaining"
+                )
+            elif rec > 0:
+                margin_str = (
+                    f"• ⚠️ Needs **{rec} {'class' if rec == 1 else 'classes'}** to reach 85%"
+                )
+                critical.append(f"{c_name}{ltps_tag}")
+            else:
+                margin_str = "• At 85% distinction threshold"
+
+            if pct < 75.0:
+                detention_risks.append(f"{c_name}{ltps_tag}")
+
+            lines.append(
+                f"{status_icon} **{c_name}**{ltps_tag}{code_str}\n"
+                f"   • Attended: {comp_att}/{comp_cond} ({pct}%)\n"
+                f"   {margin_str}\n"
+            )
+
+    if detention_risks:
+        lines.append(
+            f"🚨 **Detention Warning**: {len(detention_risks)} "
+            "component(s) below 75% university floor!"
+        )
+    if critical:
+        lines.append(
+            f"⚠️ **Action Required**: {len(critical)} component(s) below 85% distinction benchmark!"
+        )
+
+    lines.append(
+        "💡 *Tip: Target is ≥85.0% for academic distinction. "
+        "Minimum 75.0% required to avoid detention.*"
+    )
+    return sanitize_markdown("\n".join(lines).strip())
+
+
 def render_attendance_card(records: list[dict[str, Any]], now_dt: datetime) -> str:
     """Render attendance summary card with exact bunk margins."""
     lines = [

@@ -1,7 +1,10 @@
 """Telegram event handlers for commands, announcements, and multimodal media."""
 
 import asyncio
+import contextlib
 import enum
+import json
+import os
 import re
 import time
 from datetime import timedelta
@@ -433,6 +436,22 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             await asyncio.to_thread(bot.send, alert)
         return
 
+    if msg_text.strip():
+        date_str = (
+            raw_date.strftime("%Y-%m-%d %H:%M")
+            if raw_date and hasattr(raw_date, "strftime")
+            else ""
+        )
+        deduplicator.store_chat_message(
+            chat_id=chat_id,
+            chat_name=chat_name,
+            message_id=getattr(msg, "id", 0),
+            sender_name=sender_name,
+            text=msg_text.strip(),
+            date=date_str,
+            ts=msg_ts,
+        )
+
     if deduplicator.is_duplicate(chat_id, msg.id, msg_text):
         logger.debug("Skipping duplicate message", chat_id=chat_id, msg_id=msg.id)
         return
@@ -650,6 +669,31 @@ async def process_message(client: TelegramClient, chat_id: int, msg) -> None:
             except Exception as e:
                 logger.debug("Failed to send client receipt", error=str(e))
 
+    try:
+        deduplicator.add_outbox_event(
+            event_type=f"academic.{parsed_event.intent.lower()}",
+            payload={
+                "chat_id": chat_id,
+                "chat_name": chat_name,
+                "sender_id": sender_id,
+                "sender_name": sender_name,
+                "msg_id": getattr(msg, "id", 0),
+                "text": msg_text,
+                "intent": parsed_event.intent,
+                "course_name": parsed_event.course_name,
+                "course_code": parsed_event.course_code,
+                "room": parsed_event.room,
+                "target_date": parsed_event.target_date,
+                "period": parsed_event.period,
+                "summary": parsed_event.summary,
+                "decision": decision.value,
+                "status": execution_status,
+                "source": source or "unknown",
+            },
+        )
+    except Exception as outbox_err:
+        logger.debug("Failed to record outbox event", error=str(outbox_err))
+
     latency_ms = int((time.time() - start_time) * 1000)
     logger.info(
         "Processed message event",
@@ -683,7 +727,7 @@ async def handle_bot_callback(query: dict) -> None:
     data = query.get("data", "")
 
     try:
-        await asyncio.to_thread(bot.answer_callback, cb_id)
+        await asyncio.to_thread(bot.answer_callback, cb_id, text="⏳ Processing...")
     except Exception as e:
         logger.debug("Failed to answer callback query", error=str(e))
 
@@ -908,6 +952,12 @@ async def handle_bot_command(msg: dict) -> None:
         "exams": "/exam",
         "viva": "/exam",
         "undo": "/undo",
+        "sync": "/sync",
+        "erp_sync": "/sync",
+        "crawl": "/sync",
+        "index_summary": "/index_summary",
+        "summary": "/index_summary",
+        "index": "/index_summary",
     }
 
     if lower_cleaned in button_map:
@@ -960,6 +1010,11 @@ async def handle_bot_command(msg: dict) -> None:
         "/exam",
         "/exams",
         "/viva",
+        "/sync",
+        "/erp_sync",
+        "/crawl",
+        "/index_summary",
+        "/summary",
     )
     if cmd.startswith("/") and cmd not in recognized_commands:
         import difflib
@@ -972,23 +1027,28 @@ async def handle_bot_command(msg: dict) -> None:
     if cmd in ("/", "/start", "/help"):
         reply = (
             "👋 **ChatLens & SPARK PA Menu**\n\n"
-            "Academic & Schedule Commands:\n"
+            "📅 **Schedule & Classes**:\n"
             "• `/today` — Today's classes, rooms & status\n"
             "• `/tomorrow` — Tomorrow's schedule & upcoming classes\n"
             "• `/timetable` — Official weekly course timetable & rooms\n"
             "• `/courses` — Registered T05 courses, credits, and faculty\n"
-            "• `/briefing` — Generate today's academic briefing\n"
-            "• `/attendance` — Live attendance & safe bunk margins\n"
+            "• `/briefing` — Generate today's academic briefing\n\n"
+            "📊 **Academic & ERP Records**:\n"
+            "• `/attendance` — Live attendance & grouped LTPS breakdown\n"
             "• `/bunk` — Exact attendance bunk buffer calculator\n"
-            "• `/deadlines` — Upcoming task deadlines & academic milestones\n"
-            "• `/exam` — In-sem lab exams & project defence schedules\n"
-            "• `/ask <question>` — Instant semantic answer (viva prep, Arduino code, rooms)\n"
-            "• `/status` — Live daemon & chat monitoring status\n"
             "• `/marks` — In-sem internal marks & assessments\n"
             "• `/cgpa` — Official academic grades & transcript\n"
             "• `/fee` — Fee orders & payment receipts\n"
-            "• `/quarantine` — View isolated prompt injection attempts\n"
+            "• `/sync` — On-demand ERP crawler & delta synchronization\n\n"
+            "📝 **Assessments, Exams & Q&A**:\n"
+            "• `/deadlines` — Upcoming task deadlines & academic milestones\n"
+            "• `/exam` — In-sem lab exams & project defence schedules\n"
+            "• `/index_summary` — Executive knowledge briefing across chats & documents\n"
+            "• `/ask <question>` — Instant semantic answer (viva prep, Arduino code, rooms)\n\n"
+            "⚙️ **System & Assistant Controls**:\n"
+            "• `/status` — Live daemon & chat monitoring status\n"
             "• `/rescan` — Deep-scan course group messages & files (past 7 days)\n"
+            "• `/quarantine` — View isolated prompt injection attempts\n"
             "• `/undo` — Revert last applied calendar override\n"
             "• `/help` — Show all available options\n\n"
             "💬 *Tap any button below or ask a question directly!*"
@@ -1037,6 +1097,27 @@ async def handle_bot_command(msg: dict) -> None:
                 deadlines_block.append(f"• ⏰{period} **{c_name}**: {summary}")
             schedule_text += "\n".join(deadlines_block)
 
+        # Check for high-stakes classes today (75% detention risk)
+        try:
+            from src.briefing import detect_high_stakes_classes
+
+            cached_att = deduplicator.meta_get("erp_attendance_cache")
+            if cached_att:
+                att_rows = json.loads(cached_att)
+                hs_classes = detect_high_stakes_classes(today, att_rows)
+                if hs_classes:
+                    hs_block = ["\n\n🚨 **High-Stakes Classes Today (75% Detention Risk)**:"]
+                    for hs in hs_classes:
+                        p_str = f" [P{hs['period']}]" if hs.get("period") else ""
+                        r_str = f" in {hs['room']}" if hs.get("room") else ""
+                        hs_block.append(
+                            f"• ⚠️ **{hs['course']}**{p_str}{r_str}: {hs['current_pct']}% "
+                            f"➔ drops to **{hs['projected_pct']}%** if missed!"
+                        )
+                    schedule_text += "\n".join(hs_block)
+        except Exception as hs_err:
+            logger.debug("Failed checking high stakes classes for today", error=str(hs_err))
+
         await asyncio.to_thread(bot.send, schedule_text)
 
     elif cmd == "/tomorrow":
@@ -1074,6 +1155,7 @@ async def handle_bot_command(msg: dict) -> None:
 
     elif cmd == "/attendance":
         from src.erp import klu_erp
+        from src.formatting.templates import format_grouped_attendance
 
         await asyncio.to_thread(bot.send, "⏳ Fetching live attendance from KL ERP...")
         records = await klu_erp.get_attendance()
@@ -1084,30 +1166,8 @@ async def handle_bot_command(msg: dict) -> None:
                 "Please verify `ERP_USERNAME` and `ERP_PASSWORD` in `.env` or check portal status.",
             )
         else:
-            lines = ["📊 **Live Attendance Overview (KL ERP)** — Y25 T05:\n"]
-            critical = []
-            for r in records:
-                pct = r["percentage"]
-                status_icon = "🟢" if pct >= 85.0 else ("🟡" if pct >= 75.0 else "🔴")
-                name_short = r["course_name"] or r["course_code"]
-                ltps_tag = f" [{r['ltps']}]" if r.get("ltps") else ""
-                line = (
-                    f"{status_icon} **{name_short}**{ltps_tag} (`{r['course_code']}`)\n"
-                    f"   • Attended: {r['attended']}/{r['conducted']} ({pct}%)\n"
-                )
-                if r["safe_bunks"] > 0:
-                    line += f"   • Margin: **{r['safe_bunks']} safe bunks** remaining\n"
-                elif r["recovery_needed"] > 0:
-                    line += f"   • ⚠️ Needs **{r['recovery_needed']} classes** to reach 85%\n"
-                    critical.append(f"{name_short}{ltps_tag}")
-                lines.append(line)
-
-            if critical:
-                lines.append(
-                    f"\n⚠️ **Action Required**: {len(critical)} components below 85% distinction!"
-                )
-
-            await asyncio.to_thread(bot.send, "\n".join(lines))
+            report_text = format_grouped_attendance(records)
+            await asyncio.to_thread(bot.send, report_text)
 
     elif cmd == "/marks":
         from src.erp import klu_erp
@@ -1155,18 +1215,64 @@ async def handle_bot_command(msg: dict) -> None:
     elif cmd == "/fee":
         from src.erp import klu_erp
 
-        await asyncio.to_thread(bot.send, "⏳ Fetching fee order details from KL ERP...")
-        fees = await klu_erp.get_fee_orders()
-        if not fees:
-            await asyncio.to_thread(bot.send, "⚠️ No fee records found or ERP unavailable.")
-        else:
-            lines = ["💳 **Fee Orders & Receipts (KL ERP)**:\n"]
-            for f in fees[:10]:
-                lines.append(
-                    f"• **Order {f['order_id']}** ({f['term']}): {f['amount']} "
-                    f"— `{f['status']}` ({f['date']})"
+        parts = text.split()
+        if len(parts) >= 2 and (parts[1].lower() in ("download", "receipt") or parts[1].isdigit()):
+            if parts[1].lower() in ("download", "receipt") and len(parts) >= 3:
+                order_id = parts[2].strip()
+            else:
+                order_id = parts[1].strip()
+
+            await asyncio.to_thread(
+                bot.send, f"⏳ Downloading fee receipt for Order `{order_id}` from KL ERP..."
+            )
+            receipt_bytes = None
+            if hasattr(klu_erp, "download_fee_receipt"):
+                try:
+                    receipt_bytes = await klu_erp.download_fee_receipt(order_id)
+                except Exception as down_err:
+                    logger.warning(
+                        "Failed to download fee receipt",
+                        order_id=order_id,
+                        error=str(down_err),
+                    )
+
+            if receipt_bytes:
+                receipts_dir = "data/receipts"
+                os.makedirs(receipts_dir, exist_ok=True)
+                pdf_path = f"{receipts_dir}/fee_order_{order_id}.pdf"
+
+                def _save_pdf(path: str, data: bytes) -> None:
+                    with open(path, "wb") as f:
+                        f.write(data)
+
+                await asyncio.to_thread(_save_pdf, pdf_path, receipt_bytes)
+                reply = (
+                    f"✅ **Fee Receipt Downloaded**\n"
+                    f"• Order ID: `{order_id}`\n"
+                    f"• Size: {len(receipt_bytes)} bytes\n"
+                    f"• Saved to: `{pdf_path}`"
                 )
-            await asyncio.to_thread(bot.send, "\n".join(lines))
+                await asyncio.to_thread(bot.send, reply)
+            else:
+                await asyncio.to_thread(
+                    bot.send,
+                    f"⚠️ Could not download fee receipt for order `{order_id}`.\n"
+                    f"Please check portal status or verify the Order ID with `/fee`.",
+                )
+        else:
+            await asyncio.to_thread(bot.send, "⏳ Fetching fee order details from KL ERP...")
+            fees = await klu_erp.get_fee_orders()
+            if not fees:
+                await asyncio.to_thread(bot.send, "⚠️ No fee records found or ERP unavailable.")
+            else:
+                lines = ["💳 **Fee Orders & Receipts (KL ERP)**:\n"]
+                for f in fees[:10]:
+                    lines.append(
+                        f"• **Order {f['order_id']}** ({f['term']}): {f['amount']} "
+                        f"— `{f['status']}` ({f['date']})"
+                    )
+                lines.append("\n💡 *To download a receipt: `/fee download <order_id>`*")
+                await asyncio.to_thread(bot.send, "\n".join(lines))
 
     elif cmd in ("/sync", "/erp_sync", "/crawl"):
         from src.erp.sync import erp_sync_agent
@@ -1294,9 +1400,8 @@ async def handle_bot_command(msg: dict) -> None:
         await handle_undo_command(msg)
 
     elif cmd in ("/bunk", "/margins"):
-        import json
-
-        from src.briefing import format_bunk_calculator
+        from src.briefing import format_bunk_calculator, simulate_bunk_impact
+        from src.utils import clock
         from src.utils.deduplication import deduplicator
 
         cached_att = deduplicator.meta_get("erp_attendance_cache")
@@ -1307,7 +1412,47 @@ async def handle_bot_command(msg: dict) -> None:
             except Exception:
                 records = None
 
-        if records:
+        if not records:
+            from src.erp import klu_erp
+
+            await asyncio.to_thread(
+                bot.send, "⏳ Calculating attendance bunk margins from KL ERP..."
+            )
+            records = await klu_erp.get_attendance()
+
+        parts = text.split()
+        if len(parts) >= 2 and records:
+            sub = parts[1].strip().lower()
+            if sub == "tomorrow":
+                from src.timetable import get_effective_slots
+
+                tomorrow = clock.today_ist() + timedelta(days=1)
+                slots = get_effective_slots(tomorrow)
+                t_str = tomorrow.strftime("%a, %d %b")
+                if not slots:
+                    await asyncio.to_thread(
+                        bot.send,
+                        f"🎉 No scheduled classes tomorrow ({t_str}). Enjoy your free day!",
+                    )
+                else:
+                    course_counts: dict[str, int] = {}
+                    for s in slots:
+                        c_key = getattr(s, "course", "") or getattr(s, "course_code", "")
+                        if c_key:
+                            course_counts[c_key] = course_counts.get(c_key, 0) + 1
+
+                    sim_results = [f"🔮 **Tomorrow Bunk Impact Simulation ({t_str})**:\n"]
+                    for c_key, count in course_counts.items():
+                        sim_text = simulate_bunk_impact(records, c_key, skip_count=count)
+                        sim_results.append(sim_text)
+                        sim_results.append("")
+                    await asyncio.to_thread(bot.send, "\n".join(sim_results).strip())
+            else:
+                course_query = parts[1]
+                skip_count = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 1
+                sim_reply = simulate_bunk_impact(records, course_query, skip_count=skip_count)
+                await asyncio.to_thread(bot.send, sim_reply)
+        elif records:
             att_rows = [
                 {
                     "course": r.get("course_name") or r.get("course_code"),
@@ -1323,26 +1468,7 @@ async def handle_bot_command(msg: dict) -> None:
 
             asyncio.create_task(klu_erp.get_attendance())
         else:
-            from src.erp import klu_erp
-
-            await asyncio.to_thread(
-                bot.send, "⏳ Calculating attendance bunk margins from KL ERP..."
-            )
-            records = await klu_erp.get_attendance()
-            if records:
-                att_rows = [
-                    {
-                        "course": r.get("course_name") or r.get("course_code"),
-                        "code": r.get("course_code", ""),
-                        "attended": r.get("attended"),
-                        "held": r.get("conducted"),
-                    }
-                    for r in records
-                ]
-                reply = format_bunk_calculator(att_rows)
-                await asyncio.to_thread(bot.send, reply)
-            else:
-                await asyncio.to_thread(bot.send, "⚠️ Could not retrieve attendance from KL ERP.")
+            await asyncio.to_thread(bot.send, "⚠️ Could not retrieve attendance from KL ERP.")
 
     elif cmd in ("/briefing", "/digest"):
         from src.briefing import build_briefing, fetch_briefing_inputs
@@ -1410,8 +1536,57 @@ async def handle_bot_command(msg: dict) -> None:
                 )
                 await asyncio.to_thread(bot.send, info)
 
+    elif cmd in ("/index_summary", "/summary"):
+        from src.utils import clock
+
+        summary_lines = ["📑 **Executive Knowledge & Index Summary**\n"]
+
+        # 1. Critical Deadlines & Exam Dates
+        summary_lines.append("📌 **Critical Deadlines & Exam Dates**:")
+        with contextlib.suppress(Exception):
+            cal_docs = deduplicator.search_knowledge_docs("exam milestone end sem", limit=3)
+            for cd in cal_docs:
+                first_line = cd["text"].splitlines()[0]
+                summary_lines.append(f"• {first_line} `{cd['source']}`")
+
+        pending = deduplicator.list_pending(limit=5)
+        for p in pending:
+            ev = p.get("event", {})
+            if ev.get("target_date"):
+                summary_lines.append(
+                    f"• **{ev.get('course_name', 'Task')}**: {ev.get('summary', 'Deadline')} "
+                    f"due on **{ev.get('target_date')}** `[Pending]`"
+                )
+
+        # 2. Room & Timetable Overrides
+        summary_lines.append("\n🏢 **Room & Timetable Overrides**:")
+        today_str = clock.today_ist().strftime("%Y-%m-%d")
+        overrides = deduplicator.get_overrides(today_str)
+        if overrides:
+            for ov in overrides:
+                c_name = ov.get("course_name", "Course")
+                period = ov.get("period", "?")
+                room = ov.get("room", "TBD")
+                st = ov.get("status", "OVERRIDE")
+                summary_lines.append(
+                    f"• **{c_name}** (Period {period}): Room **{room}** ({st}) `[Override]`"
+                )
+        else:
+            summary_lines.append("• No room overrides active for today `[Official Timetable]`")
+
+        # 3. In-Sem Assessments & Faculty Notices
+        summary_lines.append("\n📚 **In-Sem Assessments & Faculty Notices**:")
+        recent_notices = deduplicator.list_recent_chat_notices(limit=4)
+        if recent_notices:
+            for n in recent_notices:
+                snippet = n["text"].replace("\n", " ")[:90]
+                summary_lines.append(f"• {snippet}... `{n['source']}`")
+        else:
+            summary_lines.append("• Zero new faculty notices recorded `[Chats]`")
+
+        await asyncio.to_thread(bot.send, "\n".join(summary_lines))
+
     else:
-        reply_sent = False
         if not text.startswith("/"):
             from src.knowledge.retriever import knowledge_retriever
 
@@ -1422,72 +1597,20 @@ async def handle_bot_command(msg: dict) -> None:
                 else None
             )
 
-            intel_chunks: list[str] = []
-            intel_last_edit_ts = time.time()
             try:
-                for chunk_text in knowledge_retriever.answer_stream(text):
-                    intel_chunks.append(chunk_text)
-                    intel_now_ts = time.time()
-                    if msg_id and (intel_now_ts - intel_last_edit_ts >= 0.35):
-                        await asyncio.to_thread(bot.edit, msg_id, f"💡 {''.join(intel_chunks)}")
-                        intel_last_edit_ts = intel_now_ts
-
-                final_answer = "".join(intel_chunks).strip()
-                if (
-                    final_answer
-                    and "Information not provided" not in final_answer
-                    and len(final_answer) > 5
-                ):
-                    if msg_id:
-                        await asyncio.to_thread(bot.edit, msg_id, f"💡 {final_answer}")
-                    else:
-                        await asyncio.to_thread(bot.send, f"💡 {final_answer}")
-                    reply_sent = True
+                answer_text = await asyncio.to_thread(knowledge_retriever.answer, text)
+                if msg_id:
+                    await asyncio.to_thread(bot.edit, msg_id, answer_text)
+                else:
+                    await asyncio.to_thread(bot.send, answer_text)
             except Exception as e:
-                logger.debug("Streaming intel answer failed", error=str(e))
-
-        if not reply_sent and settings.gemini_api_key.get_secret_value():
-            try:
-                from google import genai
-
-                client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
-                prompt = (
-                    "You are the helpful personal college assistant for Tejaswin Amara (KLEF).\n"
-                    f"Answer this query concisely in 1-3 sentences:\n\n{text}"
-                )
-                initial_res = await asyncio.to_thread(bot.send, "💭 *Thinking...*")
-                msg_id = (
-                    initial_res.get("result", {}).get("message_id")
-                    if isinstance(initial_res, dict)
-                    else None
-                )
-                stream = client.models.generate_content_stream(
-                    model=settings.gemini_model,
-                    contents=prompt,
-                )
-                gemini_chunks: list[str] = []
-                gemini_last_edit_ts = time.time()
-                for chunk in stream:
-                    if chunk.text:
-                        gemini_chunks.append(chunk.text)
-                        gemini_now_ts = time.time()
-                        if msg_id and (gemini_now_ts - gemini_last_edit_ts >= 0.35):
-                            await asyncio.to_thread(
-                                bot.edit, msg_id, f"🤖 {''.join(gemini_chunks)}"
-                            )
-                            gemini_last_edit_ts = gemini_now_ts
-
-                final_text = "".join(gemini_chunks).strip()
-                if final_text:
-                    if msg_id:
-                        await asyncio.to_thread(bot.edit, msg_id, f"🤖 {final_text}")
-                    else:
-                        await asyncio.to_thread(bot.send, f"🤖 {final_text}")
-                    reply_sent = True
-            except Exception as e:
-                logger.warning("Gemini command reply failed", error=str(e))
-
-        if not reply_sent:
+                logger.warning("Conversational chatbot answer failed", error=str(e))
+                err_msg = "⚠️ Could not retrieve answer at this time."
+                if msg_id:
+                    await asyncio.to_thread(bot.edit, msg_id, err_msg)
+                else:
+                    await asyncio.to_thread(bot.send, err_msg)
+        else:
             await asyncio.to_thread(
                 bot.send,
                 f'🤖 Received: "{text}"\nUse `/help` for commands or `/today` for your schedule.',
@@ -1523,6 +1646,28 @@ async def catch_up_chats(client: TelegramClient, days: int = 7, full_rescan: boo
 
             for msg in msgs_to_process:
                 is_out = getattr(msg, "out", False)
+                txt = getattr(msg, "text", "") or ""
+                if txt.strip() and not is_out:
+                    m_date = getattr(msg, "date", None)
+                    d_str = (
+                        m_date.strftime("%Y-%m-%d %H:%M")
+                        if m_date and hasattr(m_date, "strftime")
+                        else ""
+                    )
+                    m_ts = (
+                        m_date.timestamp()
+                        if m_date and hasattr(m_date, "timestamp")
+                        else time.time()
+                    )
+                    deduplicator.store_chat_message(
+                        chat_id=chat_id,
+                        chat_name=str(chat_id),
+                        message_id=getattr(msg, "id", 0),
+                        sender_name="",
+                        text=txt.strip(),
+                        date=d_str,
+                        ts=m_ts,
+                    )
                 if getattr(msg, "date", None) and msg.date >= cutoff and not is_out:
                     await process_message(client, chat_id, msg)
                     total_scanned += 1

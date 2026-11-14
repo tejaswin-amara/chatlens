@@ -277,3 +277,221 @@ def test_parse_timetable() -> None:
     assert records[1]["component"] == "S"
     assert records[1]["section"] == "S-11"
     assert records[1]["room"] == "H301A"
+
+
+def test_compute_remaining_classes() -> None:
+    from datetime import date
+
+    from src.erp.scrapers import compute_remaining_classes
+
+    # For DLAC (25CS3112E) between 2026-11-14 and 2027-01-28 (T05 term)
+    rem = compute_remaining_classes(
+        course_code="25CS3112E",
+        course_name="Deep Learning With Accelerated Computing",
+        ref_date=date(2026, 11, 14),
+        last_instruction_day=date(2027, 1, 28),
+    )
+    assert rem > 0
+
+    # Past instruction date returns 0
+    rem_past = compute_remaining_classes(
+        course_code="25CS3112E",
+        ref_date=date(2027, 2, 1),
+        last_instruction_day=date(2027, 1, 28),
+    )
+    assert rem_past == 0
+
+
+def test_parse_attendance_hard_detention_flag() -> None:
+    html = """
+    <table>
+        <thead>
+            <tr>
+                <th>Course Code</th>
+                <th>Course Title</th>
+                <th>Conducted</th>
+                <th>Attended</th>
+                <th>Percentage</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>25SC2107E</td><td>Machine Learning</td><td>40</td><td>15</td><td>37.5%</td>
+            </tr>
+        </tbody>
+    </table>
+    """
+    # recovery needed for 85%: ceil((85*40 - 100*15)/15) = ceil(1900/15) = 127 classes
+    # If remaining classes is only 10, recovery is impossible -> hard_detention is True
+    records = parse_attendance_records(html, remaining_classes_map={"25SC2107E": 10})
+    assert len(records) == 1
+    rec = records[0]
+    assert rec["course_code"] == "25SC2107E"
+    assert rec["attended"] == 15
+    assert rec["conducted"] == 40
+    assert rec["recovery_needed"] > 100
+    assert rec["remaining_classes"] == 10
+    assert rec["hard_detention"] is True
+    assert rec["detention_lockout"] is True
+    assert rec["status"] == "CRITICAL"
+
+
+def test_parse_attendance_safe_within_remaining() -> None:
+    html = """
+    <table>
+        <thead>
+            <tr>
+                <th>Course Code</th>
+                <th>Course Title</th>
+                <th>Conducted</th>
+                <th>Attended</th>
+                <th>Percentage</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>25CS3112E</td><td>DLAC</td><td>10</td><td>8</td><td>80.0%</td>
+            </tr>
+        </tbody>
+    </table>
+    """
+    # recovery needed for 85%: ceil((85*10 - 100*8)/15) = ceil(50/15) = 4 classes
+    # If remaining classes is 30, recovery is easily achievable -> hard_detention is False
+    records = parse_attendance_records(html, remaining_classes_map={"25CS3112E": 30})
+    assert len(records) == 1
+    rec = records[0]
+    assert rec["recovery_needed"] == 4
+    assert rec["remaining_classes"] == 30
+    assert rec["hard_detention"] is False
+    assert rec["detention_lockout"] is False
+    assert rec["status"] == "WARNING"
+
+
+def test_html_table_parser_colspan_grid() -> None:
+    from src.erp.scrapers import parse_generic_tables
+
+    html = """
+    <table>
+        <thead>
+            <tr>
+                <th>Day</th>
+                <th>Period 1</th>
+                <th>Period 2</th>
+                <th>Period 3</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Mon</td>
+                <td colspan="2">25CS3112E Lab Workshop</td>
+                <td>25CS2206E Lecture</td>
+            </tr>
+        </tbody>
+    </table>
+    """
+    tables = parse_generic_tables(html)
+    assert len(tables) == 1
+    row = tables[0][0]
+    assert row["Day"] == "Mon"
+    # Period 1 and Period 2 both hold the spanned cell text without shifting Period 3
+    assert row["Period 1"] == "25CS3112E Lab Workshop"
+    assert row["Period 2"] == "25CS3112E Lab Workshop"
+    assert row["Period 3"] == "25CS2206E Lecture"
+
+
+def test_html_table_parser_rowspan_grid() -> None:
+    from src.erp.scrapers import parse_generic_tables
+
+    html = """
+    <table>
+        <thead>
+            <tr>
+                <th>Day</th>
+                <th>Slot</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td rowspan="2">Tue</td>
+                <td>Period 1</td>
+            </tr>
+            <tr>
+                <td>Period 2</td>
+            </tr>
+        </tbody>
+    </table>
+    """
+    tables = parse_generic_tables(html)
+    assert len(tables) == 1
+    rows = tables[0]
+    assert len(rows) == 2
+    assert rows[0]["Day"] == "Tue"
+    assert rows[0]["Slot"] == "Period 1"
+    assert rows[1]["Day"] == "Tue"
+    assert rows[1]["Slot"] == "Period 2"
+
+
+def test_parse_hall_ticket_records() -> None:
+    from src.erp.scrapers import parse_hall_ticket_records
+
+    html = """
+    <html>
+    <body>
+        <div class="student-header">
+            <p>University Id: 2520090104</p>
+            <p>Student Name: TEJASWIN AMARA</p>
+            <p>Program: B.Tech Computer Science & Engineering</p>
+            <p>Academic Year: 2026-2027</p>
+            <p>Term: Trimester 5</p>
+            <p>Exam Center: KLEF Vaddeswaram Campus</p>
+        </div>
+        <table class="table exam-table">
+            <thead>
+                <tr>
+                    <th>Course Code</th>
+                    <th>Course Name</th>
+                    <th>Exam Date</th>
+                    <th>Session</th>
+                    <th>Room No</th>
+                    <th>Seat No</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>25CS3112E</td>
+                    <td>Deep Learning With Accelerated Computing</td>
+                    <td>2027-01-25</td>
+                    <td>09:30 AM - 12:30 PM</td>
+                    <td>H-005</td>
+                    <td>D-14</td>
+                </tr>
+                <tr>
+                    <td>25CS2206E</td>
+                    <td>Cloud Infrastructure And Services</td>
+                    <td>2027-01-27</td>
+                    <td>09:30 AM - 12:30 PM</td>
+                    <td>H-201</td>
+                    <td>B-08</td>
+                </tr>
+            </tbody>
+        </table>
+        <ul class="instructions">
+            <li>1. Candidates must carry their valid University ID Card and Hall Ticket.</li>
+            <li>2. Electronic gadgets including smartwatches are strictly prohibited.</li>
+        </ul>
+    </body>
+    </html>
+    """
+    ht = parse_hall_ticket_records(html)
+    assert ht["student_id"] == "2520090104"
+    assert ht["student_name"] == "TEJASWIN AMARA"
+    assert ht["academic_year"] == "2026-2027"
+    assert "Trimester 5" in ht["term"]
+    assert "KLEF" in ht["exam_center"]
+    assert len(ht["exam_schedule"]) == 2
+    sched1 = ht["exam_schedule"][0]
+    assert sched1["course_code"] == "25CS3112E"
+    assert sched1["exam_date"] == "2027-01-25"
+    assert sched1["room_no"] == "H-005"
+    assert sched1["seat_no"] == "D-14"
+    assert len(ht["instructions"]) >= 1

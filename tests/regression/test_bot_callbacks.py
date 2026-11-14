@@ -421,7 +421,9 @@ async def test_callback_malformed_non_cmd_data(monkeypatch):
 
 
 def test_bot_set_my_commands_exact_registration(monkeypatch):
-    """Verify set_my_commands sends exactly the 10 assistant commands."""
+    """Verify set_my_commands sends the assistant commands."""
+    from src.notify.bot import DEFAULT_BOT_COMMANDS
+
     recorder = RequestRecorder()
     monkeypatch.setattr(bot, "_request", recorder.mock_request)
 
@@ -431,9 +433,13 @@ def test_bot_set_my_commands_exact_registration(monkeypatch):
     call = recorder.calls[0]
     assert call["endpoint"] == "setMyCommands"
     commands = call["data"]["commands"]
-    assert len(commands) == 1
+    assert len(commands) == len(DEFAULT_BOT_COMMANDS)
     cmd_names = [c["command"] for c in commands]
-    assert cmd_names == ["start"]
+    assert "start" in cmd_names
+    assert "today" in cmd_names
+    assert "attendance" in cmd_names
+    assert "timetable" in cmd_names
+    assert "deadlines" in cmd_names
 
 
 # ============================================================================

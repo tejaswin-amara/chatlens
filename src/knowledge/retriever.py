@@ -22,6 +22,8 @@ except ImportError:
 from google import genai
 
 from src.config import settings
+from src.knowledge.document_loader import document_loader
+from src.utils.deduplication import deduplicator
 from src.utils.logging import get_logger
 from src.utils.redaction import redact_pii
 
@@ -80,6 +82,25 @@ class ContiguousVectorBuffer:
         return sorted(top_k_heap, key=lambda x: x[0], reverse=True)
 
 
+def _build_rag_prompt(context: str, safe_query: str) -> str:
+    """Build the strict QUOTA-CONSERVE prompt for grounded RAG answers."""
+    instructions = [
+        "You are ChatLens Assistant, an intelligent academic personal assistant",
+        "operating in strict QUOTA-CONSERVE mode.",
+        "Instructions:",
+        "1. Answer user questions directly, accurately, and naturally based strictly on the",
+        "   provided context.",
+        "2. If the answer is missing from the context, output exactly:",
+        "   'Not found in your chats/documents.' Do not speculate.",
+        "3. Skip pleasantries, greetings, and filler words. Maximum 2 to 3 sentences",
+        "   or a compact bullet list.",
+        "4. Use bold text for key entities (dates, course codes, rooms, names, deadlines).",
+        "5. Append the exact source citation in brackets at the end:",
+        "   [Chat: <Name>, <Date>] or [Doc: <Filename>].",
+    ]
+    return "\n".join(instructions) + f"\n\nContext:\n{context}\n\nUser Question: {safe_query}"
+
+
 class KnowledgeRetriever:
     """In-process semantic knowledge engine using TurboVec and Gemini."""
 
@@ -90,6 +111,10 @@ class KnowledgeRetriever:
         self._client: genai.Client | None = None
         self.cache_path = cache_path or INDEX_CACHE_PATH
         self._load_chunks()
+        try:
+            document_loader.index_all()
+        except Exception as e:
+            logger.debug(f"Document loader auto-index failed: {e}")
         self._load_cached_index()
 
     def _load_cached_index(self) -> None:
@@ -257,23 +282,60 @@ class KnowledgeRetriever:
         top_items = heapq.nlargest(top_k, scored, key=lambda x: x[0])
         return [c for _, c in top_items]
 
+    def hybrid_retrieve_knowledge(self, query: str, top_k: int = 3) -> list[dict[str, str]]:
+        """Unified hybrid search over document chunks and chat history."""
+        results: list[dict[str, str]] = []
+        seen_texts: set[str] = set()
+
+        # 1. Search SQLite knowledge_docs
+        try:
+            doc_hits = deduplicator.search_knowledge_docs(query, limit=top_k)
+            for d in doc_hits:
+                txt = d.get("text", "").strip()
+                if txt and txt not in seen_texts:
+                    seen_texts.add(txt)
+                    results.append({"text": txt, "source": d.get("source", "[Doc: unknown]")})
+        except Exception as e:
+            logger.debug(f"SQLite knowledge docs search error: {e}")
+
+        # 2. Search SQLite chat_messages
+        try:
+            chat_hits = deduplicator.search_chat_messages(query, limit=top_k)
+            for c in chat_hits:
+                txt = c.get("text", "").strip()
+                if txt and txt not in seen_texts:
+                    seen_texts.add(txt)
+                    results.append({"text": txt, "source": c.get("source", "[Chat: historical]")})
+        except Exception as e:
+            logger.debug(f"SQLite chat search error: {e}")
+
+        # 3. Fallback to in-memory chunks
+        if len(results) < top_k:
+            mem_hits = self.search(query, top_k=top_k)
+            for m in mem_hits:
+                if m not in seen_texts:
+                    seen_texts.add(m)
+                    results.append({"text": m, "source": "[Doc: academic_intelligence.json]"})
+
+        return results[:top_k]
+
     def answer_stream(self, query: str) -> Generator[str, None, None]:
         """Generate a streaming response via Gemini Interactions API for low TTFT."""
         safe_query = redact_pii(query)
-        relevant_chunks = self.search(safe_query, top_k=3)
-        context = "\n\n---\n\n".join(relevant_chunks)
+        hits = self.hybrid_retrieve_knowledge(safe_query, top_k=3)
+        if not hits:
+            yield "Not found in your chats/documents."
+            return
+
+        context_blocks = [f"{h['text']}\nSource: {h['source']}" for h in hits]
+        context = "\n\n---\n\n".join(context_blocks)
 
         client = self._get_client()
         if not client:
-            yield context or "No relevant knowledge found."
+            yield f"{hits[0]['text']} {hits[0]['source']}"
             return
 
-        prompt = (
-            f"You are a concise academic personal assistant for student section S-10.\n"
-            f"Context from course files and exam schedules:\n{context}\n\n"
-            f"Question: {safe_query}\n\n"
-            f"Answer accurately and directly using the context above. Zero filler words."
-        )
+        prompt = _build_rag_prompt(context, safe_query)
 
         try:
             stream = client.models.generate_content_stream(
@@ -285,34 +347,33 @@ class KnowledgeRetriever:
                     yield chunk.text
         except Exception as e:
             logger.error("Failed to generate streaming answer from retriever", error=str(e))
-            yield context
+            yield f"{hits[0]['text']} {hits[0]['source']}"
 
     def answer(self, query: str) -> str:
         """Generate a concise, grounded answer using Gemini and retrieved knowledge."""
         safe_query = redact_pii(query)
-        relevant_chunks = self.search(safe_query, top_k=3)
-        context = "\n\n---\n\n".join(relevant_chunks)
+        hits = self.hybrid_retrieve_knowledge(safe_query, top_k=3)
+        if not hits:
+            return "Not found in your chats/documents."
+
+        context_blocks = [f"{h['text']}\nSource: {h['source']}" for h in hits]
+        context = "\n\n---\n\n".join(context_blocks)
 
         client = self._get_client()
         if not client:
-            return context or "No relevant knowledge found."
+            return f"**{hits[0]['text'].splitlines()[0]}** {hits[0]['source']}"
 
-        prompt = (
-            f"You are a concise academic personal assistant for student section S-10.\n"
-            f"Context from course files and exam schedules:\n{context}\n\n"
-            f"Question: {safe_query}\n\n"
-            f"Answer accurately and directly using the context above. Zero filler words."
-        )
+        prompt = _build_rag_prompt(context, safe_query)
 
         try:
             resp = client.models.generate_content(
                 model=settings.gemini_model,
                 contents=prompt,
             )
-            return resp.text.strip() if resp.text else context
+            return resp.text.strip() if resp.text else f"{hits[0]['text']} {hits[0]['source']}"
         except Exception as e:
             logger.error("Failed to generate answer from retriever", error=str(e))
-            return context
+            return f"{hits[0]['text']} {hits[0]['source']}"
 
 
 knowledge_retriever = KnowledgeRetriever()

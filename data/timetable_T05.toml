@@ -5,15 +5,15 @@ valid_to = 2027-02-07
 sample = false
 cluster = 4
 credits = 15
-contact_hours = 38
+contact_hours = 48
 
-# Monday (Mon) — Total 6 periods
+# Monday (Mon) — Total 8 periods (Lunch break Period 6)
 [[slot]]
 day = "Mon"
 period = 1
 course = "GENAI"
 room = "H-005"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -22,7 +22,7 @@ day = "Mon"
 period = 2
 course = "GENAI"
 room = "H-005"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -31,7 +31,7 @@ day = "Mon"
 period = 3
 course = "CIS"
 room = "H006"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Lecture"
 
@@ -40,7 +40,7 @@ day = "Mon"
 period = 4
 course = "CIS"
 room = "H006"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Lecture"
 
@@ -49,7 +49,7 @@ day = "Mon"
 period = 5
 course = "DLAC"
 room = "H-005"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
@@ -58,17 +58,35 @@ day = "Mon"
 period = 7
 course = "DLAC"
 room = "H-005"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
-# Tuesday (Tue) — Total 6 periods
+[[slot]]
+day = "Mon"
+period = 8
+course = "GLBC"
+room = "HC-15C"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Mon"
+period = 9
+course = "GLBC"
+room = "HC-15C"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+# Tuesday (Tue) — Total 8 periods (Lunch break Period 6)
 [[slot]]
 day = "Tue"
 period = 1
 course = "DLAC"
 room = "H107A"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
@@ -77,7 +95,7 @@ day = "Tue"
 period = 2
 course = "DLAC"
 room = "H107A"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
@@ -86,7 +104,7 @@ day = "Tue"
 period = 3
 course = "GENAI"
 room = "HC-15C"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -95,7 +113,7 @@ day = "Tue"
 period = 4
 course = "GENAI"
 room = "HC-15C"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -104,7 +122,7 @@ day = "Tue"
 period = 5
 course = "CIS"
 room = "HC-15D"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Practical"
 
@@ -113,17 +131,53 @@ day = "Tue"
 period = 7
 course = "CIS"
 room = "HC-15D"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Practical"
 
-# Wednesday (Wed) — Total 6 periods
+[[slot]]
+day = "Tue"
+period = 8
+course = "GLBC"
+room = "HC-15D"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Tue"
+period = 9
+course = "GLBC"
+room = "HC-15D"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+# Wednesday (Wed) — Total 8 periods (Lunch break Period 6)
+[[slot]]
+day = "Wed"
+period = 1
+course = "GLBC"
+room = "HC-15C"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Wed"
+period = 2
+course = "GLBC"
+room = "HC-15C"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
 [[slot]]
 day = "Wed"
 period = 3
 course = "DLAC"
 room = "HC-15C"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
@@ -132,7 +186,7 @@ day = "Wed"
 period = 4
 course = "DLAC"
 room = "HC-15C"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
@@ -141,7 +195,7 @@ day = "Wed"
 period = 5
 course = "CIS"
 room = "H-107"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Skill"
 
@@ -150,35 +204,35 @@ day = "Wed"
 period = 7
 course = "CIS"
 room = "H-107"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Skill"
 
 [[slot]]
 day = "Wed"
 period = 8
-course = "ISDG"
+course = "SDG"
 room = "H-005"
-faculty = "Faculty"
+faculty = "Sama Mineesha"
 section = "S-10"
 type = "Lecture"
 
 [[slot]]
 day = "Wed"
 period = 9
-course = "ISDG"
+course = "SDG"
 room = "H-005"
-faculty = "Faculty"
+faculty = "Sama Mineesha"
 section = "S-10"
 type = "Lecture"
 
-# Thursday (Thu) — Total 6 periods
+# Thursday (Thu) — Total 8 periods (Lunch break Period 6)
 [[slot]]
 day = "Thu"
 period = 1
 course = "DLAC"
 room = "H005C"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Lecture"
 
@@ -187,7 +241,7 @@ day = "Thu"
 period = 2
 course = "DLAC"
 room = "H005C"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Lecture"
 
@@ -196,7 +250,7 @@ day = "Thu"
 period = 3
 course = "GENAI"
 room = "HC-15C"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -205,7 +259,7 @@ day = "Thu"
 period = 4
 course = "GENAI"
 room = "HC-15C"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -214,7 +268,7 @@ day = "Thu"
 period = 5
 course = "CNNP"
 room = "H107B"
-faculty = "Mrs. D. Alekhya"
+faculty = "Dasari Alekhya"
 section = "S-11"
 type = "Skill"
 
@@ -223,17 +277,35 @@ day = "Thu"
 period = 7
 course = "CNNP"
 room = "H107B"
-faculty = "Mrs. D. Alekhya"
+faculty = "Dasari Alekhya"
 section = "S-11"
 type = "Skill"
 
-# Friday (Fri) — Total 8 periods
+[[slot]]
+day = "Thu"
+period = 8
+course = "GLBC"
+room = "HC-15C"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Thu"
+period = 9
+course = "GLBC"
+room = "HC-15C"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+# Friday (Fri) — Total 8 periods (Lunch break Period 6)
 [[slot]]
 day = "Fri"
 period = 1
 course = "CNNP"
 room = "HC-15D"
-faculty = "Mrs. D. Alekhya"
+faculty = "Dasari Alekhya"
 section = "S-11"
 type = "Skill"
 
@@ -242,7 +314,7 @@ day = "Fri"
 period = 2
 course = "CNNP"
 room = "HC-15D"
-faculty = "Mrs. D. Alekhya"
+faculty = "Dasari Alekhya"
 section = "S-11"
 type = "Skill"
 
@@ -251,7 +323,7 @@ day = "Fri"
 period = 3
 course = "GENAI"
 room = "H-005"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Lecture"
 
@@ -260,7 +332,7 @@ day = "Fri"
 period = 4
 course = "GENAI"
 room = "H-005"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Lecture"
 
@@ -269,7 +341,7 @@ day = "Fri"
 period = 5
 course = "DLAC"
 room = "HC-15C"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
@@ -278,35 +350,35 @@ day = "Fri"
 period = 7
 course = "DLAC"
 room = "HC-15C"
-faculty = "Ms. Ch. Anitha"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"
 
 [[slot]]
 day = "Fri"
-period = 12
-course = "KABBADI"
+period = 8
+course = "KABADDI"
 room = "HC-15C"
-faculty = "Physical Education"
+faculty = "Ediga Raja Gopal"
 section = "S-1"
 type = "Skill"
 
 [[slot]]
 day = "Fri"
-period = 13
-course = "KABBADI"
+period = 9
+course = "KABADDI"
 room = "HC-15C"
-faculty = "Physical Education"
+faculty = "Ediga Raja Gopal"
 section = "S-1"
 type = "Skill"
 
-# Saturday (Sat) — Total 6 periods
+# Saturday (Sat) — Total 8 periods (Lunch break Period 6)
 [[slot]]
 day = "Sat"
 period = 1
 course = "CIS"
 room = "H-005"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Skill"
 
@@ -315,7 +387,7 @@ day = "Sat"
 period = 2
 course = "CIS"
 room = "H-005"
-faculty = "Ms. D. Divya Priya"
+faculty = "Divya Priya Degala"
 section = "S-11"
 type = "Skill"
 
@@ -324,7 +396,7 @@ day = "Sat"
 period = 3
 course = "CNNP"
 room = "H006"
-faculty = "Mrs. D. Alekhya"
+faculty = "Dasari Alekhya"
 section = "S-11"
 type = "Lecture"
 
@@ -333,7 +405,7 @@ day = "Sat"
 period = 4
 course = "CNNP"
 room = "H006"
-faculty = "Mrs. D. Alekhya"
+faculty = "Dasari Alekhya"
 section = "S-11"
 type = "Lecture"
 
@@ -342,7 +414,7 @@ day = "Sat"
 period = 5
 course = "GENAI"
 room = "H-005"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
 section = "S-10"
 type = "Skill"
 
@@ -351,6 +423,24 @@ day = "Sat"
 period = 7
 course = "GENAI"
 room = "H-005"
-faculty = "Dr. Y. Lakshmi Prasanna"
+faculty = "LakshmiPrasanna Yeluri"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Sat"
+period = 8
+course = "GLBC"
+room = "H-005"
+faculty = "Anitha Chekuri"
+section = "S-10"
+type = "Skill"
+
+[[slot]]
+day = "Sat"
+period = 9
+course = "GLBC"
+room = "H-005"
+faculty = "Anitha Chekuri"
 section = "S-10"
 type = "Skill"

@@ -108,10 +108,13 @@ def preserve_production_daemon():
             str(run_daemon_script),
             "-Status",
         ]
-        res = subprocess.run(  # noqa: S603, S607
-            cmd, cwd=str(repo_root), capture_output=True, text=True, timeout=15, check=False
-        )
-        return res.returncode == 0 and "Daemon Process : RUNNING" in res.stdout
+        try:
+            res = subprocess.run(  # noqa: S603, S607
+                cmd, cwd=str(repo_root), capture_output=True, text=True, timeout=45, check=False
+            )
+            return res.returncode == 0 and "Daemon Process : RUNNING" in res.stdout
+        except (subprocess.TimeoutExpired, Exception):
+            return False
 
     was_running = check_running()
     yield
@@ -125,6 +128,9 @@ def preserve_production_daemon():
             str(run_daemon_script),
             "-Background",
         ]
-        subprocess.run(  # noqa: S603, S607
-            cmd, cwd=str(repo_root), capture_output=True, text=True, timeout=15, check=False
-        )
+        try:
+            subprocess.run(  # noqa: S603, S607
+                cmd, cwd=str(repo_root), capture_output=True, text=True, timeout=45, check=False
+            )
+        except (subprocess.TimeoutExpired, Exception):  # noqa: S110
+            pass

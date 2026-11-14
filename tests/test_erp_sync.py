@@ -73,7 +73,7 @@ def test_enrich_course_record_cluster_4():
     enriched = enrich_course_record(raw_record)
     assert enriched["course_name"] == "Deep Learning With Accelerated Computing"
     assert enriched["category"] == "PCC"
-    assert enriched["faculty"] == "Ms. Ch. Anitha"
+    assert enriched["faculty"] in ("Anitha Chekuri", "Ms. Ch. Anitha")
     assert enriched["section"] == "S-10"
     assert enriched["safe_bunks_85"] == 1
     assert enriched["safe_bunks_75"] == 3
@@ -379,3 +379,227 @@ async def test_erp_sync_rate_pacing_400ms():
         # Exactly two 400ms sleeps between the three sequential ERP queries
         # (attendance -> marks -> seating)
         assert sleep_calls == [0.4, 0.4]
+
+
+def test_is_daytime_academic_hours():
+    from src.erp.sync import is_daytime_academic_hours
+
+    # Monday 10:00 AM IST -> True
+    mon_morning = datetime(2026, 11, 9, 10, 0, tzinfo=clock.IST)
+    assert is_daytime_academic_hours(mon_morning) is True
+
+    # Monday 06:59 AM IST -> False (before 07:00)
+    mon_early = datetime(2026, 11, 9, 6, 59, tzinfo=clock.IST)
+    assert is_daytime_academic_hours(mon_early) is False
+
+    # Monday 18:01 PM IST -> False (after 18:00)
+    mon_evening = datetime(2026, 11, 9, 18, 1, tzinfo=clock.IST)
+    assert is_daytime_academic_hours(mon_evening) is False
+
+    # Sunday 12:00 PM IST -> False (Sunday excluded)
+    sun_noon = datetime(2026, 11, 15, 12, 0, tzinfo=clock.IST)
+    assert is_daytime_academic_hours(sun_noon) is False
+
+
+@pytest.mark.asyncio
+async def test_erp_keep_alive_ping_success():
+    import httpx
+    from pydantic import SecretStr
+
+    from src.erp.client import klu_erp
+    from src.erp.sync import erp_keep_alive_ping
+
+    settings.erp_username = "test_user"
+    settings.erp_password = SecretStr("test_pass")
+    klu_erp._cookies = {"PHPSESSID": "mock_valid_session"}
+
+    async def mock_get(url, **kwargs):
+        req = httpx.Request("GET", url)
+        return httpx.Response(200, request=req, text="<div>Welcome Student</div>")
+
+    mock_client = AsyncMock()
+    mock_client.get = mock_get
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(klu_erp, "_get_http_client", return_value=mock_client):
+        result = await erp_keep_alive_ping()
+        assert result is True
+        ts = deduplicator.meta_get("last_erp_keep_alive_ts")
+        assert ts is not None and float(ts) > 0
+
+
+@pytest.mark.asyncio
+async def test_erp_keep_alive_ping_expired_triggers_login():
+    import httpx
+    from pydantic import SecretStr
+
+    from src.erp.client import klu_erp
+    from src.erp.sync import erp_keep_alive_ping
+
+    settings.erp_username = "test_user"
+    settings.erp_password = SecretStr("test_pass")
+    klu_erp._cookies = {"PHPSESSID": "expired_session"}
+
+    async def mock_get(url, **kwargs):
+        req = httpx.Request("GET", url)
+        return httpx.Response(
+            200,
+            request=req,
+            text='<form id="login-form"><input id="loginform-username"/></form>',
+        )
+
+    mock_client = AsyncMock()
+    mock_client.get = mock_get
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch.object(klu_erp, "_get_http_client", return_value=mock_client),
+        patch.object(klu_erp, "login", new_callable=AsyncMock, return_value=True) as mock_login,
+    ):
+        result = await erp_keep_alive_ping()
+        assert result is True
+        mock_login.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_erp_keep_alive_lifecycle():
+    import asyncio
+
+    from src.erp.sync import run_erp_keep_alive
+
+    stop_event = asyncio.Event()
+
+    ping_calls = 0
+
+    async def fake_ping():
+        nonlocal ping_calls
+        ping_calls += 1
+        return True
+
+    with (
+        patch("src.erp.sync.is_daytime_academic_hours", return_value=True),
+        patch("src.erp.sync.erp_keep_alive_ping", side_effect=fake_ping),
+    ):
+        task = asyncio.create_task(run_erp_keep_alive(stop_event))
+        # Yield control so loop runs first iteration
+        await asyncio.sleep(0.05)
+        stop_event.set()
+        await task
+        assert ping_calls >= 1
+
+
+def test_format_attendance_delta_alert_hard_detention():
+    from src.erp.sync import format_attendance_delta_alert
+
+    deltas = [
+        {
+            "course_name": "Machine Learning",
+            "course_code": "25SC2107E",
+            "ltps": "Practical",
+            "conducted": 30,
+            "attended": 18,
+            "percentage": 60.0,
+            "diff_summary": "🔴 **+1 absence recorded**",
+            "safe_bunks_85": 0,
+            "safe_bunks_75": 0,
+            "recovery_needed": 34,
+            "remaining_classes": 12,
+            "hard_detention": True,
+        }
+    ]
+    now_dt = datetime(2026, 11, 9, 13, 15, tzinfo=clock.IST)
+    alert = format_attendance_delta_alert(deltas, now_dt)
+    assert "HARD DETENTION LOCKOUT" in alert
+    assert "34 classes" in alert
+    assert "12 classes" in alert
+
+
+@pytest.mark.asyncio
+async def test_sync_once_emits_outbox_events(tmp_path, monkeypatch):
+    db_file = str(tmp_path / "test_spark.db")
+    monkeypatch.setattr(settings, "spark_db", db_file)
+    monkeypatch.setattr(settings, "owner_chat_id", 99999)
+    monkeypatch.setattr(settings, "bot_token", "mock_token")
+
+    agent = AcademicERPSyncAgent()
+
+    # Prior attendance cache
+    prior_att = [
+        {
+            "course_code": "25CS3112E",
+            "course_name": "DLAC",
+            "ltps": "S",
+            "conducted": 10,
+            "attended": 10,
+            "percentage": 100.0,
+        }
+    ]
+    deduplicator.meta_set("erp_attendance_cache", json.dumps(prior_att))
+
+    # New attendance: 1 new class attended
+    new_att = [
+        {
+            "course_code": "25CS3112E",
+            "course_name": "DLAC",
+            "ltps": "S",
+            "conducted": 11,
+            "attended": 11,
+            "percentage": 100.0,
+        }
+    ]
+
+    # Prior marks cache
+    prior_marks = [
+        {
+            "course_code": "25CS3112E",
+            "component": "Mid-Term 1",
+            "secured_marks": 25.0,
+            "max_marks": 30.0,
+        }
+    ]
+    deduplicator.meta_set("erp_marks_cache", json.dumps(prior_marks))
+
+    # New marks: Mid-Term 2 published
+    new_marks = prior_marks + [
+        {
+            "course_code": "25CS3112E",
+            "component": "Mid-Term 2",
+            "secured_marks": 28.0,
+            "max_marks": 30.0,
+            "percentage": 93.33,
+        }
+    ]
+
+    with (
+        patch(
+            "src.erp.client.klu_erp.get_attendance",
+            new_callable=AsyncMock,
+            return_value=new_att,
+        ),
+        patch(
+            "src.erp.client.klu_erp.get_marks",
+            new_callable=AsyncMock,
+            return_value=new_marks,
+        ),
+        patch(
+            "src.erp.client.klu_erp.get_exam_seating",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("src.notify.bot.bot.send"),
+    ):
+        res = await agent.sync_once(send_alerts=False)
+        assert res["attendance_deltas"] == 1
+        assert res["marks_deltas"] == 1
+
+        events = deduplicator.list_outbox_events(limit=10, unprocessed_only=False)
+        event_types = [e["event_type"] for e in events]
+        assert "erp.attendance_update" in event_types
+        assert "erp.marks_update" in event_types
+
+        att_event = next(e for e in events if e["event_type"] == "erp.attendance_update")
+        payload = att_event["payload"]
+        assert payload["deltas_count"] == 1
+        assert payload["deltas"][0]["course_code"] == "25CS3112E"

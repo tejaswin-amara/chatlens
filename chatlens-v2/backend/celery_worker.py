@@ -1,14 +1,16 @@
 import asyncio
 import hashlib
+import inspect
 import logging
 import os
 from typing import Any
 
 from database import AsyncSessionLocal
-from embeddings import generate_embedding
+from embeddings import generate_embeddings_batch as gen_batch
 from models import Message
 from parsers.telegram import parse_telegram_export
 from parsers.whatsapp import parse_whatsapp_export
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
@@ -38,23 +40,27 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def generate_embeddings_batch(texts: list[str]) -> list[list[float] | None]:
-    """Generate vector embeddings for a list of texts via Google GenAI."""
+def generate_embeddings_batch(
+    texts: list[str],
+    *,
+    batch_size: int = 100,
+    model: str = "text-embedding-004",
+) -> list[list[float] | None]:
+    """Generate vector embeddings for a list of texts via Google GenAI with batching."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or genai is None:
         return [None] * len(texts)
     try:
         client = genai.Client(api_key=api_key)
-        return [
-            generate_embedding(
-                client,
-                t,
-                task_type="RETRIEVAL_DOCUMENT",
-                model="gemini-embedding-001",
-            )
-            for t in texts
-        ]
-    except Exception:
+        return gen_batch(
+            client,
+            texts,
+            task_type="RETRIEVAL_DOCUMENT",
+            model=model,
+            batch_size=batch_size,
+        )
+    except Exception as exc:
+        logger.debug(f"Batch embedding failed: {exc}")
         return [None] * len(texts)
 
 
@@ -70,22 +76,29 @@ async def save_messages(messages: list[dict[str, Any]]) -> None:
             )
             msg["content_hash"] = hashlib.sha256(msg_str.encode("utf-8")).hexdigest()
 
-        # Batch embed up to first 200 non-empty messages to enrich vector search
-        # without hitting API quota
+        # Batch embed all non-empty messages to enrich vector search without truncation
+        # using Gemini text-embedding-004 batched up to 100 texts per request
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key and genai is not None:
             try:
                 client = genai.Client(api_key=api_key)
-                embed_candidates = [m for m in messages[:200] if m.get("text", "").strip()]
-                for m in embed_candidates:
-                    emb = generate_embedding(
+                embed_candidates = [
+                    m for m in messages if isinstance(m.get("text"), str) and m["text"].strip()
+                ]
+                batch_size = 100
+                for i in range(0, len(embed_candidates), batch_size):
+                    chunk = embed_candidates[i : i + batch_size]
+                    chunk_texts = [m["text"][:1000] for m in chunk]
+                    chunk_embs = gen_batch(
                         client,
-                        m["text"][:500],
+                        chunk_texts,
                         task_type="RETRIEVAL_DOCUMENT",
-                        model="gemini-embedding-001",
+                        model="text-embedding-004",
+                        batch_size=batch_size,
                     )
-                    if emb is not None:
-                        m["embedding"] = emb
+                    for m, emb in zip(chunk, chunk_embs, strict=False):
+                        if emb is not None:
+                            m["embedding"] = emb
             except Exception as exc:
                 logger.debug(f"Batch embedding skipped: {exc}")
 
@@ -126,8 +139,12 @@ async def save_messages(messages: list[dict[str, Any]]) -> None:
                     .values(chunk)
                     .on_conflict_do_nothing(index_elements=["content_hash"])
                 )
-            await session.execute(stmt)
-        await session.commit()
+            exec_stmt = session.execute(stmt)
+            if inspect.isawaitable(exec_stmt):
+                await exec_stmt
+        commit_res = session.commit()
+        if inspect.isawaitable(commit_res):
+            await commit_res
 
 
 def parse_and_save_sync(file_path: str, platform: str) -> dict[str, Any]:
@@ -258,3 +275,102 @@ def run_system_diagnostics_task(
     except Exception as exc:
         logger.debug(f"Task progress update failed: {exc}")
     return run_system_diagnostics_sync(use_ai=use_ai, auto_remediate=auto_remediate)
+
+
+async def backfill_embeddings_sync(
+    chat_id: str | None = None,
+    batch_size: int = 100,
+    limit: int = 1000,
+) -> dict[str, Any]:
+    """Asynchronously backfill vector embeddings for messages without embeddings."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key or genai is None:
+        return {
+            "status": "skipped",
+            "reason": "No GEMINI_API_KEY or genai library",
+            "updated": 0,
+            "total_candidates": 0,
+        }
+
+    client = genai.Client(api_key=api_key)
+    updated_count = 0
+
+    async with AsyncSessionLocal() as session:
+        stmt = (
+            select(Message)
+            .where(Message.embedding.is_(None))
+            .where(Message.text.isnot(None))
+            .where(Message.text != "")
+        )
+        if chat_id:
+            stmt = stmt.where(Message.chat_name == chat_id)
+        stmt = stmt.order_by(Message.id.asc()).limit(limit)
+
+        exec_res = session.execute(stmt)
+        res = await exec_res if inspect.isawaitable(exec_res) else exec_res
+        candidates = list(res.scalars().all())
+        if not candidates:
+            return {"status": "done", "updated": 0, "total_candidates": 0}
+
+        for i in range(0, len(candidates), batch_size):
+            chunk = candidates[i : i + batch_size]
+            texts = [c.text[:1000] for c in chunk]
+            embs = gen_batch(
+                client,
+                texts,
+                task_type="RETRIEVAL_DOCUMENT",
+                model="text-embedding-004",
+                batch_size=batch_size,
+            )
+            for msg_item, emb in zip(chunk, embs, strict=False):
+                if emb is not None:
+                    msg_item.embedding = emb
+                    updated_count += 1
+            commit_res = session.commit()
+            if inspect.isawaitable(commit_res):
+                await commit_res
+
+    return {"status": "done", "updated": updated_count, "total_candidates": len(candidates)}
+
+
+def run_backfill_embeddings_sync(
+    chat_id: str | None = None,
+    batch_size: int = 100,
+    limit: int = 1000,
+) -> dict[str, Any]:
+    """Synchronous executor for backfill_embeddings_sync."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(
+                asyncio.run,
+                backfill_embeddings_sync(chat_id=chat_id, batch_size=batch_size, limit=limit),
+            ).result()
+    else:
+        return asyncio.run(
+            backfill_embeddings_sync(chat_id=chat_id, batch_size=batch_size, limit=limit)
+        )
+
+
+@celery_app.task(bind=True)
+def backfill_embeddings_task(
+    self: Any,
+    chat_id: str | None = None,
+    batch_size: int = 100,
+    limit: int = 1000,
+) -> dict[str, Any]:
+    """Celery background worker task for backfilling missing message vector embeddings."""
+    try:
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "Backfilling embeddings", "chat_id": chat_id},
+        )
+    except Exception as exc:
+        logger.debug(f"Task progress update failed: {exc}")
+    return run_backfill_embeddings_sync(chat_id=chat_id, batch_size=batch_size, limit=limit)

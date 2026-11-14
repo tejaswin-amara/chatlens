@@ -246,7 +246,7 @@ async def test_handle_bot_callback_cmd_today():
         mock_slots.return_value = []
         await handle_bot_callback(query)
 
-        mock_answer.assert_called_once_with("cb_today_1")
+        mock_answer.assert_called_once_with("cb_today_1", text="⏳ Processing...")
         mock_send.assert_called_once()
         assert "No scheduled classes for" in mock_send.call_args[0][0]
 
@@ -285,7 +285,7 @@ async def test_handle_bot_callback_cmd_attendance():
     ):
         await handle_bot_callback(query)
 
-        mock_answer.assert_called_once_with("cb_att_1")
+        mock_answer.assert_called_once_with("cb_att_1", text="⏳ Processing...")
         assert mock_send.call_count == 2
         report = mock_send.call_args_list[1][0][0]
         assert "Live Attendance Overview (KL ERP)" in report
@@ -313,7 +313,7 @@ async def test_handle_bot_callback_cmd_deadlines():
     ):
         await handle_bot_callback(query)
 
-        mock_answer.assert_called_once_with("cb_deadlines_1")
+        mock_answer.assert_called_once_with("cb_deadlines_1", text="⏳ Processing...")
         mock_send.assert_called_once()
         assert "Upcoming Deadlines & Milestones" in mock_send.call_args[0][0]
 
@@ -336,7 +336,7 @@ async def test_handle_bot_callback_cmd_status():
     ):
         await handle_bot_callback(query)
 
-        mock_answer.assert_called_once_with("cb_status_1")
+        mock_answer.assert_called_once_with("cb_status_1", text="⏳ Processing...")
         mock_send.assert_called_once()
         assert "ChatLens PA Status" in mock_send.call_args[0][0]
 
@@ -895,3 +895,37 @@ async def test_handle_bot_command_courses():
         assert "25CS3112E" in call_text
         assert "Cloud Infrastructure And Services" in call_text
         assert "15 Credits" in call_text
+
+
+@pytest.mark.asyncio
+async def test_natural_language_rag_answering_without_slash_commands():
+    """Verify natural language queries without slash commands route to KnowledgeRetriever
+    and include direct source citations [Chat: <Name>, <Date>] or [Doc: <Filename>].
+    """
+    from src.config import settings
+    from src.ingestion.handlers import handle_bot_command
+
+    settings.owner_chat_id = 12345
+    natural_query = "When is the Cloud Infrastructure in-sem lab exam?"
+    msg = {"chat": {"id": 12345}, "text": natural_query}
+
+    mock_answer = (
+        "The **Cloud Infrastructure And Services** (`25CS2206E`) in-sem exam is on "
+        "**2026-11-20** at **09:00 AM** in **HC-15C**. [Doc: exam_schedule_T05.pdf]"
+    )
+
+    with (
+        patch(
+            "src.knowledge.retriever.knowledge_retriever.answer",
+            return_value=mock_answer,
+        ) as mock_retriever,
+        patch("src.notify.bot.bot.send", return_value={"result": {"message_id": 999}}) as mock_send,
+        patch("src.notify.bot.bot.edit") as mock_edit,
+    ):
+        await handle_bot_command(msg)
+
+        mock_send.assert_called_once_with("💭 *Thinking...*")
+        mock_retriever.assert_called_once_with(natural_query)
+        mock_edit.assert_called_once_with(999, mock_answer)
+        edited_text = mock_edit.call_args[0][1]
+        assert "[Doc: exam_schedule_T05.pdf]" in edited_text

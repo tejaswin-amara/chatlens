@@ -13,6 +13,7 @@ from src.erp.scrapers import (
     parse_attendance_records,
     parse_cgpa_records,
     parse_fee_records,
+    parse_hall_ticket_records,
     parse_marks_records,
     parse_timetable_records,
 )
@@ -36,6 +37,11 @@ MARKS_URL = (
 )
 CGPA_URL = f"{ERP_BASE_URL}/index.php?r=studentinfo%2Fstudentendexamresult%2Fsearchgetmycgpa"
 FEE_URL = f"{ERP_BASE_URL}/index.php?r=feepayments%2Fstudentfeeorderdetailsinfo%2Fmy_fee_orders"
+FEE_RECEIPT_URL = (
+    f"{ERP_BASE_URL}/index.php?r=feepayments%2Fstudentfeeorderdetailsinfo%2Fdownloadreceipt"
+)
+HALL_TICKET_URL = f"{ERP_BASE_URL}/index.php?r=examsection%2Fhallticket%2Fstud_my_hallticket"
+CAPTCHA_REFRESH_URL = f"{ERP_BASE_URL}/index.php?r=site%2Fcaptcha&refresh=1"
 EXAM_SEATING_URL = (
     f"{ERP_BASE_URL}/index.php?r=examsection%2Fexam-invigilator-student-room-allotment-info"
     f"%2Fstud_my_seating_plan"
@@ -60,7 +66,15 @@ class KLUERPClient:
         self._cookies: dict[str, str] = {}
         self._login_lock = asyncio.Lock()
         self._last_login_time: float = 0.0
+        self._genai_client: Any = None
         self._load_cached_session()
+
+    def _get_genai_client(self) -> Any:
+        if self._genai_client is None and settings.gemini_api_key.get_secret_value():
+            from google import genai
+
+            self._genai_client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
+        return self._genai_client
 
     def _save_marks_cache(
         self, academic_year: str, semester_id: str, records: list[dict[str, Any]]
@@ -152,22 +166,31 @@ class KLUERPClient:
         )
 
     async def solve_captcha(self, image_bytes: bytes) -> str:
-        """Solves the KLU ERP alphanumeric captcha using Gemini 3.5 Flash Lite Vision."""
+        """Solves the KLU ERP alphanumeric captcha with OCR character disambiguation."""
         if not settings.gemini_api_key.get_secret_value():
             logger.warning("No Gemini API key configured for ERP captcha solving")
             return ""
 
         try:
-            from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=settings.gemini_api_key.get_secret_value())
+            client = self._get_genai_client()
+            if not client:
+                return ""
+
             image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
             prompt = (
-                "You are an optical character recognition engine.\n"
+                "You are an optical character recognition engine specialized in distorted "
+                "security captchas.\n"
                 "Read the 4 to 6 characters displayed in this captcha image.\n"
+                "Disambiguate visually confusing character pairs:\n"
+                "- Differentiate '0' (digit zero) vs 'o' / 'O' (letter o)\n"
+                "- Differentiate '1' (digit one) vs 'l' (lowercase L) vs 'i' / 'I' (letter i)\n"
+                "- Differentiate '8' (digit eight) vs 'b' / 'B'\n"
+                "- Differentiate '5' (digit five) vs 's' / 'S'\n"
+                "- Differentiate '2' (digit two) vs 'z' / 'Z'\n"
                 "Return ONLY the plain alphanumeric characters in lowercase "
-                "without spaces or punctuation."
+                "without spaces, quotes, or punctuation."
             )
 
             res = await asyncio.to_thread(
@@ -215,7 +238,8 @@ class KLUERPClient:
 
                         # 3. Extract Captcha image URL
                         captcha_match = re.search(
-                            r'id=["\']loginFormCaptcha-image["\'][^>]*src=["\']([^"\']+)["\']', html
+                            r'id=["\']loginFormCaptcha-image["\'][^>]*src=["\']([^"\']+)["\']',
+                            html,
                         )
                         if not captcha_match:
                             logger.error("Failed to find captcha image element")
@@ -232,8 +256,38 @@ class KLUERPClient:
                         # 4. Download captcha image
                         img_res = await client.get(captcha_url, headers={"Referer": LOGIN_URL})
                         captcha_solution = await self.solve_captcha(img_res.content)
+
+                        # Captcha refresh fallback if first solution is empty
                         if not captcha_solution:
-                            logger.warning("Empty captcha solution", attempt=attempt)
+                            logger.warning(
+                                "Empty captcha solution; refreshing captcha", attempt=attempt
+                            )
+                            try:
+                                ref_res = await client.get(
+                                    CAPTCHA_REFRESH_URL,
+                                    headers={
+                                        "Referer": LOGIN_URL,
+                                        "X-Requested-With": "XMLHttpRequest",
+                                    },
+                                )
+                                if ref_res.status_code == 200:
+                                    ref_data = ref_res.json()
+                                    ref_u = ref_data.get("url", "")
+                                    if ref_u:
+                                        ref_full = (
+                                            f"{self.base_url}{ref_u}"
+                                            if ref_u.startswith("/")
+                                            else ref_u
+                                        )
+                                        new_img = await client.get(
+                                            ref_full, headers={"Referer": LOGIN_URL}
+                                        )
+                                        captcha_solution = await self.solve_captcha(new_img.content)
+                            except Exception as ref_err:
+                                logger.debug("Captcha refresh failed", error=str(ref_err))
+
+                        if not captcha_solution:
+                            logger.warning("Empty captcha solution after retry", attempt=attempt)
                             continue
 
                         # 5. POST login credentials
@@ -498,6 +552,58 @@ class KLUERPClient:
         except Exception as e:
             logger.warning("Failed to query ERP exam seating", error=str(e))
             return []
+
+    async def download_fee_receipt(self, order_id: str) -> bytes | None:
+        """Download binary PDF fee payment receipt for a given order ID."""
+        try:
+            url = (
+                f"{self.base_url}/index.php?r=feepayments%2Fstudentfeeorderdetailsinfo"
+                f"%2Fdownloadreceipt&id={order_id}"
+            )
+            async with self._get_http_client() as client:
+                res = await client.get(url)
+                if self._is_session_expired(res):
+                    logger.info("ERP session expired during receipt download. Re-authenticating...")
+                    if await self.login():
+                        async with self._get_http_client() as fresh_client:
+                            res = await fresh_client.get(url)
+                if (
+                    res.status_code == 200
+                    and len(res.content) > 0
+                    and not self._is_session_expired(res)
+                ):
+                    return res.content
+                logger.warning(
+                    "Failed to download fee receipt or empty content",
+                    order_id=order_id,
+                    status=res.status_code,
+                )
+                return None
+        except Exception as e:
+            logger.error("Error downloading ERP fee receipt", order_id=order_id, error=str(e))
+            return None
+
+    async def get_hall_ticket(self) -> dict[str, Any] | None:
+        """Scrapes and returns verified hall ticket details and exam schedule."""
+        try:
+            html = await self.fetch_page(HALL_TICKET_URL)
+            if not html:
+                return None
+
+            records = parse_hall_ticket_records(html)
+            if records and (records.get("student_id") or records.get("exam_schedule")):
+                deduplicator.meta_set("erp_hall_ticket_cache", json.dumps(records))
+                return records
+        except Exception as e:
+            logger.error("Failed to query ERP hall ticket", error=str(e))
+
+        cached = deduplicator.meta_get("erp_hall_ticket_cache")
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception as e:
+                logger.debug("Failed to decode cached ERP hall ticket", error=str(e))
+        return None
 
 
 klu_erp = KLUERPClient()

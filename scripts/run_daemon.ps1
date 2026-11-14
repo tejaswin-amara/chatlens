@@ -10,7 +10,8 @@ param(
     [int]$Backoff = 2,
     [string]$Database = "",
     [switch]$LogToFile,
-    [switch]$Continuous
+    [switch]$Continuous,
+    [int]$GraceTimeout = 8
 )
 
 # Ensure script executes from repository root
@@ -37,6 +38,7 @@ $DbPath = if ($Database) {
 }
 
 $PidFile = "logs/spark_daemon.pid"
+$StopFile = "logs/spark_daemon.stop"
 
 function Clean-StalePidFile {
     if (Test-Path $PidFile) {
@@ -54,8 +56,16 @@ function Clean-StalePidFile {
 }
 
 function Get-DaemonProcess {
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -like "*python*" -and $_.CommandLine -match "src\.main" -and $_.ProcessId -ne $PID
+    Get-CimInstance Win32_Process -Filter "Name like '%python%'" -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -match "src\.main" -and $_.ProcessId -ne $PID
+    } | Where-Object {
+        Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-SupervisorProcess {
+    Get-CimInstance Win32_Process -Filter "Name like '%powershell%' or Name like '%pwsh%'" -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -match "run_daemon\.ps1" -and $_.CommandLine -match "-Continuous" -and $_.ProcessId -ne $PID
     } | Where-Object {
         Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
     }
@@ -77,27 +87,90 @@ if ($Stop) {
     Write-Host "[*] Stopping ChatLens PA Daemon..." -ForegroundColor Cyan
     $StoppedCount = 0
 
+    if (-not (Test-Path "logs")) {
+        New-Item -ItemType Directory -Path "logs" -Force | Out-Null
+    }
+
+    # 1. Collect target processes (supervisor + daemon)
+    $TargetPids = @()
     if (Test-Path $PidFile) {
         $SavedPidStr = (Get-Content $PidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
         if ($SavedPidStr -and ($SavedPidStr.Trim() -match '^\d+$')) {
             $SavedPid = [int]$SavedPidStr.Trim()
             $proc = Get-Process -Id $SavedPid -ErrorAction SilentlyContinue
             if ($proc) {
-                Write-Host "[+] Terminating supervisor process (PID $SavedPid)..." -ForegroundColor Yellow
-                Stop-Process -Id $SavedPid -Force -ErrorAction SilentlyContinue
-                $StoppedCount++
+                $TargetPids += $SavedPid
             }
         }
-        Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
     }
 
     $PyProcs = Get-DaemonProcess
     if ($PyProcs) {
         foreach ($p in $PyProcs) {
-            Write-Host "[+] Terminating python daemon process (PID $($p.ProcessId))..." -ForegroundColor Yellow
-            Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-            $StoppedCount++
+            if ($TargetPids -notcontains $p.ProcessId) {
+                $TargetPids += $p.ProcessId
+            }
         }
+    }
+
+    $Supervisors = Get-SupervisorProcess
+    if ($Supervisors) {
+        foreach ($s in $Supervisors) {
+            if ($TargetPids -notcontains $s.ProcessId) {
+                $TargetPids += $s.ProcessId
+            }
+        }
+    }
+
+    if ($TargetPids.Count -eq 0) {
+        if (Test-Path $PidFile) { Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $StopFile) { Remove-Item -Path $StopFile -Force -ErrorAction SilentlyContinue }
+        Write-Host "[!] No running ChatLens daemon process found." -ForegroundColor Yellow
+        exit 0
+    }
+
+    # 2. Signal graceful shutdown via stop file
+    New-Item -ItemType File -Path $StopFile -Force -ErrorAction SilentlyContinue | Out-Null
+    Write-Host "[*] Signaled graceful shutdown via $StopFile (waiting up to ${GraceTimeout}s)..." -ForegroundColor Cyan
+
+    $GraceDeadline = (Get-Date).AddSeconds($GraceTimeout)
+    $AllGracefullyStopped = $false
+
+    while ((Get-Date) -lt $GraceDeadline) {
+        $RemainingPids = @()
+        foreach ($tPid in $TargetPids) {
+            if (Get-Process -Id $tPid -ErrorAction SilentlyContinue) {
+                $RemainingPids += $tPid
+            }
+        }
+        if ($RemainingPids.Count -eq 0) {
+            $AllGracefullyStopped = $true
+            break
+        }
+        Start-Sleep -Milliseconds 100
+    }
+
+    # 3. Force-terminate any remaining processes if graceful timeout expired
+    if (-not $AllGracefullyStopped) {
+        Write-Host "[!] Graceful shutdown timeout expired; terminating remaining processes..." -ForegroundColor Yellow
+        foreach ($tPid in $TargetPids) {
+            $proc = Get-Process -Id $tPid -ErrorAction SilentlyContinue
+            if ($proc) {
+                Write-Host "[+] Terminating process (PID $tPid)..." -ForegroundColor Yellow
+                Stop-Process -Id $tPid -Force -ErrorAction SilentlyContinue
+                $StoppedCount++
+            }
+        }
+    } else {
+        $StoppedCount = $TargetPids.Count
+    }
+
+    # 4. Clean up state artifacts
+    if (Test-Path $PidFile) {
+        Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $StopFile) {
+        Remove-Item -Path $StopFile -Force -ErrorAction SilentlyContinue
     }
 
     if ($StoppedCount -gt 0) {
@@ -200,7 +273,7 @@ except Exception as e:
         exit 1
     }
 
-    # 3. Verify meta table last_heartbeat or last_startup_notify_ts freshness (< 1800s)
+    # 3. Verify meta table last_heartbeat or last_startup_notify_ts freshness (< 180s)
     $freshnessPy = @'
 import sys, sqlite3, time
 try:
@@ -219,7 +292,7 @@ try:
         sys.exit(1)
     ts, source = max(valid_ts, key=lambda x: x[0])
     age = time.time() - ts
-    if -60 <= age < 1800:
+    if -60 <= age < 180:
         print('FRESH: age=' + str(round(age, 1)) + 's (' + source + ')')
         sys.exit(0)
     else:
@@ -288,8 +361,17 @@ $PID | Out-File -FilePath $PidFile -Encoding ascii -Force
 Write-Host "[+] Starting ChatLens PA background daemon..." -ForegroundColor Green
 $CurrentBackoff = $Backoff
 
+if (Test-Path $StopFile) {
+    Remove-Item -Path $StopFile -Force -ErrorAction SilentlyContinue
+}
+
 try {
     while ($true) {
+        if (Test-Path $StopFile) {
+            Remove-Item -Path $StopFile -Force -ErrorAction SilentlyContinue
+            Write-Host "[+] Graceful stop file detected ($StopFile). Halting supervisor." -ForegroundColor Green
+            break
+        }
         try {
             if ($LogToFile) {
                 if (Get-Command uv -ErrorAction SilentlyContinue) {
@@ -305,6 +387,12 @@ try {
                 }
             }
             $ExitCode = $LASTEXITCODE
+
+            if (Test-Path $StopFile) {
+                Remove-Item -Path $StopFile -Force -ErrorAction SilentlyContinue
+                Write-Host "[+] Graceful stop file detected ($StopFile). Halting supervisor." -ForegroundColor Green
+                break
+            }
 
             if ($ExitCode -eq 0) {
                 if ($Continuous) {
@@ -331,5 +419,8 @@ try {
 } finally {
     if (Test-Path $PidFile) {
         Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $StopFile) {
+        Remove-Item -Path $StopFile -Force -ErrorAction SilentlyContinue
     }
 }

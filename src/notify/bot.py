@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from typing import Any
 
 from src.config import settings
 from src.utils.logging import get_logger
@@ -118,6 +119,31 @@ BotConflict = BotConflictError
 
 class BotError(Exception):
     pass
+
+
+DEFAULT_BOT_COMMANDS = [
+    {"command": "start", "description": "Open SPARK PA Academic Assistant"},
+    {"command": "today", "description": "Today's classes, rooms & status"},
+    {"command": "tomorrow", "description": "Tomorrow's schedule & upcoming classes"},
+    {"command": "timetable", "description": "Official weekly timetable & rooms"},
+    {"command": "courses", "description": "Registered courses, credits & faculty"},
+    {"command": "attendance", "description": "Live attendance & grouped LTPS breakdown"},
+    {"command": "bunk", "description": "Exact safe bunks & recovery calculator"},
+    {"command": "deadlines", "description": "Upcoming task deadlines & milestones"},
+    {"command": "briefing", "description": "Generate today's academic briefing"},
+    {"command": "marks", "description": "In-sem internal marks & assessments"},
+    {"command": "cgpa", "description": "Official academic grades & transcript"},
+    {"command": "exam", "description": "In-sem lab exams & viva schedules"},
+    {"command": "ask", "description": "Instant AI answers (viva prep, questions)"},
+    {"command": "fee", "description": "Fee orders & payment receipts"},
+    {"command": "sync", "description": "On-demand ERP crawl & delta sync"},
+    {"command": "status", "description": "Live daemon & chat monitoring status"},
+    {"command": "rescan", "description": "Deep-scan course groups (past 7 days)"},
+    {"command": "quarantine", "description": "View isolated prompt injection attempts"},
+    {"command": "undo", "description": "Revert last applied calendar override"},
+    {"command": "index_summary", "description": "Executive briefing across chats & documents"},
+    {"command": "help", "description": "Show all available options"},
+]
 
 
 class BotClient:
@@ -422,17 +448,21 @@ class BotClient:
             logger.debug("Failed to delete webhook", error=str(e))
             return {"ok": False, "description": str(e)}
 
-    def set_my_commands(self) -> dict:
+    def set_my_commands(
+        self,
+        commands: list[dict[str, str]] | None = None,
+        scope: dict | None = None,
+    ) -> dict:
         if not self.base_url:
             return {"ok": False, "description": "BOT_TOKEN is not set"}
-        commands = [
-            {"command": "start", "description": "Open SPARK PA Academic Assistant"},
-        ]
-        data = {"commands": commands}
+        cmds = commands if commands is not None else DEFAULT_BOT_COMMANDS
+        data: dict[str, Any] = {"commands": cmds}
+        if scope is not None:
+            data["scope"] = scope
         try:
             return self._request("setMyCommands", data)
         except Exception as e:
-            logger.debug("Failed to set bot commands", error=str(e))
+            logger.debug("Failed to set bot commands", error=str(e), scope=scope)
             return {"ok": False, "description": str(e)}
 
     def get_updates(self, offset: int, timeout: int = 30) -> dict:

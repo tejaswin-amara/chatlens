@@ -62,6 +62,189 @@ def format_bunk_calculator(attendance_rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def simulate_bunk_impact(records: list[dict], course_query: str, skip_count: int = 1) -> str:
+    """Calculate projected attendance percentage, safe bunk buffer, and detention breaches."""
+    if not records:
+        return "⚠️ No attendance records available for simulation."
+
+    query = (course_query or "").strip().upper()
+    if not query:
+        return "⚠️ Please specify a course code or name to simulate (e.g. `/bunk CIS 2`)."
+
+    matched: dict | None = None
+
+    for r in records:
+        c_code = str(r.get("course_code") or r.get("code") or "").upper()
+        c_name = str(r.get("course_name") or r.get("course") or "").upper()
+        if query == c_code or query == c_name:
+            matched = r
+            break
+        if query in c_code or query in c_name:
+            matched = r
+            break
+
+    if not matched:
+        from src.parsing.regex_parser import COURSES
+
+        for canon, aliases in COURSES.items():
+            if query == canon or any(query == a for a in aliases):
+                for r in records:
+                    c_code = str(r.get("course_code") or r.get("code") or "").upper()
+                    c_name = str(r.get("course_name") or r.get("course") or "").upper()
+                    if canon in c_name or any(a in c_name for a in aliases):
+                        matched = r
+                        break
+            if matched:
+                break
+
+    if not matched:
+        return f"⚠️ Course '{course_query}' not found in attendance records."
+
+    c_name = matched.get("course_name") or matched.get("course") or course_query
+    c_code = matched.get("course_code") or matched.get("code") or ""
+    label = f"{c_name} (`{c_code}`)" if c_code else str(c_name)
+
+    a_val = matched.get("attended")
+    h_val = matched.get("held") or matched.get("conducted")
+    if a_val is None or h_val is None:
+        return f"⚠️ Attendance numbers missing for {label}."
+    try:
+        a = int(a_val)
+        h = int(h_val)
+    except (ValueError, TypeError):
+        return f"⚠️ Invalid attendance figures recorded for {label}."
+
+    if h <= 0 or a > h:
+        return f"⚠️ Cannot simulate bunk impact: conducted classes count ({h}) is invalid."
+
+    pct_curr = (a / h) * 100.0
+    proj_h = h + skip_count
+    proj_pct = (a / proj_h) * 100.0
+
+    curr_safe_75 = classes_can_skip(a, h, 75)
+    proj_safe_75 = classes_can_skip(a, proj_h, 75)
+    curr_need_75 = classes_needed(a, h, 75)
+    proj_need_75 = classes_needed(a, proj_h, 75)
+
+    proj_safe_85 = classes_can_skip(a, proj_h, 85)
+    proj_need_85 = classes_needed(a, proj_h, 85)
+
+    if pct_curr >= 75.0 and proj_pct < 75.0:
+        status_line = (
+            f"🚨 **CRITICAL DETENTION THRESHOLD BREACH!**\n"
+            f"  └ Attendance plummets below 75% floor to **{proj_pct:.1f}%**!\n"
+            f"  └ Recovery: Requires attending next **{proj_need_75}** classes consecutively."
+        )
+    elif proj_pct < 75.0:
+        status_line = (
+            f"🔴 **DETENTION RISK ESCALATION**\n"
+            f"  └ Already below 75% ({pct_curr:.1f}%). Projected: **{proj_pct:.1f}%**.\n"
+            f"  └ Recovery increases from {curr_need_75} to **{proj_need_75}** consecutive classes."
+        )
+    elif proj_pct < 85.0 and pct_curr >= 85.0:
+        status_line = (
+            f"🟡 **Distinction Target Compromised**\n"
+            f"  └ Safe for 75% ({proj_pct:.1f}% ≥ 75%, {proj_safe_75} bunks left), "
+            f"but falls below 85% benchmark (need {proj_need_85} classes to restore)."
+        )
+    else:
+        status_line = (
+            f"🟢 **Safe Bunk Confirmed**\n"
+            f"  └ Projected attendance remains at **{proj_pct:.1f}%** (≥75% floor).\n"
+            f"  └ Remaining safe bunks (≥75%): **{proj_safe_75}** | (≥85%): **{proj_safe_85}**."
+        )
+
+    buffer_75_str = (
+        f"{curr_safe_75} safe bunks ➔ **{proj_safe_75} safe bunks**"
+        if proj_pct >= 75.0
+        else f"Requires **{proj_need_75}** classes recovery (was {curr_need_75})"
+    )
+
+    unit = "classes" if skip_count > 1 else "class"
+    lines = [
+        f"🔮 **Attendance Bunk Simulation ({skip_count} {unit})**:\n",
+        f"• **Course**: **{label}**",
+        f"• **Current Attendance**: **{pct_curr:.1f}%** ({a}/{h})",
+        f"• **Projected Attendance**: **{proj_pct:.1f}%** ({a}/{proj_h})",
+        f"• **75% Detention Floor**: {buffer_75_str}",
+        f"• **Assessment**: {status_line}",
+    ]
+    return "\n".join(lines)
+
+
+def detect_high_stakes_classes(today_date: date, records: list[dict]) -> list[dict]:
+    """Detect courses scheduled today where a single absence breaches 75% detention floor."""
+    if not records:
+        return []
+
+    try:
+        from src.timetable import get_effective_slots
+
+        slots = get_effective_slots(today_date)
+    except Exception:
+        slots = []
+
+    if not slots:
+        return []
+
+    high_stakes: list[dict] = []
+    seen: set[str] = set()
+
+    for s in slots:
+        c_code = getattr(s, "course_code", "") or getattr(s, "code", "") or ""
+        c_name = getattr(s, "course_name", "") or getattr(s, "course", "") or ""
+        key = (c_code or c_name).upper()
+        if not key or key in seen:
+            continue
+
+        matched_rec = None
+        for r in records:
+            r_code = str(r.get("course_code") or r.get("code") or "").upper()
+            r_name = str(r.get("course_name") or r.get("course") or "").upper()
+            if key == r_code or key == r_name or key in r_name or r_code in key:
+                matched_rec = r
+                break
+
+        if not matched_rec:
+            continue
+
+        a_val = matched_rec.get("attended")
+        h_val = matched_rec.get("held") or matched_rec.get("conducted")
+        if a_val is None or h_val is None:
+            continue
+        try:
+            a = int(a_val)
+            h = int(h_val)
+        except (ValueError, TypeError):
+            continue
+
+        if h <= 0 or a > h:
+            continue
+
+        pct = (a / h) * 100.0
+        proj_miss_pct = (a / (h + 1)) * 100.0
+
+        if (75.0 <= pct <= 78.0) or (pct >= 75.0 and proj_miss_pct < 75.0):
+            seen.add(key)
+            high_stakes.append(
+                {
+                    "course": (
+                        matched_rec.get("course_name") or matched_rec.get("course") or c_name
+                    ),
+                    "code": matched_rec.get("course_code") or matched_rec.get("code") or c_code,
+                    "current_pct": round(pct, 1),
+                    "projected_pct": round(proj_miss_pct, 1),
+                    "attended": a,
+                    "held": h,
+                    "period": getattr(s, "period", None),
+                    "room": getattr(s, "room", None),
+                    "danger": True,
+                }
+            )
+
+    return high_stakes
+
+
 def next_run(now: datetime) -> datetime:
     if now.tzinfo is None:
         raise ValueError("now must be a timezone-aware datetime")
@@ -155,6 +338,18 @@ def build_briefing(
 
         if alert_count == 0:
             lines.append("  All courses above 85%")
+
+        high_stakes = detect_high_stakes_classes(now.date(), attendance_rows)
+        if high_stakes:
+            lines.append("")
+            lines.append("🚨 **High-Stakes Classes Today (75% Detention Risk)**:")
+            for hs in high_stakes:
+                p_info = f" [P{hs['period']}]" if hs.get("period") else ""
+                r_info = f" in {hs['room']}" if hs.get("room") else ""
+                lines.append(
+                    f"  • **{hs['course']}**{p_info}{r_info}: {hs['current_pct']}% "
+                    f"➔ drops to {hs['projected_pct']}% if missed! (Zero absence tolerance)"
+                )
 
     # d) Academic dates
     if milestones:

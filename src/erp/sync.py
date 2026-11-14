@@ -8,11 +8,12 @@ and alerts OWNER_CHAT_ID via Telegram.
 import asyncio
 import json
 import math
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from src.config import settings
 from src.erp.client import klu_erp
+from src.erp.scrapers import compute_remaining_classes
 from src.formatting.markdown_safety import sanitize_markdown
 from src.timetable import T05_COURSE_METADATA
 from src.utils import clock
@@ -20,6 +21,77 @@ from src.utils.deduplication import deduplicator
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Daytime Keep-Alive parameters:
+# 15 minutes (900s) during active academic hours 07:00–18:00 IST
+KEEP_ALIVE_INTERVAL_SECONDS: float = 15 * 60.0
+
+
+def is_daytime_academic_hours(now: datetime) -> bool:
+    """Check if current time is within daytime academic hours (Mon-Sat 07:00–18:00 IST)."""
+    if now.tzinfo is None:
+        raise ValueError("now must be a timezone-aware datetime")
+    # Mon=0, ..., Sat=5; Sun=6 (skip Sunday)
+    if now.weekday() == 6:
+        return False
+    start_t = time(7, 0)
+    end_t = time(18, 0)
+    return start_t <= now.time() <= end_t
+
+
+async def erp_keep_alive_ping() -> bool:
+    """Ping KLU ERP /index.php with current session cookies to maintain an active PHP session."""
+    if not settings.erp_username or not settings.erp_password.get_secret_value():
+        logger.debug("ERP credentials unconfigured; skipping keep-alive ping")
+        return False
+
+    index_url = f"{klu_erp.base_url}/index.php"
+    try:
+        if not klu_erp._cookies:
+            logger.info("No cached ERP session for keep-alive. Performing initial login...")
+            return await klu_erp.login()
+
+        async with klu_erp._get_http_client() as client:
+            res = await client.get(index_url)
+            if klu_erp._is_session_expired(res):
+                logger.info("ERP session expired during keep-alive ping. Re-authenticating...")
+                return await klu_erp.login()
+
+            logger.debug("ERP keep-alive ping successful", status_code=res.status_code)
+            deduplicator.meta_set("last_erp_keep_alive_ts", str(clock.now_ist().timestamp()))
+            return True
+    except Exception as e:
+        logger.warning("ERP keep-alive ping encountered error", error=str(e))
+        return False
+
+
+async def run_erp_keep_alive(stop_event: asyncio.Event | None = None) -> None:
+    """Daytime keep-alive loop pinging /index.php every 15 minutes (07:00–18:00 IST)."""
+    if stop_event is None:
+        stop_event = asyncio.Event()
+
+    logger.info(
+        "Academic ERP keep-alive worker started (Schedule: Mon-Sat 07:00-18:00 IST, 15m interval)"
+    )
+
+    while not stop_event.is_set():
+        now = clock.now_ist()
+        if is_daytime_academic_hours(now):
+            try:
+                await erp_keep_alive_ping()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.warning("Error during ERP keep-alive ping", error=str(e))
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=KEEP_ALIVE_INTERVAL_SECONDS)
+            break
+        except TimeoutError:
+            pass
+        except asyncio.CancelledError:
+            raise
+
 
 # Scheduled crawl trigger times (Mon–Sat in IST):
 # 07:15 AM (Morning briefing pre-check)
@@ -57,9 +129,14 @@ def next_sync_run(now: datetime) -> datetime:
     return fallback
 
 
-def enrich_course_record(record: dict[str, Any]) -> dict[str, Any]:
+def enrich_course_record(
+    record: dict[str, Any],
+    ref_date: date | None = None,
+    last_instruction_day: date | None = None,
+) -> dict[str, Any]:
     """Enrich scraped attendance record with Cluster 4 curriculum metadata."""
     code = record.get("course_code", "").strip()
+    name = record.get("course_name", "").strip()
     enriched = dict(record)
 
     # Search Cluster 4 metadata for matching course code
@@ -94,10 +171,37 @@ def enrich_course_record(record: dict[str, Any]) -> dict[str, Any]:
             if 100 * attended < 85 * conducted
             else 0
         )
+        enriched["recovery_needed_75"] = (
+            max(0, math.ceil((75 * conducted - 100 * attended) / 25))
+            if 100 * attended < 75 * conducted
+            else 0
+        )
     else:
         enriched["safe_bunks_75"] = 0
         enriched["safe_bunks_85"] = 0
         enriched["recovery_needed"] = 0
+        enriched["recovery_needed_75"] = 0
+
+    # Remaining classes and hard detention lockout calculation
+    if "remaining_classes" not in enriched or enriched["remaining_classes"] is None:
+        enriched["remaining_classes"] = compute_remaining_classes(
+            course_code=code,
+            course_name=name,
+            ref_date=ref_date,
+            last_instruction_day=last_instruction_day,
+        )
+
+    rem_classes = enriched.get("remaining_classes")
+    rec_85 = enriched.get("recovery_needed", 0)
+    rec_75 = enriched.get("recovery_needed_75", 0)
+
+    # Flag hard detention when required recovery exceeds remaining classes
+    hard_detention = bool(
+        rem_classes is not None
+        and ((rec_85 > 0 and rec_85 > rem_classes) or (rec_75 > 0 and rec_75 > rem_classes))
+    )
+    enriched["hard_detention"] = hard_detention
+    enriched["detention_lockout"] = hard_detention
 
     return enriched
 
@@ -123,11 +227,19 @@ def format_attendance_delta_alert(deltas: list[dict[str, Any]], now_dt: datetime
         safe_85 = d.get("safe_bunks_85", 0)
         safe_75 = d.get("safe_bunks_75", 0)
         recovery = d.get("recovery_needed", 0)
+        hard_detention = d.get("hard_detention", False)
+        rem_classes = d.get("remaining_classes")
 
         lines.append(f"• **{c_name}**{ltps} (`{c_code}`)")
         lines.append(f"  └ Attended: **{attended}/{conducted}** ({pct:.1f}%) | Delta: {diff_str}")
 
-        if recovery > 0:
+        if hard_detention:
+            rem_str = f"{rem_classes}" if rem_classes is not None else "0"
+            lines.append(
+                f"  └ 🚨 **HARD DETENTION LOCKOUT**: Requires **{recovery} classes** for 85%, "
+                f"but only **{rem_str} classes** remain in term!"
+            )
+        elif recovery > 0:
             lines.append(f"  └ ⚠️ Recovery: Needs **{recovery} consecutive classes** to reach 85%")
         else:
             lines.append(
@@ -191,13 +303,32 @@ class AcademicERPSyncAgent:
                 deduplicator.meta_set("erp_attendance_cache", json.dumps(records))
                 deduplicator.meta_set("last_attendance_sync_ts", str(now_dt.timestamp()))
 
-                if deltas and send_alerts:
-                    alert_text = format_attendance_delta_alert(deltas, now_dt)
-                    await self._dispatch_alert(alert_text)
-                    logger.info(
-                        "Attendance deltas dispatched to owner",
-                        count=len(deltas),
-                    )
+                if deltas:
+                    try:
+                        deduplicator.add_outbox_event(
+                            event_type="erp.attendance_update",
+                            payload={
+                                "timestamp": now_dt.isoformat(),
+                                "term": self.term_label,
+                                "academic_year": self.academic_year,
+                                "semester_id": self.semester_id,
+                                "deltas_count": len(deltas),
+                                "deltas": deltas,
+                            },
+                        )
+                        logger.info("Emitted erp.attendance_update outbox event", count=len(deltas))
+                    except Exception as outbox_err:
+                        logger.warning(
+                            "Failed to emit attendance outbox event", error=str(outbox_err)
+                        )
+
+                    if send_alerts:
+                        alert_text = format_attendance_delta_alert(deltas, now_dt)
+                        await self._dispatch_alert(alert_text)
+                        logger.info(
+                            "Attendance deltas dispatched to owner",
+                            count=len(deltas),
+                        )
         except Exception as att_err:
             logger.warning("Attendance sync cycle failed", error=str(att_err))
             sync_result["attendance_error"] = str(att_err)
@@ -213,10 +344,29 @@ class AcademicERPSyncAgent:
             if marks:
                 marks_deltas = self._detect_marks_deltas(marks)
                 sync_result["marks_deltas"] = len(marks_deltas)
-                if marks_deltas and send_alerts:
-                    alert_text = self._format_marks_delta_alert(marks_deltas, now_dt)
-                    await self._dispatch_alert(alert_text)
-                    logger.info("Internal marks deltas dispatched", count=len(marks_deltas))
+                if marks_deltas:
+                    try:
+                        deduplicator.add_outbox_event(
+                            event_type="erp.marks_update",
+                            payload={
+                                "timestamp": now_dt.isoformat(),
+                                "term": self.term_label,
+                                "academic_year": self.academic_year,
+                                "semester_id": self.semester_id,
+                                "deltas_count": len(marks_deltas),
+                                "deltas": marks_deltas,
+                            },
+                        )
+                        logger.info(
+                            "Emitted erp.marks_update outbox event", count=len(marks_deltas)
+                        )
+                    except Exception as outbox_err:
+                        logger.warning("Failed to emit marks outbox event", error=str(outbox_err))
+
+                    if send_alerts:
+                        alert_text = self._format_marks_delta_alert(marks_deltas, now_dt)
+                        await self._dispatch_alert(alert_text)
+                        logger.info("Internal marks deltas dispatched", count=len(marks_deltas))
         except Exception as marks_err:
             logger.warning("Marks sync cycle failed", error=str(marks_err))
             sync_result["marks_error"] = str(marks_err)
@@ -390,40 +540,57 @@ erp_sync_agent = AcademicERPSyncAgent()
 
 
 async def run_erp_sync(stop_event: asyncio.Event | None = None) -> None:
-    """Supervised background worker loop for scheduled academic ERP synchronization."""
+    """Supervised worker loop for scheduled academic ERP sync and keep-alive."""
     if stop_event is None:
         stop_event = asyncio.Event()
     logger.info(
-        "Academic ERP sync scheduler started (Schedule: Mon-Sat 07:15, 13:15, 17:15, 17:30 IST)"
+        "Academic ERP sync scheduler started",
+        schedule="Mon-Sat 07:15, 13:15, 17:15, 17:30 IST",
+        keep_alive="15m",
     )
 
-    while not stop_event.is_set():
-        now = clock.now_ist()
-        target = next_sync_run(now)
-        sleep_sec = max(1.0, (target - now).total_seconds())
+    keep_alive_task = asyncio.create_task(run_erp_keep_alive(stop_event))
 
-        logger.debug(
-            "ERP sync sleeping until next scheduled run",
-            next_run=target.isoformat(),
-            sleep_seconds=round(sleep_sec, 1),
-        )
+    try:
+        while not stop_event.is_set():
+            now = clock.now_ist()
+            target = next_sync_run(now)
+            sleep_sec = max(1.0, (target - now).total_seconds())
 
+            logger.debug(
+                "ERP sync sleeping until next scheduled run",
+                next_run=target.isoformat(),
+                sleep_seconds=round(sleep_sec, 1),
+            )
+
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=sleep_sec)
+                break
+            except TimeoutError:
+                pass
+            except asyncio.CancelledError:
+                raise
+
+            if stop_event.is_set():
+                break
+
+            # Execute scheduled crawl
+            try:
+                await erp_sync_agent.sync_once(send_alerts=True)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(
+                    "Unhandled error during scheduled ERP sync",
+                    error=str(e),
+                    exc_info=True,
+                )
+                await asyncio.sleep(60.0)
+    finally:
+        keep_alive_task.cancel()
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=sleep_sec)
-            break
-        except TimeoutError:
+            await keep_alive_task
+        except asyncio.CancelledError:
             pass
-        except asyncio.CancelledError:
-            raise
-
-        if stop_event.is_set():
-            break
-
-        # Execute scheduled crawl
-        try:
-            await erp_sync_agent.sync_once(send_alerts=True)
-        except asyncio.CancelledError:
-            raise
         except Exception as e:
-            logger.error("Unhandled error during scheduled ERP sync", error=str(e), exc_info=True)
-            await asyncio.sleep(60.0)
+            logger.debug("ERP keep-alive task cleanup error", error=str(e))

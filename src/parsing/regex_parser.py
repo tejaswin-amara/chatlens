@@ -18,11 +18,51 @@ COURSES = {
     "DBSE": ["DBSE", "DATABASE SYSTEMS"],
     "JAPANESE": ["JAPANESE", "JPN", "FLP-2"],
     # T05
-    "DLAC": ["DLAC", "DEEP LEARNING", "DL", "ACCELERATED COMPUTING"],
-    "CIS": ["CIS", "CLOUD", "CLOUD INFRASTRUCTURE", "INFRASTRUCTURE AND SERVICES"],
-    "CNNP": ["CNNP", "CN", "NETWORKS", "COMPUTER NETWORKS", "NETWORK PROGRAMMING"],
-    "GENAI": ["GENAI", "GAIPE", "GENERATIVE AI", "GEN AI", "AI PLATFORM"],
-    "ISDG": ["ISDG", "SDG", "SUSTAINABLE DEVELOPMENT", "SUSTAINABLE DEVELOPMENT GOALS"],
+    "DLAC": [
+        "DLAC",
+        "DEEP LEARNING",
+        "DL",
+        "ACCELERATED COMPUTING",
+        "DEEP LEARNING WITH ACCELERATED COMPUTING",
+    ],
+    "CIS": [
+        "CIS",
+        "CLOUD",
+        "CLOUD INFRASTRUCTURE",
+        "INFRASTRUCTURE AND SERVICES",
+        "CLOUD INFRASTRUCTURE AND SERVICES",
+    ],
+    "CNNP": [
+        "CNNP",
+        "CN",
+        "NETWORKS",
+        "COMPUTER NETWORKS",
+        "NETWORK PROGRAMMING",
+        "COMPUTER NETWORKS AND NETWORK PROGRAMMING",
+    ],
+    "GENAI": [
+        "GENAI",
+        "GAIPE",
+        "GENERATIVE AI",
+        "GEN AI",
+        "AI PLATFORM",
+        "GENERATIVE AI AND AI PLATFORM ENGINEERING",
+    ],
+    "GLBC": [
+        "GLBC",
+        "GLOBAL LOGIC",
+        "GLOBAL LOGIC BUILDING",
+        "LOGIC BUILDING",
+        "CONTEST PRACTICUM",
+        "GLOBAL LOGIC BUILDING CONTEST PRACTICUM",
+    ],
+    "ISDG": [
+        "ISDG",
+        "SDG",
+        "SUSTAINABLE DEVELOPMENT",
+        "SUSTAINABLE DEVELOPMENT GOALS",
+        "INSIGHTS TO SUSTAINABLE DEVELOPMENT GOALS",
+    ],
     "KABBADI": ["KABBADI", "KABADDI", "SPORTS", "VAC"],
 }
 
@@ -39,13 +79,16 @@ COURSE_CODES = {
     "CIS": "25CS2206E",
     "CNNP": "25CS2208E",
     "GENAI": "25CS2207E",
+    "GLBC": "25UC0037",
     "ISDG": "25UC0032E",
+    "SDG": "25UC0032E",
     "KABBADI": "25SP2108E",
+    "KABADDI": "25SP2108E",
 }
 
 ROOM_PATTERN = re.compile(r"\b(H[C]?[- ]?\d{2,3}[A-Z]?)\b", re.IGNORECASE)
 PERIOD_PATTERN = re.compile(
-    r"\b(PERIOD[- ]?(?:1[0-3]|[1-9])|P(?:1[0-3]|[1-9])(?:[- ]?P(?:1[0-3]|[1-9]))?|"
+    r"\b(PERIOD[- ]?(?:1[0-3]|[1-9])|P(?:1[0-3]|[1-9])(?:(?:[- ]| & | AND )?P(?:1[0-3]|[1-9]))?|"
     r"\d{1,2}:\d{2}\s*(?:AM|PM))\b",
     re.IGNORECASE,
 )
@@ -307,7 +350,28 @@ class RegexParser:
                     else:
                         detected_period = f"P{start_p}-P{end_p}"
                 else:
-                    detected_period = time_range_match.group(0).upper()
+                    # Check Cluster 4 Even Semester 2-period block times
+                    c4_blocks = [
+                        (9 * 60, 10 * 60 + 40, "P1-P2"),
+                        (10 * 60 + 50, 12 * 60 + 30, "P3-P4"),
+                        (12 * 60 + 40, 13 * 60 + 30, "P5"),
+                        (14 * 60 + 20, 15 * 60 + 10, "P7"),
+                        (15 * 60 + 20, 17 * 60, "P8-P9"),
+                    ]
+                    c4_matched = None
+                    for s_m, e_m, p_str in c4_blocks:
+                        if abs(start_mins - s_m) <= 10 and abs(end_mins - e_m) <= 10:
+                            c4_matched = p_str
+                            break
+
+                    if c4_matched:
+                        detected_period = c4_matched
+                    elif start_p:
+                        detected_period = f"P{start_p}"
+                    elif end_p:
+                        detected_period = f"P{end_p}"
+                    else:
+                        detected_period = time_range_match.group(0).upper()
             except ValueError:
                 detected_period = time_range_match.group(0).upper()
 
@@ -361,7 +425,9 @@ class RegexParser:
         weak_room_override_verbs = re.compile(
             r"\b(VENUE|ROOM|WILL BE IN|CLASS IN)\b", re.IGNORECASE
         )
-        class_words = re.compile(r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD)\b", re.IGNORECASE)
+        class_words = re.compile(
+            r"\b(CLASS|LECTURE|LAB|SESSION|PERIOD|PRACTICUM|TUTORIAL|WORKSHOP)\b", re.IGNORECASE
+        )
 
         if detected_room and detected_course and strong_room_override_verbs.search(clean_text):
             summary_parts = [f"Room for {detected_course or 'Class'} updated to {detected_room}"]

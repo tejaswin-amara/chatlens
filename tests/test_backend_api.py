@@ -7,6 +7,7 @@ prompt-injection fencing without external network calls.
 
 import concurrent.futures
 import io
+import json
 import os
 import sqlite3
 import sys
@@ -891,3 +892,220 @@ async def test_monitoring_status_endpoint(in_memory_db):
     assert "status" in data
     assert "monitored_chat_ids" in data
     assert "total_saved_messages" in data
+
+
+@pytest.mark.asyncio
+async def test_timetable_override_readonly_db_fallback(in_memory_db):
+    client, _ = in_memory_db
+    with patch(
+        "src.utils.deduplication.deduplicator.record_override",
+        side_effect=sqlite3.OperationalError("attempt to write a readonly database"),
+    ):
+        override_payload = {
+            "course_code": "25SC2107E",
+            "room": "H-301A",
+            "status": "OVERRIDE",
+            "summary": "Shifted to H-301A",
+        }
+        res = client.post("/api/timetable/override", json=override_payload)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["status"] == "ACCEPTED"
+        assert data["queued"] is True
+        assert data["room"] == "H-301A"
+        assert "read-only" in data["message"].lower() or "readonly" in data["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_erp_attendance_bunk_simulation(in_memory_db):
+    client, _ = in_memory_db
+    mock_attendance = [
+        {
+            "course_code": "25SC2107E",
+            "course_name": "Data Structures",
+            "conducted": 40,
+            "attended": 36,
+            "percentage": 90.0,
+            "safe_bunks": 2,
+            "status": "SAFE",
+        },
+        {
+            "course_code": "25CS2205A",
+            "course_name": "Operating Systems",
+            "conducted": 40,
+            "attended": 31,
+            "percentage": 77.5,
+            "safe_bunks": 0,
+            "status": "WARNING",
+        },
+    ]
+
+    with patch(
+        "src.utils.deduplication.deduplicator.meta_get",
+        side_effect=lambda k: json.dumps(mock_attendance) if k == "erp_attendance_cache" else None,
+    ):
+        # 1. Safe simulation: 1 skip on 90% attendance remains SAFE
+        res = client.get("/api/erp/attendance/bunk-simulation?course=25SC2107E&skip=1")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["course"] == "25SC2107E"
+        assert data["current_pct"] == 90.0
+        assert data["projected_pct"] == round((36 / 41) * 100.0, 2)
+        assert data["status"] == "SAFE"
+        assert data["warning"] is None
+
+        # 2. Critical breach simulation: 3 skips on 77.5% attendance breaches 75%
+        res = client.get("/api/erp/attendance/bunk-simulation?course=25CS2205A&skip=3")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["course"] == "25CS2205A"
+        assert data["current_pct"] == 77.5
+        assert data["projected_pct"] == round((31 / 43) * 100.0, 2)  # 72.09%
+        assert data["status"] == "CRITICAL"
+        assert "detention threshold" in data["warning"]
+
+        # 3. Course not found -> 404
+        res = client.get("/api/erp/attendance/bunk-simulation?course=NONEXISTENT&skip=1")
+        assert res.status_code == 404
+
+        # 4. Negative skip -> 400
+        res = client.get("/api/erp/attendance/bunk-simulation?course=25SC2107E&skip=-2")
+        assert res.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_erp_hall_ticket_endpoint(in_memory_db):
+    client, _ = in_memory_db
+    mock_ticket = {
+        "student": {"id": "2300030000", "name": "Tejaswin Amara"},
+        "schedule": [
+            {
+                "course_code": "25SC2107E",
+                "course_name": "Data Structures",
+                "date": "2026-11-20",
+                "session": "FN (09:00 - 12:00)",
+                "room": "H-301A",
+            }
+        ],
+    }
+
+    # 1. Cached hall ticket
+    with patch(
+        "src.utils.deduplication.deduplicator.meta_get",
+        side_effect=lambda k: json.dumps(mock_ticket) if k == "erp_hall_ticket_cache" else None,
+    ):
+        res = client.get("/api/erp/hall-ticket")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["student"]["name"] == "Tejaswin Amara"
+        assert len(data["schedule"]) == 1
+
+    # 2. Not available fallback
+    with patch("src.utils.deduplication.deduplicator.meta_get", return_value=None):
+        res = client.get("/api/erp/hall-ticket")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "not_available"
+        assert data["schedule"] == []
+
+
+@pytest.mark.asyncio
+async def test_academic_ribbon_endpoint(in_memory_db):
+    """Verify /api/academic/ribbon returns next class, today's schedule,
+    and approaching deadlines.
+    """
+    from datetime import datetime, timedelta, timezone
+    from unittest.mock import MagicMock, patch
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    client = TestClient(main.app)
+
+    # 1. Basic endpoint structure check
+    res = client.get("/api/academic/ribbon")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert "today" in data
+    assert "now" in data
+    assert "today_schedule" in data
+    assert "approaching_deadlines" in data
+
+    # 2. Mock slots and clock to simulate active class in progress
+    mock_now = datetime(2026, 10, 23, 10, 15, 0, tzinfo=ist)
+
+    slot_p3 = MagicMock()
+    slot_p3.period = 3
+    slot_p3.course = "CIS"
+    slot_p3.course_code = "25CS2206E"
+    slot_p3.course_name = "Cloud Infrastructure And Services"
+    slot_p3.room = "HC-15C"
+    slot_p3.faculty = "Dr. Divya"
+    slot_p3.override = None
+
+    slot_p4 = MagicMock()
+    slot_p4.period = 4
+    slot_p4.course = "CNNP"
+    slot_p4.course_code = "25CS2208E"
+    slot_p4.course_name = "Computer Networks And Network Programming"
+    slot_p4.room = "HC-15B"
+    slot_p4.faculty = "Dr. Srinivas"
+    slot_p4.override = None
+
+    mock_slots = [slot_p3, slot_p4]
+
+    mock_outbox = [
+        {
+            "id": 101,
+            "ts": 1700000000.0,
+            "event_type": "academic.task_deadline",
+            "payload": {
+                "summary": "Cloud Lab 4 Submission",
+                "course_name": "Cloud Infrastructure And Services",
+                "course_code": "25CS2206E",
+                "target_date": "2026-10-25",
+                "intent": "TASK_DEADLINE",
+            },
+            "processed": 0,
+        }
+    ]
+
+    with (
+        patch("src.utils.clock.now_ist", return_value=mock_now),
+        patch("src.timetable.load", return_value=MagicMock()),
+        patch("src.timetable.get_effective_slots", return_value=mock_slots),
+        patch("src.utils.deduplication.deduplicator.list_outbox_events", return_value=mock_outbox),
+        patch("src.utils.deduplication.deduplicator.list_pending", return_value=[]),
+    ):
+        res = client.get("/api/academic/ribbon")
+        assert res.status_code == 200
+        ribbon = res.json()
+
+        assert ribbon["today"] == "2026-10-23"
+        assert len(ribbon["today_schedule"]) == 2
+
+        # Verify Period 3 is IN_PROGRESS (10:00 - 10:50, current is 10:15)
+        p3_slot = ribbon["today_schedule"][0]
+        assert p3_slot["period"] == 3
+        assert p3_slot["status"] == "IN_PROGRESS"
+
+        # Verify Period 4 is UPCOMING (10:50 - 11:40)
+        p4_slot = ribbon["today_schedule"][1]
+        assert p4_slot["period"] == 4
+        assert p4_slot["status"] == "UPCOMING"
+
+        # Next class should be Period 3
+        next_c = ribbon["next_class"]
+        assert next_c is not None
+        assert next_c["period"] == 3
+        assert next_c["status"] == "IN_PROGRESS"
+        assert "HC-15C" in next_c["room"]
+
+        # Approaching deadlines
+        deadlines = ribbon["approaching_deadlines"]
+        assert len(deadlines) >= 1
+        d0 = next(d for d in deadlines if d["id"] == 101)
+        assert d0["title"] == "Cloud Lab 4 Submission"
+        assert d0["course"] == "Cloud Infrastructure And Services"
+        assert d0["days_remaining"] == 2
+        assert d0["source"] == "outbox"

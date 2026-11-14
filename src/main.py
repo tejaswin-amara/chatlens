@@ -38,6 +38,13 @@ async def bot_callback_poll() -> None:
 
     await asyncio.to_thread(bot.delete_webhook)
     await asyncio.to_thread(bot.set_my_commands)
+    await asyncio.to_thread(bot.set_my_commands, scope={"type": "all_private_chats"})
+    if settings.owner_chat_id:
+        with contextlib.suppress(Exception):
+            await asyncio.to_thread(
+                bot.set_my_commands,
+                scope={"type": "chat", "chat_id": int(str(settings.owner_chat_id))},
+            )
 
     saved_offset = deduplicator.meta_get("telegram_bot_update_offset")
     offset = int(saved_offset) if saved_offset and saved_offset.isdigit() else 0
@@ -162,7 +169,8 @@ async def run_briefing() -> None:
                     try:
                         await asyncio.to_thread(bot.send, text)
                         _mark_sent_today(today_str)
-                        logger.info("Daily briefing dispatched")
+                        await asyncio.to_thread(deduplicator.prune_expired)
+                        logger.info("Daily briefing dispatched and database pruned")
                         break
                     except Exception as send_err:
                         if attempt == 1:
@@ -296,6 +304,22 @@ async def _listen(client, stop: asyncio.Event) -> None:
         await asyncio.gather(listen, waiter, return_exceptions=True)
 
 
+async def _watch_stop_file(stop_event: asyncio.Event) -> None:
+    import asyncio
+    from pathlib import Path
+
+    stop_file = Path("logs/spark_daemon.stop")
+    while not stop_event.is_set():
+        exists = await asyncio.to_thread(stop_file.exists)
+        if exists:
+            logger.info("Graceful shutdown stop file detected. Halting daemon...")
+            stop_event.set()
+            with contextlib.suppress(OSError):
+                await asyncio.to_thread(stop_file.unlink)
+            break
+        await asyncio.sleep(0.5)
+
+
 async def supervise(name: str, job, stop: asyncio.Event) -> None:
     import asyncio
 
@@ -352,12 +376,20 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
     register_handlers(client)
 
     from src.erp.sync import run_erp_sync
+    from src.telemetry.emitter import emitter
+    from src.utils.deduplication import deduplicator
+
+    emitter.start()
+    deduplicator.prune_expired()
 
     jobs = [
         asyncio.create_task(supervise("briefing", run_briefing, stop_event)),
         asyncio.create_task(supervise("heartbeat", run_heartbeat, stop_event)),
         asyncio.create_task(supervise("reminders", run_reminders, stop_event)),
         asyncio.create_task(supervise("erp_sync", lambda: run_erp_sync(stop_event), stop_event)),
+        asyncio.create_task(
+            supervise("stop_file", lambda: _watch_stop_file(stop_event), stop_event)
+        ),
     ]
     if settings.bot_token and settings.owner_chat_id:
         jobs.append(asyncio.create_task(supervise("bot_poll", bot_callback_poll, stop_event)))
@@ -483,6 +515,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
         return 0
     finally:
         stop_event.set()
+        await emitter.stop()
         for j in jobs:
             j.cancel()
         await asyncio.gather(*jobs, return_exceptions=True)

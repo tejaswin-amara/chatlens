@@ -330,3 +330,66 @@ def test_timetable_room_normalization():
     verdict3 = validate(DummyEvent3(), tt)
     assert verdict3.ok
     assert verdict3.reason == "OK"
+
+
+@pytest.mark.asyncio
+async def test_erp_client_download_fee_receipt():
+    client = KLUERPClient(username="test_user", password="test_password")
+
+    pdf_bytes = b"%PDF-1.4 mock fee receipt data"
+
+    async def mock_send(request: httpx.Request, *args, **kwargs):
+        return httpx.Response(200, request=request, content=pdf_bytes)
+
+    transport = httpx.MockTransport(mock_send)
+    with patch.object(
+        client, "_get_http_client", side_effect=lambda: httpx.AsyncClient(transport=transport)
+    ):
+        data = await client.download_fee_receipt("ORD-2026-9912")
+        assert data == pdf_bytes
+
+
+@pytest.mark.asyncio
+async def test_erp_client_get_hall_ticket(tmp_path, monkeypatch):
+    db_file = str(tmp_path / "test_spark.db")
+    monkeypatch.setattr(settings, "spark_db", db_file)
+
+    client = KLUERPClient(username="test_user", password="test_password")
+
+    sample_html = """
+    <html><body>
+        <p>University Id: 2520090104</p>
+        <p>Student Name: TEJASWIN AMARA</p>
+        <table>
+            <tr><th>Course Code</th><th>Exam Date</th><th>Room No</th></tr>
+            <tr><td>25CS3112E</td><td>2027-01-25</td><td>H-005</td></tr>
+        </table>
+    </body></html>
+    """
+
+    with patch.object(client, "fetch_page", new_callable=AsyncMock, return_value=sample_html):
+        ht = await client.get_hall_ticket()
+        assert ht is not None
+        assert ht["student_id"] == "2520090104"
+        assert len(ht["exam_schedule"]) == 1
+        assert ht["exam_schedule"][0]["course_code"] == "25CS3112E"
+
+
+@pytest.mark.asyncio
+async def test_erp_client_solve_captcha_singleton():
+    from pydantic import SecretStr
+
+    client = KLUERPClient(username="test_user", password="test_password")
+    settings.gemini_api_key = SecretStr("mock_key")
+    settings.gemini_model = "gemini-3.5-flash-lite"
+
+    mock_model_res = MagicMock()
+    mock_model_res.text = "7k4m"
+
+    mock_genai_client = MagicMock()
+    mock_genai_client.models.generate_content.return_value = mock_model_res
+
+    with patch.object(client, "_get_genai_client", return_value=mock_genai_client):
+        result = await client.solve_captcha(b"fake_png_bytes")
+        assert result == "7k4m"
+        mock_genai_client.models.generate_content.assert_called_once()

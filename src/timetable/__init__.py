@@ -29,8 +29,11 @@ COURSE_INFO: dict[str, tuple[str, str]] = {
     "CIS": ("25CS2206E", "Cloud Infrastructure And Services"),
     "CNNP": ("25CS2208E", "Computer Networks And Network Programming"),
     "GENAI": ("25CS2207E", "Generative Ai And Ai Platform Engineering"),
+    "GLBC": ("25UC0037", "Global Logic Building Contest Practicum"),
+    "SDG": ("25UC0032E", "Insights to Sustainable Development Goals"),
     "ISDG": ("25UC0032E", "Insights to Sustainable Development Goals"),
-    "KABBADI": ("25SP2108E", "Kabbadi"),
+    "KABADDI": ("25SP2108E", "Kabaddi"),
+    "KABBADI": ("25SP2108E", "Kabaddi"),
 }
 
 PERIOD_TIMES: dict[int, tuple[str, str, int, int, int, int]] = {
@@ -64,62 +67,91 @@ class CourseMetadata(NamedTuple):
         yield self.name
 
 
-T05_COURSE_METADATA: dict[str, CourseMetadata] = {
-    "DLAC": CourseMetadata(
-        code="25CS3112E",
-        name="Deep Learning With Accelerated Computing",
-        category="PCC",
-        ltps="2-0-0-8",
-        credits=4,
-        section="S-10",
-        faculty="Ms. Ch. Anitha",
-    ),
-    "CIS": CourseMetadata(
-        code="25CS2206E",
-        name="Cloud Infrastructure And Services",
-        category="PCC",
-        ltps="2-0-2-4",
-        credits=4,
-        section="S-11",
-        faculty="Ms. D. Divya Priya",
-    ),
-    "GENAI": CourseMetadata(
-        code="25CS2207E",
-        name="Generative Ai And Ai Platform Engineering",
-        category="PCC",
-        ltps="2-0-0-8",
-        credits=4,
-        section="S-10",
-        faculty="Dr. Y. Lakshmi Prasanna",
-    ),
-    "CNNP": CourseMetadata(
-        code="25CS2208E",
-        name="Computer Networks And Network Programming",
-        category="PCC",
-        ltps="2-0-0-4",
-        credits=3,
-        section="S-11",
-        faculty="Mrs. D. Alekhya",
-    ),
-    "ISDG": CourseMetadata(
-        code="25UC0032E",
-        name="Insights to Sustainable Development Goals",
-        category="AUC",
-        ltps="1-0-0-0",
-        credits=0,
-        section="S-10",
-        faculty="Faculty",
-    ),
-    "KABBADI": CourseMetadata(
-        code="25SP2108E",
-        name="Kabaddi",
-        category="VAC",
-        ltps="0-0-0-2",
-        credits=0,
-        section="S-1",
-        faculty="Physical Education",
-    ),
-}
+class CourseMetadataDict(dict):
+    _ALIASES = {
+        "ISDG": "SDG",
+        "KABBADI": "KABADDI",
+    }
+
+    def __getitem__(self, key):
+        canonical = self._ALIASES.get(key, key)
+        return super().__getitem__(canonical)
+
+    def __contains__(self, key):
+        return super().__contains__(key) or key in self._ALIASES
+
+    def get(self, key, default=None):
+        canonical = self._ALIASES.get(key, key)
+        return super().get(canonical, default)
+
+
+T05_COURSE_METADATA: dict[str, CourseMetadata] = CourseMetadataDict(
+    {
+        "DLAC": CourseMetadata(
+            code="25CS3112E",
+            name="Deep Learning With Accelerated Computing",
+            category="PCC",
+            ltps="2-0-0-8",
+            credits=4,
+            section="S-10",
+            faculty="Anitha Chekuri",
+        ),
+        "CIS": CourseMetadata(
+            code="25CS2206E",
+            name="Cloud Infrastructure And Services",
+            category="PCC",
+            ltps="2-0-2-4",
+            credits=4,
+            section="S-11",
+            faculty="Divya Priya Degala",
+        ),
+        "GENAI": CourseMetadata(
+            code="25CS2207E",
+            name="Generative Ai And Ai Platform Engineering",
+            category="PCC",
+            ltps="2-0-0-8",
+            credits=4,
+            section="S-10",
+            faculty="LakshmiPrasanna Yeluri",
+        ),
+        "CNNP": CourseMetadata(
+            code="25CS2208E",
+            name="Computer Networks And Network Programming",
+            category="PCC",
+            ltps="2-0-0-4",
+            credits=3,
+            section="S-11",
+            faculty="Dasari Alekhya",
+        ),
+        "GLBC": CourseMetadata(
+            code="25UC0037",
+            name="Global Logic Building Contest Practicum",
+            category="SEC",
+            ltps="0-0-0-10",
+            credits=0,
+            section="S-10",
+            faculty="Anitha Chekuri",
+        ),
+        "SDG": CourseMetadata(
+            code="25UC0032E",
+            name="Insights to Sustainable Development Goals",
+            category="AUC",
+            ltps="1-0-0-0",
+            credits=0,
+            section="S-10",
+            faculty="Sama Mineesha",
+        ),
+        "KABADDI": CourseMetadata(
+            code="25SP2108E",
+            name="Kabaddi",
+            category="VAC",
+            ltps="0-0-0-2",
+            credits=0,
+            section="S-1",
+            faculty="Ediga Raja Gopal",
+        ),
+    }
+)
 
 COURSE_METADATA: dict[str, CourseMetadata] = T05_COURSE_METADATA
 
@@ -260,10 +292,20 @@ def get_effective_slots(day_date: date | str, timetable: Timetable | None = None
             override_by_course[c_key] = o
 
     effective_slots: list[Slot] = []
+    course_aliases = {
+        "SDG": "ISDG",
+        "ISDG": "SDG",
+        "KABADDI": "KABBADI",
+        "KABBADI": "KABADDI",
+    }
     for s in base_slots:
         ov = override_by_period.get(s.period)
         if not ov:
             ov = override_by_course.get(s.course.upper())
+        if not ov:
+            c_alt = course_aliases.get(s.course.upper())
+            if c_alt:
+                ov = override_by_course.get(c_alt)
 
         if ov:
             status = ov.get("status", "OVERRIDE")
@@ -358,14 +400,16 @@ def format_day_schedule(
         c_code, c_name = COURSE_INFO.get(s.course, (s.course, s.course))
         room = s.room
         section = s.section or (
-            "S-11" if s.course in ("CIS", "CNNP") else ("S-1" if s.course == "KABBADI" else "S-10")
+            "S-11"
+            if s.course in ("CIS", "CNNP")
+            else ("S-1" if s.course in ("KABBADI", "KABADDI") else "S-10")
         )
         c_type = getattr(s, "slot_type", None)
         if not c_type or c_type == "Lecture":
             if s.course == "JAPANESE":
                 c_type = "Skill"
-            elif s.course == "KABBADI":
-                c_type = "VAC"
+            elif s.course in ("KABBADI", "KABADDI"):
+                c_type = "Skill" if getattr(s, "slot_type", None) == "Skill" else "VAC"
             elif "HC-" in room or (s.course == "CIS" and s.period in (5, 7)):
                 c_type = "Practical" if s.course == "CIS" else "Lab"
             elif not c_type:
@@ -424,13 +468,30 @@ def parse_periods(text: str) -> list[int]:
         try:
             from datetime import datetime
 
-            t_str = time_range_match.group(1).strip().upper()
-            if "AM" in t_str or "PM" in t_str:
-                t_start = datetime.strptime(t_str, "%I:%M %p").time()
-            else:
-                t_start = datetime.strptime(t_str, "%H:%M").time()
+            def _parse_t(t_str: str):
+                t_str = t_str.strip().upper()
+                if "AM" in t_str or "PM" in t_str:
+                    return datetime.strptime(t_str, "%I:%M %p").time()
+                return datetime.strptime(t_str, "%H:%M").time()
+
+            t_start = _parse_t(time_range_match.group(1))
+            t_end = _parse_t(time_range_match.group(2))
 
             start_mins = t_start.hour * 60 + t_start.minute
+            end_mins = t_end.hour * 60 + t_end.minute
+
+            # Check Cluster 4 Even Semester 2026-2027 block times
+            c4_blocks = [
+                (9 * 60, 10 * 60 + 40, [1, 2]),
+                (10 * 60 + 50, 12 * 60 + 30, [3, 4]),
+                (12 * 60 + 40, 13 * 60 + 30, [5]),
+                (14 * 60 + 20, 15 * 60 + 10, [7]),
+                (15 * 60 + 20, 17 * 60, [8, 9]),
+            ]
+            for s_m, e_m, p_list in c4_blocks:
+                if abs(start_mins - s_m) <= 10 and abs(end_mins - e_m) <= 10:
+                    return p_list
+
             period_map = {
                 1: 8 * 60 + 10,
                 2: 9 * 60 + 0,
@@ -453,20 +514,28 @@ def parse_periods(text: str) -> list[int]:
             pass
 
     periods = set()
-    m = re.search(r"P(\d+)", text, re.IGNORECASE)
-    m_end = re.search(r"-P(\d+)", text, re.IGNORECASE)
-    if m:
-        p_start = int(m.group(1))
-        p_end = int(m_end.group(1)) if m_end else p_start
+    range_match = re.search(
+        r"(?:PERIOD\s*|P)(\d+)\s*(?:-|TO)\s*(?:PERIOD\s*|P)?(\d+)", text, re.IGNORECASE
+    )
+    if range_match:
+        p_start = int(range_match.group(1))
+        p_end = int(range_match.group(2))
         for p in range(p_start, p_end + 1):
-            if p != 6:  # No P6
-                periods.add(p)
-    elif "PERIOD" in text.upper():
-        m = re.search(r"PERIOD\s*[-]?\s*(\d+)", text, re.IGNORECASE)
-        if m:
-            p = int(m.group(1))
             if p != 6:
                 periods.add(p)
+    else:
+        p_matches = re.findall(r"\bP(\d+)\b", text, re.IGNORECASE)
+        if p_matches:
+            for pm in p_matches:
+                p_val = int(pm)
+                if p_val != 6:
+                    periods.add(p_val)
+        elif "PERIOD" in text.upper():
+            p_words = re.findall(r"PERIOD\s*[-]?\s*(\d+)", text, re.IGNORECASE)
+            for pw in p_words:
+                p_val = int(pw)
+                if p_val != 6:
+                    periods.add(p_val)
 
     return sorted(list(periods))
 
@@ -500,8 +569,23 @@ def validate(event, timetable: Timetable | None) -> Verdict:
     day_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
     event_day = day_map.get(dt.weekday())
 
+    def _course_match(c1: str, c2: str) -> bool:
+        if not c1 or not c2:
+            return False
+        if c1.upper() == c2.upper():
+            return True
+        aliases = {
+            "SDG": "ISDG",
+            "ISDG": "SDG",
+            "KABADDI": "KABBADI",
+            "KABBADI": "KABADDI",
+        }
+        return aliases.get(c1.upper()) == c2.upper()
+
     course_slots = [
-        s for s in timetable.slots if s.day == event_day and s.course == event.course_name
+        s
+        for s in timetable.slots
+        if s.day == event_day and _course_match(s.course, event.course_name)
     ]
 
     periods = parse_periods(event.period or "")

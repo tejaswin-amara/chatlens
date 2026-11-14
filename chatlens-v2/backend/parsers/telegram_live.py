@@ -1,6 +1,7 @@
 """Live Telegram message fetcher via Telethon."""
 
 import asyncio
+import logging
 import os
 import sys
 from datetime import datetime
@@ -9,8 +10,36 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.types import User
 
+try:
+    from telethon.errors import (
+        AuthKeyDuplicatedError,
+        AuthKeyUnregisteredError,
+        FloodWaitError,
+        SessionExpiredError,
+        SessionRevokedError,
+    )
+except ImportError:
+
+    class AuthKeyDuplicatedError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class AuthKeyUnregisteredError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class SessionExpiredError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class SessionRevokedError(Exception):  # type: ignore[no-redef]
+        pass
+
+    class FloodWaitError(Exception):  # type: ignore[no-redef]
+        pass
+
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
+
+logger = logging.getLogger(__name__)
 
 SESSION_NAME = "chatlens_session"
 
@@ -39,57 +68,139 @@ def _get_client() -> TelegramClient:
 
 
 async def check_status() -> bool:
-    client = _get_client()
-    await client.connect()
-    auth = await client.is_user_authorized()
-    await client.disconnect()
-    return auth
+    try:
+        client = _get_client()
+        await client.connect()
+        auth = await client.is_user_authorized()
+        await client.disconnect()
+        return bool(auth)
+    except (AuthKeyDuplicatedError, SessionRevokedError, SessionExpiredError) as exc:
+        logger.warning(f"Telegram live session conflict or invalidation: {exc}")
+        return False
+    except Exception as exc:
+        if "AuthKeyDuplicated" in type(exc).__name__:
+            logger.warning(f"Session collision with active daemon session: {exc}")
+            return False
+        logger.debug(f"Telegram check_status warning: {exc}")
+        return False
 
 
 async def send_code(phone: str) -> str:
     """Send login code to phone, return phone_code_hash."""
     client = _get_client()
-    await client.connect()
-    if await client.is_user_authorized():
+    try:
+        await client.connect()
+    except (AuthKeyDuplicatedError, SessionRevokedError, SessionExpiredError) as exc:
+        logger.warning(f"Session collision on send_code: {exc}")
+        raise ValueError("Telegram session collision with active daemon session") from exc
+    except Exception as exc:
+        if "AuthKeyDuplicated" in type(exc).__name__:
+            logger.warning(f"Session collision on send_code: {exc}")
+            raise ValueError("Telegram session collision with active daemon session") from exc
+        raise
+
+    try:
+        if await client.is_user_authorized():
+            await client.disconnect()
+            return "ALREADY_AUTHORIZED"
+        sent = await client.send_code_request(phone)
         await client.disconnect()
-        return "ALREADY_AUTHORIZED"
-    sent = await client.send_code_request(phone)
-    await client.disconnect()
-    return sent.phone_code_hash
+        return sent.phone_code_hash
+    except Exception:
+        await client.disconnect()
+        raise
 
 
 async def verify_code(phone: str, code: str, phone_code_hash: str) -> bool:
     """Verify code and save session."""
     client = _get_client()
-    await client.connect()
+    try:
+        await client.connect()
+    except (AuthKeyDuplicatedError, SessionRevokedError, SessionExpiredError) as exc:
+        logger.warning(f"Session collision on verify_code: {exc}")
+        return False
+    except Exception as exc:
+        if "AuthKeyDuplicated" in type(exc).__name__:
+            logger.warning(f"Session collision on verify_code: {exc}")
+            return False
+        raise
+
     try:
         if await client.is_user_authorized():
             return True
         await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
         return True
+    except (AuthKeyDuplicatedError, SessionRevokedError, SessionExpiredError) as exc:
+        logger.warning(f"Session collision during sign_in: {exc}")
+        return False
     except Exception as e:
+        if "AuthKeyDuplicated" in type(e).__name__:
+            logger.warning(f"Session collision during sign_in: {e}")
+            return False
         raise ValueError(f"Failed to verify code: {e}") from e
     finally:
-        await client.disconnect()
+        try:
+            await client.disconnect()
+        except Exception as exc:
+            logger.debug(f"Client disconnect warning: {exc}")
 
 
 async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
-    client = _get_client()
-    await client.connect()
-    if not await client.is_user_authorized():
-        await client.disconnect()
-        raise PermissionError("Not authorized. Please login first.")
+    try:
+        client = _get_client()
+    except Exception as exc:
+        logger.warning(f"Telegram client setup failed: {exc}")
+        return []
+
+    try:
+        await client.connect()
+    except (AuthKeyDuplicatedError, SessionRevokedError, SessionExpiredError) as exc:
+        logger.warning(f"Telegram live connection collision with active daemon: {exc}")
+        return []
+    except Exception as exc:
+        if "AuthKeyDuplicated" in type(exc).__name__:
+            logger.warning(f"Session collision detected on connect: {exc}")
+            return []
+        logger.error(f"Failed to connect to Telegram live: {exc}")
+        return []
 
     results: list[dict] = []
     try:
+        try:
+            authorized = await client.is_user_authorized()
+        except (AuthKeyDuplicatedError, SessionRevokedError, SessionExpiredError) as exc:
+            logger.warning(f"Telegram auth check collision with active daemon: {exc}")
+            return []
+        except Exception as exc:
+            if "AuthKeyDuplicated" in type(exc).__name__:
+                logger.warning(f"Session collision detected on auth check: {exc}")
+                return []
+            raise
+
+        if not authorized:
+            raise PermissionError("Not authorized. Please login first.")
+
         dialogs = await client.get_dialogs()
         targets = dialogs
         if chat_names:
             name_set = {n.lower() for n in chat_names}
             targets = [d for d in dialogs if d.name.lower() in name_set]
         else:
-            # Cap to 5 most recent dialogs to avoid hanging during initial unconstrained sync
-            targets = targets[:5]
+            # Respect SPARK_CHAT_IDS if configured
+            spark_chat_ids_raw = os.getenv("SPARK_CHAT_IDS", "")
+            allowlisted_ids: set[int] = set()
+            if spark_chat_ids_raw:
+                for token in spark_chat_ids_raw.replace(";", ",").split(","):
+                    token_str = token.strip()
+                    if token_str:
+                        try:
+                            allowlisted_ids.add(int(token_str))
+                        except ValueError:
+                            pass
+            if allowlisted_ids:
+                targets = [d for d in dialogs if getattr(d, "id", None) in allowlisted_ids]
+            else:
+                targets = targets[:5]
 
         for dialog in targets:
             try:
@@ -116,13 +227,34 @@ async def _fetch(chat_names: list[str] | None, limit: int) -> list[dict]:
                             ),
                         }
                     )
+            except (AuthKeyDuplicatedError, SessionRevokedError) as exc:
+                logger.warning(
+                    f"Session collision while reading dialog {getattr(dialog, 'name', '')}: {exc}"
+                )
+                break
             except Exception as e:
-                print(f"Error fetching dialog {dialog.name}: {e}")
-                if "FloodWait" in type(e).__name__:
-                    print("Hit rate limit, stopping sync early.")
+                if "AuthKeyDuplicated" in type(e).__name__:
+                    logger.warning(
+                        "Session collision detected during message iteration, stopping gracefully."
+                    )
                     break
+                logger.error(f"Error fetching dialog {getattr(dialog, 'name', '')}: {e}")
+                if "FloodWait" in type(e).__name__:
+                    logger.warning("Hit rate limit, stopping sync early.")
+                    break
+    except (AuthKeyDuplicatedError, SessionRevokedError) as exc:
+        logger.warning(f"Session collision encountered during live fetch: {exc}")
+        return []
+    except Exception as exc:
+        if "AuthKeyDuplicated" in type(exc).__name__:
+            logger.warning("Session collision detected during live fetch.")
+            return []
+        raise
     finally:
-        await client.disconnect()
+        try:
+            await client.disconnect()
+        except Exception as exc:
+            logger.debug(f"Client disconnect warning: {exc}")
 
     return results
 

@@ -151,3 +151,20 @@ def test_telegram_parser_full_account(tmp_path: Path):
     assert results[0]["text"] == "Lab session at HC-15C today."
     assert results[1]["chat_name"] == "DSA Class"
     assert results[1]["text"] == "Practice problem set uploaded."
+
+
+def test_telegram_live_session_collision_guard():
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from parsers.telegram_live import AuthKeyDuplicatedError, _fetch, check_status
+
+    mock_client = AsyncMock()
+    mock_client.connect.side_effect = AuthKeyDuplicatedError("Session collision detected")
+
+    with patch("parsers.telegram_live._get_client", return_value=mock_client):
+        status = asyncio.run(check_status())
+        assert status is False
+
+        results = asyncio.run(_fetch(None, 50))
+        assert results == []

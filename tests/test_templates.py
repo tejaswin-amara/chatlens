@@ -341,3 +341,77 @@ def test_academic_calendar_loading_and_milestones():
 
     fee_date = get_milestone_date("fee", date(2026, 8, 1), cal)
     assert fee_date == date(2026, 9, 26)
+
+
+def test_format_grouped_attendance():
+    from src.formatting.templates import format_grouped_attendance
+
+    # 1. Empty records
+    empty_out = format_grouped_attendance([])
+    assert "No attendance records available" in empty_out
+
+    # 2. Multi-component grouping and single-component course
+    records = [
+        # Multi-component: Cloud Infrastructure & Services (L, S, P)
+        {
+            "course_code": "25CS2206E",
+            "course_name": "Cloud Infrastructure & Services",
+            "ltps": "L",
+            "attended": 14,
+            "conducted": 14,
+            "percentage": 100.0,
+            "safe_bunks": 2,
+            "recovery_needed": 0,
+        },
+        {
+            "course_code": "25CS2206E",
+            "course_name": "Cloud Infrastructure & Services",
+            "ltps": "S",
+            "attended": 12,
+            "conducted": 14,
+            "percentage": 85.71,
+            "safe_bunks": 0,
+            "recovery_needed": 0,
+        },
+        {
+            "course_code": "25CS2206E",
+            "course_name": "Cloud Infrastructure & Services",
+            "ltps": "P",
+            "attended": 9,
+            "conducted": 14,
+            "percentage": 64.29,
+            "safe_bunks": 0,
+            "recovery_needed": 5,
+        },
+        # Single component: Sustainable Development Goals (L only)
+        {
+            "course_code": "25UC0032E",
+            "course_name": "Insights to Sustainable Development Goals",
+            "ltps": "Lecture",
+            "attended": 10,
+            "conducted": 10,
+            "percentage": 100.0,
+            "safe_bunks": 1,
+            "recovery_needed": 0,
+        },
+    ]
+
+    out = format_grouped_attendance(records)
+    assert "Live Attendance Overview (KL ERP)" in out
+    # Multi-component course header and tree formatting
+    assert "Cloud Infrastructure & Services" in out
+    assert "25CS2206E" in out
+    assert "Overall: 35/42 (83.33%)" in out
+    assert "├" in out
+    assert "└" in out
+    assert "Lecture (L)" in out
+    assert "Skill (S)" in out
+    assert "Practical (P)" in out
+    # Single component course
+    assert "Insights to Sustainable Development Goals" in out
+    assert "25UC0032E" in out
+    assert "10/10 (100.0%)" in out
+    assert "1 safe bunk" in out
+    # Detention and action required alerts
+    assert "Detention Warning" in out
+    assert "Action Required" in out

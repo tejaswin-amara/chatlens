@@ -88,6 +88,14 @@ services:
     container_name: chatlens-backend
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
     expose:
       - "8000"
     ports:
@@ -135,6 +143,14 @@ services:
     container_name: chatlens-celery
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
     command: celery -A celery_worker.celery_app worker --loglevel=info
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-chatlens}}
@@ -192,7 +208,7 @@ services:
     volumes:
       - spark_data:/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import os, sqlite3, sys; db = os.getenv('SPARK_DB', '/app/data/spark.db'); sys.exit(0 if os.path.exists(db) and sqlite3.connect(f'file:{db}?mode=ro', uri=True).execute('PRAGMA integrity_check').fetchone()[0] == 'ok' else 1)"]
+      test: ["CMD", "python", "-c", "import os, sqlite3, sys, time; db = os.getenv('SPARK_DB', '/app/data/spark.db'); c = sqlite3.connect(f'file:{db}?mode=ro', uri=True) if os.path.exists(db) else sys.exit(1); ok = c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'; rows = dict(c.execute('SELECT key, value FROM meta').fetchall()); ts = max([float(rows[k]) for k in ('last_heartbeat', 'last_startup_notify_ts') if k in rows and rows[k]], default=0); sys.exit(0 if ok and (time.time() - ts) < 180 else 1)"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -205,6 +221,14 @@ services:
     container_name: chatlens-postgres
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -228,6 +252,14 @@ services:
     container_name: chatlens-redis
     restart: unless-stopped
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:6379:6379"

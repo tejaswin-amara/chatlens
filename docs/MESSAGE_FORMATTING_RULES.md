@@ -74,6 +74,29 @@ Use emojis strictly according to their domain meaning:
        • **Notes**: Guidance text
   ```
 
+### [R-UI-6] Hierarchical LTPS Attendance Grouping
+- All attendance cards must group instructional components (Lecture, Tutorial, Practical, Skilling) under their canonical course header.
+- Multi-component cards must display component percentages with visual bars, safe bunks ($B_{85}, B_{75}$), and classes needed for recovery.
+- If required recovery classes exceed remaining term classes ($m_{75} > R$), display hard detention warning: `🚨 DETENTION LOCKOUT`.
+  ```text
+  📊 **Live Academic Attendance & Safe Bunk Margins**
+  🕒 *Term T05 • Updated: 14 Nov 2026, 20:15 IST*
+
+  • 🧠 **GENAI** (`24CS2105A`) — **90.48%** 🟢 Safe
+    ├ 📘 **Lecture**: 88.89% (16/18 hrs) `[████████░░]` 🟢 +0 safe
+    └ 💻 **Practical**: 91.67% (22/24 hrs) `[█████████░]` 🟢 +2 safe
+  ```
+
+### [R-UI-7] Grounded RAG Citations & Zero Speculation
+- Conversational answers to natural language questions must cite their authoritative source in square brackets:
+  - Chat Source: `[Chat: <Channel/Group Name>, <Date/Time>]`
+  - Document Source: `[Doc: <Filename>]`
+- If information is absent from indexed chats or documents, respond strictly with: `"Not found in your chats/documents."` Never speculate or invent room numbers, dates, or faculty names.
+
+### [R-UI-8] Timetable T05 Schedule & Period 6 Invariant
+- Timetable displays must map official periods P1 (08:10) through P11 (18:00).
+- Period 6 (`12:45–13:45`) is strictly reserved for the campus lunch break and must never be rendered as an academic lecture slot.
+
 ---
 
 ## 3. Template Reference Implementations
@@ -82,6 +105,7 @@ All templates are centralized in `src/formatting/templates.py`:
 - `render_deadlines_card(today_date, milestones, pending_items)`
 - `render_day_schedule(target_date, slots, active_deadlines, is_today, term, section)`
 - `render_status_card(now_dt, spark_mode, chat_count, model_name, erp_user, owner_chat_id)`
-- `render_attendance_card(records, now_dt)`
+- `format_grouped_attendance(records, now_dt, courses_meta)`
+- `render_bunk_calculator(course_code, component, current_pct, conducted, attended, remaining_classes)`
 - `render_proactive_reminder(course_name, course_code, period, summary, intent)`
 - `get_standard_navigation_buttons()`
