@@ -249,6 +249,15 @@ class BotClient:
             if split_idx == -1:
                 split_idx = max_chunk_size
 
+            if split_idx > 1 and remaining[split_idx - 1] == "\\":
+                bs_count = 0
+                idx = split_idx - 1
+                while idx >= 0 and remaining[idx] == "\\":
+                    bs_count += 1
+                    idx -= 1
+                if bs_count % 2 == 1:
+                    split_idx -= 1
+
             chunk = remaining[:split_idx].rstrip()
             if chunk:
                 chunks.append(chunk)
@@ -286,23 +295,34 @@ class BotClient:
             )
             return {"ok": False, "description": "Blocked: Unsolicited group message"}
 
+        chosen_parse_mode = parse_mode
+        if not chosen_parse_mode and ("**" in text or "`" in text or "*" in text):
+            chosen_parse_mode = "Markdown"
+
+        if chosen_parse_mode == "Markdown":
+            from src.formatting.markdown_safety import sanitize_markdown
+
+            text = sanitize_markdown(text)
+
         chunks = self._chunk_text(text, max_chunk_size=4000)
+        if chosen_parse_mode == "Markdown":
+            from src.formatting.markdown_safety import sanitize_markdown
+
+            sanitized_chunks: list[str] = []
+            for ch in chunks:
+                ch = sanitize_markdown(ch)
+                if len(ch) > 4000:
+                    sanitized_chunks.extend(self._chunk_text(ch, max_chunk_size=4000))
+                else:
+                    sanitized_chunks.append(ch)
+            chunks = sanitized_chunks
+
         res: dict = {}
 
         for idx, chunk in enumerate(chunks):
             is_last = idx == len(chunks) - 1
             data: dict = {"chat_id": target_chat_id, "text": chunk}
-            chosen_parse_mode = parse_mode
-            if not chosen_parse_mode and ("**" in chunk or "`" in chunk or "*" in chunk):
-                chosen_parse_mode = "Markdown"
-
-            if chosen_parse_mode == "Markdown":
-                from src.formatting.markdown_safety import sanitize_markdown
-
-                chunk = sanitize_markdown(chunk)
-                data["text"] = chunk
-                data["parse_mode"] = chosen_parse_mode
-            elif chosen_parse_mode:
+            if chosen_parse_mode:
                 data["parse_mode"] = chosen_parse_mode
 
             if is_last:
@@ -334,7 +354,17 @@ class BotClient:
                         error=str(e),
                     )
                     data.pop("parse_mode", None)
-                    res = self._retry("sendMessage", data)
+                    fallback_text = data.get("text", "")
+                    if len(fallback_text) > 4000:
+                        fb_chunks = self._chunk_text(fallback_text, max_chunk_size=4000)
+                        for fb_idx, fb_chunk in enumerate(fb_chunks):
+                            fb_data = dict(data)
+                            fb_data["text"] = fb_chunk
+                            if fb_idx < len(fb_chunks) - 1:
+                                fb_data.pop("reply_markup", None)
+                            res = self._retry("sendMessage", fb_data)
+                    else:
+                        res = self._retry("sendMessage", data)
                 else:
                     raise
 
@@ -351,22 +381,28 @@ class BotClient:
         chat_id: int | str | None = None,
     ) -> dict:
         target_chat_id = chat_id if chat_id is not None else settings.owner_chat_id
-        if len(text) > 4000:
-            text = text[:3997] + "..."
-        data = {"chat_id": target_chat_id, "message_id": message_id, "text": text}
         if parse_mode == "Markdown":
             from src.formatting.markdown_safety import sanitize_markdown
 
             text = sanitize_markdown(text)
-            data["text"] = text
-            data["parse_mode"] = parse_mode
-        elif parse_mode:
+            if len(text) > 4000:
+                text = text[:3997].rstrip("\\") + "..."
+                text = sanitize_markdown(text)
+                if len(text) > 4000:
+                    text = text[:3997].rstrip("\\") + "..."
+        elif len(text) > 4000:
+            text = text[:3997] + "..."
+
+        data: dict = {"chat_id": target_chat_id, "message_id": message_id, "text": text}
+        if parse_mode:
             data["parse_mode"] = parse_mode
         try:
             return self._retry("editMessageText", data)
         except BotError as e:
             if parse_mode and "400" in str(e):
                 data.pop("parse_mode", None)
+                if len(data.get("text", "")) > 4000:
+                    data["text"] = data["text"][:3997] + "..."
                 return self._retry("editMessageText", data)
             raise
 

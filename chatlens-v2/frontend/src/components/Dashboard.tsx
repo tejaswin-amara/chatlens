@@ -58,7 +58,7 @@ const chartOptions = (title: string) => ({
 
 function SkeletonCard() {
   return (
-    <div className="bg-brand-card border border-brand-border rounded-brand p-5 animate-pulse">
+    <div className="bg-brand-card border border-brand-border rounded-brand p-5 motion-safe:animate-pulse">
       <div className="h-7 w-20 bg-brand-border/50 rounded mb-2" />
       <div className="h-3 w-24 bg-brand-border/50 rounded" />
     </div>
@@ -67,7 +67,7 @@ function SkeletonCard() {
 
 function SkeletonChart() {
   return (
-    <div className="bg-brand-card border border-brand-border rounded-brand p-5 h-64 animate-pulse">
+    <div className="bg-brand-card border border-brand-border rounded-brand p-5 h-64 motion-safe:animate-pulse">
       <div className="h-3 w-32 bg-brand-border/50 rounded mb-4" />
       <div className="flex items-end gap-1 h-40">
         {[40, 60, 30, 80, 50, 70, 90, 40, 50, 60, 80, 50].map((h, i) => (

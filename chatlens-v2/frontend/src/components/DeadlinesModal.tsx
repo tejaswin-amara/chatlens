@@ -100,7 +100,7 @@ export default function DeadlinesModal({ open, onClose, onToast }: DeadlinesModa
               aria-label="Refresh deadlines"
               className="p-1.5 rounded-lg border border-brand-border text-brand-text-dim hover:text-brand-text transition-colors"
             >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={14} className={loading ? "motion-safe:animate-spin" : ""} />
             </button>
             <button
               onClick={onClose}
@@ -133,11 +133,11 @@ export default function DeadlinesModal({ open, onClose, onToast }: DeadlinesModa
               >
                 {briefingLoading ? (
                   <>
-                    <RefreshCw size={14} className="animate-spin" /> Synthesizing...
+                    <RefreshCw size={14} className="motion-safe:animate-spin" /> Synthesizing...
                   </>
                 ) : isSpeaking ? (
                   <>
-                    <Volume2 size={14} className="animate-pulse" /> Speaking...
+                    <Volume2 size={14} className="motion-safe:animate-pulse" /> Speaking...
                   </>
                 ) : (
                   <>

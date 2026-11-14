@@ -74,7 +74,7 @@ export default function SparkStatusModal({ open, onClose, onRefresh }: SparkStat
               title="Refresh status"
               aria-label="Refresh status"
             >
-              <RefreshCw size={14} className={clsx(loading && "animate-spin-custom")} />
+              <RefreshCw size={14} className={clsx(loading && "motion-safe:animate-spin")} />
             </button>
             <button
               onClick={onClose}
@@ -90,7 +90,7 @@ export default function SparkStatusModal({ open, onClose, onRefresh }: SparkStat
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-[0.8rem]">
           {loading && !status ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full animate-spin-custom" />
+              <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full motion-safe:animate-spin" />
               <span className="text-brand-text-dim text-xs">Querying SPARK SQLite State...</span>
             </div>
           ) : !status ? (

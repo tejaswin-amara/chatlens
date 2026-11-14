@@ -84,8 +84,10 @@ body {
   to { transform: rotate(360deg); }
 }
 
-.animate-spin-custom {
-  animation: spin 0.7s linear infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .motion-safe\:animate-spin-custom {
+    animation: spin 0.7s linear 2;
+  }
 }
 
 /* Glassmorphism Utilities */
@@ -127,7 +129,7 @@ body {
 .skeleton {
   background: linear-gradient(90deg, var(--color-brand-border) 25%, rgba(255,255,255,0.08) 50%, var(--color-brand-border) 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.8s linear 2;
   border-radius: 4px;
 }
 

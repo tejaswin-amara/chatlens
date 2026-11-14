@@ -96,7 +96,7 @@ describe("Frontend Component Suite (SSR Markup & Accessibility)", () => {
           messagesEndRef={ref}
         />
       );
-      expect(html).toContain("animate-pulse");
+      expect(html).toContain("motion-safe:animate-pulse");
     });
 
     it("renders empty state message when list is empty", () => {
@@ -170,7 +170,7 @@ describe("Frontend Component Suite (SSR Markup & Accessibility)", () => {
       const html = renderToStaticMarkup(
         <Dashboard chatStats={null} loading={true} onFilterSender={vi.fn()} />
       );
-      expect(html).toContain("animate-pulse");
+      expect(html).toContain("motion-safe:animate-pulse");
     });
 
     it("renders aggregated metrics and top contributors with filter buttons", () => {

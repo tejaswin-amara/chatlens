@@ -63,7 +63,7 @@ export function MessageList({
           <div
             key={i}
             className={clsx(
-              "rounded-brand p-4 bg-brand-border/50 animate-pulse",
+              "rounded-brand p-4 bg-brand-border/50 motion-safe:animate-pulse",
               w,
               i % 2 === 0 ? "self-start" : "self-end"
             )}
@@ -96,7 +96,7 @@ export function MessageList({
             className="px-4 py-1.5 rounded-full border border-brand-border bg-brand-card hover:bg-white/5 text-[0.75rem] text-brand-text-dim hover:text-brand-text transition-colors flex items-center gap-2 disabled:opacity-50 spring-click"
           >
             {loadingEarlier && (
-              <div className="w-3 h-3 border-2 border-brand-accent border-t-transparent rounded-full animate-spin-custom" />
+              <div className="w-3 h-3 border-2 border-brand-accent border-t-transparent rounded-full motion-safe:animate-spin" />
             )}
             Load Earlier Messages
           </button>
@@ -177,15 +177,15 @@ export function MessageList({
       {aiLoading && (
         <div className="glass-panel rounded-brand p-5 my-2 animate-fade-in">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-3.5 h-3.5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin-custom" />
+            <div className="w-3.5 h-3.5 border-2 border-brand-accent border-t-transparent rounded-full motion-safe:animate-spin" />
             <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-brand-accent">
               {aiLoading}
             </span>
           </div>
           <div className="space-y-2">
-            <div className="h-2.5 w-full bg-brand-border/50 rounded animate-pulse" />
-            <div className="h-2.5 w-4/5 bg-brand-border/50 rounded animate-pulse" />
-            <div className="h-2.5 w-3/5 bg-brand-border/50 rounded animate-pulse" />
+            <div className="h-2.5 w-full bg-brand-border/50 rounded motion-safe:animate-pulse" />
+            <div className="h-2.5 w-4/5 bg-brand-border/50 rounded motion-safe:animate-pulse" />
+            <div className="h-2.5 w-3/5 bg-brand-border/50 rounded motion-safe:animate-pulse" />
           </div>
         </div>
       )}

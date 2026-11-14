@@ -195,17 +195,19 @@ def test_bot_send_custom_chat_id(mock_bot, mock_request):
         assert call_args["chat_id"] == 999888
 
 
-def _extract_payload(mock_request):
+def _extract_payload(target):
     import json
 
-    call = mock_request.call_args
-    kwargs = call.kwargs if hasattr(call, "kwargs") else call[1]
-    args = call.args if hasattr(call, "args") else call[0]
+    call = target if isinstance(target, tuple) else getattr(target, "call_args", None)
+    if call is None:
+        return {}
+    kwargs = getattr(call, "kwargs", call[1] if len(call) > 1 else {})
+    args = getattr(call, "args", call[0] if len(call) > 0 else ())
     if "data" in kwargs and kwargs["data"] is not None:
         return json.loads(kwargs["data"].decode("utf-8"))
     if len(args) > 1 and args[1] is not None:
         return json.loads(args[1].decode("utf-8"))
-    if getattr(args[0], "data", None) is not None:
+    if len(args) > 0 and getattr(args[0], "data", None) is not None:
         return json.loads(args[0].data.decode("utf-8"))
     return {}
 
@@ -345,3 +347,46 @@ def test_bot_edit_truncates_long_message(mock_bot, mock_request):
     payload = _extract_payload(mock_request)
     assert len(payload["text"]) <= 4000
     assert payload["text"].endswith("...")
+
+
+def test_bot_send_massive_underscores_markdown_chunking(mock_bot, mock_request):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"ok": true, "result": {"message_id": 1}}'
+    mock_request.return_value.__enter__.return_value = mock_resp
+
+    text = "a_b " * 950  # Raw length 3800; expands to 4750 when sanitized
+    res = mock_bot.send(text, parse_mode="Markdown")
+    assert res["ok"] is True
+    assert mock_request.call_count >= 2
+
+    for call in mock_request.call_args_list:
+        payload = _extract_payload(call)
+        assert len(payload["text"]) <= 4000
+        assert payload.get("parse_mode") == "Markdown"
+
+
+def test_bot_edit_massive_underscores_markdown_truncation(mock_bot, mock_request):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"ok": true, "result": {"message_id": 123}}'
+    mock_request.return_value.__enter__.return_value = mock_resp
+
+    text = "hello_" * 700  # Raw length 4200; expands to 4900 when sanitized
+    res = mock_bot.edit(123, text, parse_mode="Markdown")
+    assert res["ok"] is True
+
+    payload = _extract_payload(mock_request)
+    assert len(payload["text"]) <= 4000
+    assert payload["text"].endswith("...")
+    assert payload.get("parse_mode") == "Markdown"
+
+
+def test_bot_send_markdown_massive_underscores_avoids_telegram_400(mock_bot):
+    def mock_req(endpoint, data, timeout=30):
+        if len(data.get("text", "")) > 4096:
+            raise BotError("Telegram Bot HTTPError 400: Bad Request: message is too long")
+        return {"ok": True, "result": {"message_id": 1}}
+
+    mock_bot._request = mock_req
+    text = "@bot " + ("a_b " * 950)
+    res = mock_bot.send(text, chat_id=123456789, parse_mode="Markdown")
+    assert res["ok"] is True

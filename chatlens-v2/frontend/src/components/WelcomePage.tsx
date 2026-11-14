@@ -29,17 +29,17 @@ export function WelcomePage({ globalSummary }: WelcomePageProps) {
             {/* Ambient glow overlay */}
             <div
               className="absolute inset-0 rounded-brand bg-brand-accent/10 pointer-events-none"
-              style={{ animation: "ambientGlow 8s ease-in-out infinite alternate" }}
+              style={{ animation: "ambientGlow 8s ease-in-out 2 alternate" }}
             />
 
             <div className="relative z-10 text-[0.85rem] text-brand-text leading-relaxed">
               {globalSummary === null ? (
                 <div className="flex flex-col items-center gap-3 py-4">
-                  <div className="w-5 h-5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin-custom" />
+                  <div className="w-5 h-5 border-2 border-brand-accent border-t-transparent rounded-full motion-safe:animate-spin" />
                   <div className="w-full space-y-2">
-                    <div className="h-2.5 w-full bg-brand-border/50 rounded animate-pulse" />
-                    <div className="h-2.5 w-4/5 bg-brand-border/50 rounded animate-pulse" />
-                    <div className="h-2.5 w-3/5 bg-brand-border/50 rounded animate-pulse" />
+                    <div className="h-2.5 w-full bg-brand-border/50 rounded motion-safe:animate-pulse" />
+                    <div className="h-2.5 w-4/5 bg-brand-border/50 rounded motion-safe:animate-pulse" />
+                    <div className="h-2.5 w-3/5 bg-brand-border/50 rounded motion-safe:animate-pulse" />
                   </div>
                 </div>
               ) : (

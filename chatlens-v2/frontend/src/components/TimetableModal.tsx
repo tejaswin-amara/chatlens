@@ -95,7 +95,7 @@ export default function TimetableModal({ open, onClose, onToast }: TimetableModa
               aria-label="Refresh timetable"
               className="p-1.5 rounded-lg border border-brand-border text-brand-text-dim hover:text-brand-text transition-colors"
             >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={14} className={loading ? "motion-safe:animate-spin" : ""} />
             </button>
             <button
               onClick={onClose}
