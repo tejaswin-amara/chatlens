@@ -33,9 +33,9 @@ if ($Status) {
     $RegExists = [bool]$RegEntry
     Write-Host "  HKCU Run Registry   : $RegExists" -ForegroundColor $(if ($RegExists) { "Green" } else { "Gray" })
 
-    $TaskQuery = schtasks.exe /query /tn "$TaskName" 2>&1
-    $TaskExists = ($LASTEXITCODE -eq 0)
-    Write-Host "  Windows Watchdog    : $TaskExists (Every 2 min self-heal)" -ForegroundColor $(if ($TaskExists) { "Green" } else { "Gray" })
+    $TaskObj = Get-ScheduledTask -TaskName "$TaskName" -ErrorAction SilentlyContinue
+    $TaskActive = [bool]($TaskObj -and $TaskObj.State -ne "Disabled")
+    Write-Host "  Windows Watchdog    : $TaskActive (Every 2 min self-heal, State: $($TaskObj.State))" -ForegroundColor $(if ($TaskActive) { "Green" } else { "Red" })
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File "$ScriptPath" -Status
     exit 0
@@ -78,11 +78,21 @@ $LaunchCmd = "wscript.exe `"$VbsLauncherPath`""
 Set-ItemProperty -Path $RegistryKey -Name $RegistryValueName -Value $LaunchCmd -Force
 Write-Host "[+] Registered in HKCU CurrentVersion\Run registry key." -ForegroundColor Green
 
-# 3. Register persistent Windows Scheduled Task Watchdog (Every 2 minutes)
-$TaskCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $WatchdogPath -Quiet"
-schtasks.exe /create /tn "$TaskName" /tr "$TaskCmd" /sc MINUTE /mo 2 /f 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "[+] Registered Windows Scheduled Task Watchdog ($TaskName, every 2 min)." -ForegroundColor Green
+# 3. Register persistent Windows Scheduled Task Watchdog (Every 2 minutes, runs on battery & AC)
+$TaskRegistered = $false
+try {
+    $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogPath`" -Quiet"
+    $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 2)
+    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+    Register-ScheduledTask -TaskName "$TaskName" -Action $Action -Trigger $Trigger -Settings $Settings -Force | Out-Null
+    $TaskRegistered = $true
+} catch {
+    $TaskCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $WatchdogPath -Quiet"
+    schtasks.exe /create /tn "$TaskName" /tr "$TaskCmd" /sc MINUTE /mo 2 /f 2>&1 | Out-Null
+    $TaskRegistered = ($LASTEXITCODE -eq 0)
+}
+if ($TaskRegistered) {
+    Write-Host "[+] Registered Windows Scheduled Task Watchdog ($TaskName, every 2 min, battery-safe)." -ForegroundColor Green
 } else {
     Write-Host "[!] Note: Could not register Windows Task Scheduler entry." -ForegroundColor Yellow
 }

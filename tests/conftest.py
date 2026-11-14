@@ -1,4 +1,6 @@
 import shutil
+import subprocess
+import sys
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -84,3 +86,45 @@ def frozen_clock(monkeypatch):
         monkeypatch.setattr(clock, "now_ist", lambda: fixed.astimezone(clock.IST))
 
     return _freeze
+
+
+@pytest.fixture(scope="session", autouse=True)
+def preserve_production_daemon():
+    """Universal safety net: ensure the host daemon is never left terminated by test execution."""
+    if sys.platform != "win32":
+        yield
+        return
+
+    repo_root = Path(__file__).resolve().parent.parent
+    run_daemon_script = repo_root / "scripts" / "run_daemon.ps1"
+
+    def check_running() -> bool:
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(run_daemon_script),
+            "-Status",
+        ]
+        res = subprocess.run(  # noqa: S603, S607
+            cmd, cwd=str(repo_root), capture_output=True, text=True, timeout=15, check=False
+        )
+        return res.returncode == 0 and "Daemon Process : RUNNING" in res.stdout
+
+    was_running = check_running()
+    yield
+    if was_running and not check_running():
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(run_daemon_script),
+            "-Background",
+        ]
+        subprocess.run(  # noqa: S603, S607
+            cmd, cwd=str(repo_root), capture_output=True, text=True, timeout=15, check=False
+        )

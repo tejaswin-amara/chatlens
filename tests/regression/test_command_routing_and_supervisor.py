@@ -289,6 +289,19 @@ def wait_for_daemon_running(
     )
 
 
+@pytest.fixture(scope="module", autouse=True)
+def preserve_daemon_lifecycle():
+    """Ensure host production daemon is restored after supervisor tests finish."""
+    if sys.platform != "win32":
+        yield
+        return
+    status_proc = run_ps_script(["-Status"])
+    was_running = "RUNNING" in status_proc.stdout
+    yield
+    if was_running:
+        run_ps_script(["-Background"])
+
+
 @pytest.fixture(autouse=True)
 def clean_daemon_environment():
     """Ensure clean daemon process state before and after supervisor tests."""
@@ -296,11 +309,13 @@ def clean_daemon_environment():
         run_ps_script(["-Stop"])
         if PID_FILE.exists():
             PID_FILE.unlink(missing_ok=True)
+        time.sleep(0.5)
     yield
     if sys.platform == "win32":
         run_ps_script(["-Stop"])
         if PID_FILE.exists():
             PID_FILE.unlink(missing_ok=True)
+        time.sleep(0.5)
 
 
 @pytestmark_win32

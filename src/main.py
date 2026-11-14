@@ -1,6 +1,7 @@
 """Main daemon lifecycle runner for ChatLens PA Bot background worker."""
 
 import asyncio
+import contextlib
 import signal
 import sys
 
@@ -44,7 +45,15 @@ async def bot_callback_poll() -> None:
 
     while True:
         try:
-            updates = await asyncio.to_thread(bot.get_updates, offset, 1)
+            try:
+                updates = await asyncio.wait_for(
+                    asyncio.to_thread(bot.get_updates, offset, 1),
+                    timeout=35.0,
+                )
+            except TimeoutError:
+                logger.debug("get_updates poll timed out, cycling loop")
+                continue
+
             if updates and "result" in updates:
                 for up in updates["result"]:
                     update_id = up.get("update_id", offset)
@@ -170,22 +179,35 @@ async def run_briefing() -> None:
 
 async def run_heartbeat() -> None:
     import asyncio
+    import time
 
     from src.utils import clock
     from src.utils.deduplication import deduplicator
 
+    last_sheets_sync = 0.0
+
     while True:
         try:
-            from src.workspace.sheets_logger import sheets_logger
-
-            await asyncio.to_thread(sheets_logger.log_heartbeat)
+            # 1. Local SQLite heartbeat: update every 60s so healthcheck verifies responsiveness
             deduplicator.meta_set("last_heartbeat", str(clock.now_ist().timestamp()))
-            logger.debug("Heartbeat logged")
+            logger.debug("Local heartbeat logged")
+
+            # 2. External Google Sheets heartbeat: Periodic (900s), isolated from local heartbeat
+            now_ts = time.time()
+            if now_ts - last_sheets_sync >= 900:
+                try:
+                    from src.workspace.sheets_logger import sheets_logger
+
+                    await asyncio.to_thread(sheets_logger.log_heartbeat)
+                    last_sheets_sync = now_ts
+                except Exception as sheets_err:
+                    logger.warning("Failed to log Google Sheets heartbeat", error=str(sheets_err))
+
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            logger.warning("Failed to log heartbeat", error=str(e))
-        await asyncio.sleep(900)
+            logger.warning("Failed to record heartbeat", error=str(e))
+        await asyncio.sleep(60)
 
 
 async def run_reminders() -> None:
@@ -342,6 +364,7 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
 
     startup_sent = False
     backoff = BACKOFF_START
+    consecutive_connection_failures = 0
     try:
         while not stop_event.is_set():
             try:
@@ -351,6 +374,8 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                 if not await client.is_user_authorized():
                     logger.critical("Telethon session is unauthorized.")
                     return 2
+
+                consecutive_connection_failures = 0
 
                 if not startup_sent:
                     from src.timetable import load as load_timetable
@@ -410,6 +435,11 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
 
                 if not stop_event.is_set():
                     logger.warning("Telegram client disconnected cleanly. Reconnecting...")
+                    if hasattr(client, "disconnect"):
+                        with contextlib.suppress(Exception):
+                            res = client.disconnect()
+                            if asyncio.iscoroutine(res):
+                                await res
                     await _sleep_or_stop(stop_event, backoff)
                     backoff = min(backoff * 2, BACKOFF_MAX)
             except FloodWaitError as e:
@@ -432,6 +462,18 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                 return 2
             except Exception as e:
                 logger.error("Transient error in connection loop", error=str(e))
+                if hasattr(client, "disconnect"):
+                    with contextlib.suppress(Exception):
+                        res = client.disconnect()
+                        if asyncio.iscoroutine(res):
+                            await res
+                consecutive_connection_failures += 1
+                if consecutive_connection_failures >= 30:
+                    logger.critical(
+                        "Too many consecutive connection failures; requesting clean restart",
+                        failures=consecutive_connection_failures,
+                    )
+                    return 1
                 await _sleep_or_stop(stop_event, backoff)
                 backoff = min(backoff * 2, BACKOFF_MAX)
 
