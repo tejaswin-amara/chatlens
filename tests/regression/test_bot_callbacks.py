@@ -431,20 +431,9 @@ def test_bot_set_my_commands_exact_registration(monkeypatch):
     call = recorder.calls[0]
     assert call["endpoint"] == "setMyCommands"
     commands = call["data"]["commands"]
-    assert len(commands) == 10
+    assert len(commands) == 1
     cmd_names = [c["command"] for c in commands]
-    assert cmd_names == [
-        "today",
-        "attendance",
-        "deadlines",
-        "status",
-        "marks",
-        "cgpa",
-        "fee",
-        "rescan",
-        "undo",
-        "help",
-    ]
+    assert cmd_names == ["start"]
 
 
 # ============================================================================

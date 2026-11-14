@@ -570,7 +570,13 @@ export default function Home() {
             )}
           </>
         ) : (
-          <WelcomePage globalSummary={globalSummary} />
+          <WelcomePage
+            globalSummary={globalSummary}
+            onOpenTimetable={() => setTimetableModalOpen(true)}
+            onOpenDeadlines={() => setDeadlinesModalOpen(true)}
+            onOpenStatus={() => setSparkModalOpen(true)}
+            onOpenExamPrep={() => setExamPrepModalOpen(true)}
+          />
         )}
       </main>
 

@@ -244,16 +244,7 @@ def test_tier1_set_my_commands_registration():
     assert captured["endpoint"] == "setMyCommands"
     registered_cmds = [c["command"] for c in captured["data"]["commands"]]
     expected_cmds = [
-        "today",
-        "attendance",
-        "deadlines",
-        "status",
-        "marks",
-        "cgpa",
-        "fee",
-        "rescan",
-        "undo",
-        "help",
+        "start",
     ]
     assert registered_cmds == expected_cmds
 
@@ -281,24 +272,28 @@ async def test_tier1_fuzzy_command_routing(mock_bot_send, monkeypatch):
     monkeypatch.setattr(clock, "now_ist", lambda: fixed_dt)
     monkeypatch.setattr(clock, "today_ist", lambda: fixed_dt.date())
 
-    # Typos for /today
-    await handle_bot_command({"chat": {"id": 123456789}, "text": "/todat"})
+    # Typos and trailing punctuation for /today
+    await handle_bot_command({"chat": {"id": 123456789}, "text": "/today."})
     assert len(mock_bot_send) == 1
     assert "Database Systems Engineering" in mock_bot_send[0]["text"]
 
-    await handle_bot_command({"chat": {"id": 123456789}, "text": "/toda"})
+    await handle_bot_command({"chat": {"id": 123456789}, "text": "/todat"})
     assert len(mock_bot_send) == 2
     assert "Database Systems Engineering" in mock_bot_send[1]["text"]
 
+    await handle_bot_command({"chat": {"id": 123456789}, "text": "/toda"})
+    assert len(mock_bot_send) == 3
+    assert "Database Systems Engineering" in mock_bot_send[2]["text"]
+
     # Typos for /tomorrow
     await handle_bot_command({"chat": {"id": 123456789}, "text": "/tomorow"})
-    assert len(mock_bot_send) == 3
-    assert "⬡ [08:10 AM – 09:00 AM]:" in mock_bot_send[2]["text"]
+    assert len(mock_bot_send) == 4
+    assert "⬡ [08:10 AM – 09:00 AM]:" in mock_bot_send[3]["text"]
 
     # Typos for /status
     await handle_bot_command({"chat": {"id": 123456789}, "text": "/statuss"})
-    assert len(mock_bot_send) == 4
-    assert "ChatLens PA Status" in mock_bot_send[3]["text"]
+    assert len(mock_bot_send) == 5
+    assert "ChatLens PA Status" in mock_bot_send[4]["text"]
 
 
 def test_tier1_startup_debounce_cooldown(isolate_test_environment, monkeypatch):

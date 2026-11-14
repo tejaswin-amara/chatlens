@@ -468,12 +468,11 @@ async def run_daemon(*, client=None, stop_event=None, handle_signals=True) -> in
                         if asyncio.iscoroutine(res):
                             await res
                 consecutive_connection_failures += 1
-                if consecutive_connection_failures >= 30:
-                    logger.critical(
-                        "Too many consecutive connection failures; requesting clean restart",
+                if consecutive_connection_failures % 30 == 0:
+                    logger.warning(
+                        "Telegram network unreachable; continuing retry loop...",
                         failures=consecutive_connection_failures,
                     )
-                    return 1
                 await _sleep_or_stop(stop_event, backoff)
                 backoff = min(backoff * 2, BACKOFF_MAX)
 

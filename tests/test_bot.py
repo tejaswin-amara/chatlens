@@ -225,18 +225,9 @@ def test_bot_set_my_commands(mock_bot, mock_request):
     payload = _extract_payload(mock_request)
     assert "commands" in payload
     commands = payload["commands"]
-    assert len(commands) == 10
+    assert len(commands) == 1
     expected_commands = [
-        {"command": "today", "description": "Today's classes, rooms & status"},
-        {"command": "attendance", "description": "Live attendance & safe bunks"},
-        {"command": "deadlines", "description": "Upcoming deadlines & milestones"},
-        {"command": "status", "description": "Live daemon & chat monitoring status"},
-        {"command": "marks", "description": "In-sem assessment marks"},
-        {"command": "cgpa", "description": "Official academic grades & CGPA"},
-        {"command": "fee", "description": "Fee orders & payment receipts"},
-        {"command": "rescan", "description": "Rescan course group chats"},
-        {"command": "undo", "description": "Undo last applied calendar change"},
-        {"command": "help", "description": "Show all available options"},
+        {"command": "start", "description": "Open SPARK PA Academic Assistant"},
     ]
     assert commands == expected_commands
 

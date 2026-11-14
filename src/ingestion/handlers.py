@@ -918,6 +918,8 @@ async def handle_bot_command(msg: dict) -> None:
         text = raw_text
 
     cmd = text.split()[0].lower().split("@")[0] if text else ""
+    if cmd.startswith("/"):
+        cmd = re.sub(r"[^\w/]+$", "", cmd)
     sender_id = msg.get("from", {}).get("id") or chat_id
 
     if cmd in ("/", "/start") and sender_id:

@@ -426,16 +426,7 @@ class BotClient:
         if not self.base_url:
             return {"ok": False, "description": "BOT_TOKEN is not set"}
         commands = [
-            {"command": "today", "description": "Today's classes, rooms & status"},
-            {"command": "attendance", "description": "Live attendance & safe bunks"},
-            {"command": "deadlines", "description": "Upcoming deadlines & milestones"},
-            {"command": "status", "description": "Live daemon & chat monitoring status"},
-            {"command": "marks", "description": "In-sem assessment marks"},
-            {"command": "cgpa", "description": "Official academic grades & CGPA"},
-            {"command": "fee", "description": "Fee orders & payment receipts"},
-            {"command": "rescan", "description": "Rescan course group chats"},
-            {"command": "undo", "description": "Undo last applied calendar change"},
-            {"command": "help", "description": "Show all available options"},
+            {"command": "start", "description": "Open SPARK PA Academic Assistant"},
         ]
         data = {"commands": commands}
         try:
